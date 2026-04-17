@@ -1169,9 +1169,60 @@ body {
 </div>
 
 <!-- ════════════════════════════════════════
-     ADMIN — DASHBOARD
+     ADMIN — DÉTAIL CONVOYEUR
 ════════════════════════════════════════ -->
 
+<div id="s-conv-detail" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="go('admin')">←</div>
+    <div class="tb-title" id="cd-name">Convoyeur</div>
+    <div id="cd-docs-badge" style="display:none;font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:#f59e0b">⚠️ DOCS</div>
+  </div>
+  <div class="scroll">
+
+```
+<!-- Infos convoyeur -->
+<div style="background:#0e1117;border-bottom:1px solid rgba(255,255,255,.08);padding:1.1rem;display:flex;align-items:center;gap:1rem">
+  <div id="cd-av" style="width:54px;height:54px;border-radius:13px;background:#f5620f;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:800;color:#fff;flex-shrink:0">NB</div>
+  <div>
+    <div id="cd-fullname" style="font-weight:700;font-size:1rem;color:#f0f2f5"></div>
+    <div id="cd-email" style="font-size:.78rem;color:#7a8394;margin-top:.15rem"></div>
+    <div id="cd-phone" style="font-size:.78rem;color:#7a8394;margin-top:.05rem"></div>
+  </div>
+</div>
+
+<!-- Stats rapides -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid rgba(255,255,255,.07)">
+  <div style="padding:.9rem;text-align:center;border-right:1px solid rgba(255,255,255,.07)">
+    <div id="cd-missions" style="font-size:1.6rem;font-weight:800;color:#f0f2f5">—</div>
+    <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.1rem">Missions</div>
+  </div>
+  <div style="padding:.9rem;text-align:center;border-right:1px solid rgba(255,255,255,.07)">
+    <div style="font-size:1.6rem;font-weight:800;color:#22c55e">4.9</div>
+    <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.1rem">Note</div>
+  </div>
+  <div style="padding:.9rem;text-align:center">
+    <div id="cd-docs-count" style="font-size:1.6rem;font-weight:800;color:#f0f2f5">0/4</div>
+    <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.1rem">Docs validés</div>
+  </div>
+</div>
+
+<!-- Documents -->
+<div style="padding:.8rem 1.1rem .3rem;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#3d4452">Documents soumis</div>
+<div id="cd-docs-list" style="padding:0 1.1rem"></div>
+
+<!-- Bouton supprimer -->
+<div style="padding:1.1rem">
+  <button onclick="deleteConvoyeur()" style="width:100%;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-weight:700;font-size:.88rem;padding:.85rem;border-radius:10px;cursor:pointer">
+    🗑️ Supprimer ce compte
+  </button>
+</div>
+<div class="safe-bot"></div>
+```
+
+  </div>
+</div>
 <div id="s-admin" class="screen">
   <div class="safe-top"></div>
   <div class="admin-head">
@@ -1538,7 +1589,7 @@ body {
   /* ══════════════════════════════
      NAVIGATION
   ══════════════════════════════ */
-  const SCREEN_IDS = { home:'s-home', missions:'s-missions', detail:'s-detail', profile:'s-profile', admin:'s-admin', 'admin-detail':'s-admin-detail', login:'s-login', register:'s-register', documents:'s-documents', paiements:'s-paiements', statistiques:'s-statistiques' };
+  const SCREEN_IDS = { home:'s-home', missions:'s-missions', detail:'s-detail', profile:'s-profile', admin:'s-admin', 'admin-detail':'s-admin-detail', 'conv-detail':'s-conv-detail', login:'s-login', register:'s-register', documents:'s-documents', paiements:'s-paiements', statistiques:'s-statistiques' };
 
   window.go = function(name) {
     if (name === cur) return;
@@ -1599,15 +1650,11 @@ body {
   };
 
   window.doLogout = function() {
+    // Cache tous les écrans actifs
+    document.querySelectorAll('.screen.active').forEach(s => s.classList.remove('active'));
     document.getElementById('bnav-conv').classList.remove('on');
-    role = null;
+    role = null; userName = ''; cur = 'login';
     document.getElementById('s-login').classList.add('active');
-    cur = 'login';
-    const old = document.getElementById(SCREEN_IDS[cur === 'login' ? prev : cur]);
-    if (old) { old.classList.remove('active'); }
-    // Make login active
-    document.getElementById('s-login').classList.add('active');
-    cur = 'login';
     showToast('👋 Déconnecté');
   };
 
@@ -2164,6 +2211,45 @@ body {
     if (tabId==='tab-convoyeurs') renderConvoyeurs();
   };
 
+  /* ══════════════════════════════
+     DOCS helpers
+  ══════════════════════════════ */
+  const DOC_TYPES = [
+    { key:'permis',    label:'Permis de conduire',     ico:'🪪' },
+    { key:'cni',       label:"Carte d'identité",       ico:'🪪' },
+    { key:'kbis',      label:'Kbis / SIRET',           ico:'🏢' },
+    { key:'assurance', label:'Attestation assurance',  ico:'🛡️' },
+  ];
+
+  function getDocsForUser(email) {
+    try { return JSON.parse(localStorage.getItem('sct_docs_'+email)||'{}'); } catch { return {}; }
+  }
+  function saveDocsForUser(email, docs) {
+    localStorage.setItem('sct_docs_'+email, JSON.stringify(docs));
+  }
+  function countValidatedDocs(email) {
+    const docs = getDocsForUser(email);
+    return DOC_TYPES.filter(d => docs[d.key]?.status === 'validated').length;
+  }
+  function hasPendingDocs(email) {
+    const docs = getDocsForUser(email);
+    return DOC_TYPES.some(d => docs[d.key]?.status === 'sent');
+  }
+
+  /* ══════════════════════════════
+     ADMIN — TABS
+  ══════════════════════════════ */
+  window.adminTab = function(el, tabId) {
+    document.querySelectorAll('.atab').forEach(t=>t.classList.remove('on'));
+    el.classList.add('on');
+    ['tab-missions','tab-kanban','tab-convoyeurs','tab-create'].forEach(t => {
+      document.getElementById(t).style.display = t===tabId?'':'none';
+    });
+    if (tabId==='tab-missions') renderAdminMissions();
+    if (tabId==='tab-kanban') renderKanban();
+    if (tabId==='tab-convoyeurs') renderConvoyeurs();
+  };
+
   function renderConvoyeurs() {
     const claimed = getClaimed();
     const accounts = getAccounts().filter(u => u.role === 'conv');
@@ -2171,35 +2257,124 @@ body {
     if (!container) return;
     container.innerHTML = '';
     if (accounts.length === 0) {
-      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:3rem 2rem;gap:.7rem;color:var(--txt3);text-align:center"><div style="font-size:2rem;opacity:.3">👤</div><div style="font-size:.83rem">Aucun convoyeur inscrit.<br>Partagez le lien de l\'app pour les inviter.</div></div>';
+      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:3rem 2rem;gap:.7rem;color:#3d4452;text-align:center"><div style="font-size:2rem;opacity:.3">👤</div><div style="font-size:.83rem">Aucun convoyeur inscrit.<br>Partagez le lien de l\'app pour les inviter.</div></div>';
       return;
     }
-    // Count missions per convoyeur
     const missionCount = {};
     Object.values(claimed).forEach(name => { missionCount[name] = (missionCount[name]||0) + 1; });
 
     accounts.forEach(u => {
       const count = missionCount[u.name] || 0;
+      const pending = hasPendingDocs(u.email);
+      const validated = countValidatedDocs(u.email);
       const item = document.createElement('div');
       item.className = 'convoyeur-item';
+      item.style.cssText = 'cursor:pointer';
       item.innerHTML = `
-        <div class="c-av">${u.initials}</div>
+        <div class="c-av" style="position:relative">
+          ${u.initials}
+          ${pending ? '<div style="position:absolute;top:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid #080a0f"></div>' : ''}
+        </div>
         <div class="c-info">
           <div class="c-name">${u.name}</div>
           <div class="c-status ${count>0?'on':''}">${count>0?'● En mission':'⚫ Disponible'}</div>
-          <div style="font-size:.72rem;color:var(--txt3);margin-top:.1rem">${u.email}${u.phone?' · '+u.phone:''}</div>
+          <div style="font-size:.72rem;color:#3d4452;margin-top:.1rem">${u.email}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:.1rem">
-          <div class="c-missions">${count}</div>
-          <div style="font-size:.58rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em">missions</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem">
+          <div style="font-size:.72rem;font-weight:700;color:${validated===4?'#22c55e':pending?'#f59e0b':'#7a8394'}">${validated}/4 docs</div>
+          <div style="font-size:.65rem;color:#3d4452">${count} mission${count>1?'s':''}</div>
         </div>`;
-      // Long press to delete
-      let pressTimer;
-      item.addEventListener('touchstart', () => { pressTimer = setTimeout(() => { if(confirm('Supprimer le compte de '+u.name+' ?')) { const accs = getAccounts().filter(a=>a.email!==u.email); saveAccounts(accs); renderConvoyeurs(); showToast('🗑️ Compte supprimé'); } }, 1000); });
-      item.addEventListener('touchend', () => clearTimeout(pressTimer));
+      item.onclick = () => openConvDetail(u);
       container.appendChild(item);
     });
   }
+
+  /* ── ADMIN CONV DETAIL ── */
+  let currentConvEmail = null;
+
+  function openConvDetail(u) {
+    currentConvEmail = u.email;
+    const claimed = getClaimed();
+    const count = Object.values(claimed).filter(n=>n===u.name).length;
+    document.getElementById('cd-name').textContent = u.name;
+    document.getElementById('cd-av').textContent = u.initials;
+    document.getElementById('cd-fullname').textContent = u.name;
+    document.getElementById('cd-email').textContent = u.email;
+    document.getElementById('cd-phone').textContent = u.phone || 'Téléphone non renseigné';
+    document.getElementById('cd-missions').textContent = count;
+
+    renderConvDocs(u.email);
+    go('conv-detail');
+  }
+
+  function renderConvDocs(email) {
+    const docs = getDocsForUser(email);
+    const validated = DOC_TYPES.filter(d => docs[d.key]?.status === 'validated').length;
+    const pending   = DOC_TYPES.some(d => docs[d.key]?.status === 'sent');
+    document.getElementById('cd-docs-count').textContent = validated+'/4';
+    document.getElementById('cd-docs-count').style.color = validated===4 ? '#22c55e' : '#f0f2f5';
+    const badge = document.getElementById('cd-docs-badge');
+    badge.style.display = pending ? '' : 'none';
+
+    const container = document.getElementById('cd-docs-list');
+    container.innerHTML = '';
+
+    DOC_TYPES.forEach(d => {
+      const doc = docs[d.key];
+      const status = doc?.status || 'none';
+      let badgeHtml, badgeStyle;
+      if (status === 'validated') {
+        badgeHtml = '✅ Validé';
+        badgeStyle = 'background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e';
+      } else if (status === 'sent') {
+        badgeHtml = '⏳ En attente';
+        badgeStyle = 'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#f59e0b';
+      } else if (status === 'refused') {
+        badgeHtml = '❌ Refusé';
+        badgeStyle = 'background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444';
+      } else {
+        badgeHtml = 'Non soumis';
+        badgeStyle = 'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#3d4452';
+      }
+
+      const el = document.createElement('div');
+      el.style.cssText = 'background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;margin-bottom:.6rem;overflow:hidden';
+      el.innerHTML = `
+        <div style="padding:.85rem 1rem;display:flex;align-items:center;gap:.85rem">
+          <div style="width:40px;height:40px;border-radius:9px;background:rgba(245,98,15,.12);border:1px solid rgba(245,98,15,.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${d.ico}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:.88rem;color:#f0f2f5">${d.label}</div>
+            <div style="font-size:.72rem;color:#7a8394;margin-top:.1rem">${doc?.filename || 'Aucun fichier'}</div>
+          </div>
+          <div style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;${badgeStyle}">${badgeHtml}</div>
+        </div>
+        ${status === 'sent' ? `
+        <div style="display:flex;gap:.6rem;padding:.5rem .85rem .85rem">
+          <button onclick="validateDoc('${email}','${d.key}',true)" style="flex:1;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">✅ Valider</button>
+          <button onclick="validateDoc('${email}','${d.key}',false)" style="flex:1;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">❌ Refuser</button>
+        </div>` : ''}`;
+      container.appendChild(el);
+    });
+  }
+
+  window.validateDoc = function(email, docKey, approved) {
+    const docs = getDocsForUser(email);
+    if (!docs[docKey]) docs[docKey] = {};
+    docs[docKey].status = approved ? 'validated' : 'refused';
+    saveDocsForUser(email, docs);
+    renderConvDocs(email);
+    renderConvoyeurs();
+    showToast(approved ? '✅ Document validé' : '❌ Document refusé');
+  };
+
+  window.deleteConvoyeur = function() {
+    if (!currentConvEmail) return;
+    const accs = getAccounts().filter(a => a.email !== currentConvEmail);
+    saveAccounts(accs);
+    showToast('🗑️ Compte supprimé');
+    go('admin');
+    setTimeout(renderConvoyeurs, 300);
+  };
 
   /* ══════════════════════════════
      DOCUMENTS
@@ -2207,16 +2382,24 @@ body {
   window.docUploaded = function(input, docKey) {
     const file = input.files[0];
     if (!file) return;
+    // Sauvegarde dans le store de l'utilisateur connecté
+    const accounts = getAccounts();
+    const me = accounts.find(u => u.name === userName);
+    if (me) {
+      const docs = getDocsForUser(me.email);
+      docs[docKey] = { status: 'sent', filename: file.name, date: new Date().toLocaleDateString('fr-FR') };
+      saveDocsForUser(me.email, docs);
+    }
     const statusEl = document.getElementById('doc-'+docKey+'-status');
     const badgeEl  = document.getElementById('doc-'+docKey+'-badge');
     if (statusEl) statusEl.textContent = '✓ ' + file.name;
     if (badgeEl) {
       badgeEl.textContent = 'ENVOYÉ';
-      badgeEl.style.background = 'rgba(34,197,94,.12)';
-      badgeEl.style.borderColor = 'rgba(34,197,94,.3)';
-      badgeEl.style.color = '#22c55e';
+      badgeEl.style.background = 'rgba(245,158,11,.12)';
+      badgeEl.style.borderColor = 'rgba(245,158,11,.3)';
+      badgeEl.style.color = '#f59e0b';
     }
-    showToast('✅ Document envoyé — en attente de validation');
+    showToast('✅ Document envoyé — en attente de validation admin');
   };
 
   /* ══════════════════════════════
