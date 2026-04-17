@@ -8,10 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#080a0f"/>
   <title>SECOTO · App</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous"/>
   <style>
     /* Police de secours si Google Fonts ne charge pas */
-    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 ```
@@ -35,8 +35,8 @@
   --rbg:      rgba(239,68,68,.08);
   --yellow:   #f59e0b;
   --ybg:      rgba(245,158,11,.08);
-  --fh:       'Bebas Neue', 'Arial Narrow', Arial, sans-serif;
-  --fb:       'DM Sans', -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  --fh:       'Sora', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --fb:       'Sora', -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --r:        13px;
   --safe-bot: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -94,9 +94,9 @@ body {
   transition: background .15s;
 }
 .tb-back:active { background: var(--line2); }
-.tb-title { font-family: var(--fh); font-size: 1.2rem; letter-spacing: .06em; text-transform: uppercase; flex: 1; }
+.tb-title { font-family: var(--fh); font-size: 1.2rem; letter-spacing: .01em; text-transform: uppercase; flex: 1; }
 .tb-action {
-  font-size: .75rem; font-weight: 600; letter-spacing: .06em;
+  font-size: .75rem; font-weight: 600; letter-spacing: .01em;
   padding: .32rem .75rem; border-radius: 7px; cursor: pointer;
   background: rgba(245,98,15,.12); color: var(--orange);
   border: 1px solid rgba(245,98,15,.25); transition: background .15s;
@@ -112,7 +112,7 @@ body {
 /* Buttons */
 .btn-main {
   width: 100%; background: var(--orange); color: #fff;
-  font-family: var(--fh); font-size: 1.05rem; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--fh); font-size: 1.05rem; letter-spacing: .03em; text-transform: uppercase;
   padding: .95rem; border: none; border-radius: 10px; cursor: pointer;
   transition: opacity .2s, transform .15s; display: flex; align-items: center; justify-content: center; gap: .5rem;
 }
@@ -123,7 +123,7 @@ body {
 .btn-ghost {
   width: 100%; background: transparent; border: 1px solid var(--line2);
   color: var(--txt2); font-family: var(--fh); font-size: .95rem;
-  letter-spacing: .1em; text-transform: uppercase; padding: .8rem;
+  letter-spacing: .03em; text-transform: uppercase; padding: .8rem;
   border-radius: 10px; cursor: pointer; transition: border-color .2s, opacity .2s;
 }
 .btn-ghost:active { opacity: .7; }
@@ -132,7 +132,7 @@ body {
 .f-group { margin-bottom: .85rem; }
 .f-group label {
   display: block; font-size: .7rem; font-weight: 600;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--txt2); margin-bottom: .38rem;
+  letter-spacing: .02em; text-transform: uppercase; color: var(--txt2); margin-bottom: .38rem;
 }
 .f-group input, .f-group select, .f-group textarea {
   width: 100%; background: #0e1117 !important; border: 1px solid rgba(255,255,255,.13);
@@ -163,7 +163,7 @@ body {
 
 /* Status badges — FORCED colors */
 .badge {
-  font-size: .68rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  font-size: .68rem; font-weight: 800; letter-spacing: .02em; text-transform: uppercase;
   padding: .28rem .65rem; border-radius: 6px; flex-shrink: 0;
 }
 .b-open   { color: #22c55e !important; background: rgba(34,197,94,.15) !important; border: 1px solid rgba(34,197,94,.35) !important; }
@@ -196,7 +196,7 @@ body {
 .mc-fact { flex: 1; padding: .6rem .9rem; border-right: 1px solid rgba(255,255,255,.07) !important; }
 .mc-fact:last-child { border-right: none; }
 .mc-fact-v { font-family: var(--fh); font-size: 1rem; color: #f0f2f5 !important; letter-spacing: .02em; }
-.mc-fact-l { font-size: .6rem; color: #3d4452 !important; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-top: .08rem; }
+.mc-fact-l { font-size: .6rem; color: #3d4452 !important; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-top: .08rem; }
 
 /* Info sections — detail screen */
 .info-sec { padding: .9rem 1.1rem; border-bottom: 1px solid rgba(255,255,255,.07) !important; }
@@ -213,7 +213,7 @@ body {
 /* Buttons — forced visible */
 .btn-main {
   width: 100%; background: #f5620f !important; color: #fff !important;
-  font-family: var(--fh); font-size: 1.05rem; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--fh); font-size: 1.05rem; letter-spacing: .03em; text-transform: uppercase;
   padding: .95rem; border: none !important; border-radius: 10px; cursor: pointer;
   transition: opacity .2s, transform .15s; display: flex; align-items: center; justify-content: center; gap: .5rem;
   box-shadow: 0 4px 18px rgba(245,98,15,.35);
@@ -226,7 +226,7 @@ body {
   width: 100%; background: rgba(255,255,255,.05) !important;
   border: 1px solid rgba(255,255,255,.18) !important;
   color: #f0f2f5 !important; font-family: var(--fh); font-size: .95rem;
-  letter-spacing: .1em; text-transform: uppercase; padding: .8rem;
+  letter-spacing: .03em; text-transform: uppercase; padding: .8rem;
   border-radius: 10px; cursor: pointer; transition: opacity .2s;
 }
 .btn-ghost:active { opacity: .7; }
@@ -245,7 +245,7 @@ body {
 
 /* Detail screen head */
 .detail-head { background: #0e1117 !important; border-bottom: 1px solid rgba(255,255,255,.08) !important; padding: 1.1rem; flex-shrink: 0; }
-.d-id { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #f5620f !important; margin-bottom: .25rem; }
+.d-id { font-size: .7rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: #f5620f !important; margin-bottom: .25rem; }
 .d-route { font-family: var(--fh); font-size: 1.9rem; line-height: 1; letter-spacing: .03em; margin-bottom: .8rem; color: #f0f2f5 !important; }
 .d-chips { display: flex; gap: .45rem; flex-wrap: wrap; }
 .dchip { background: rgba(255,255,255,.07) !important; border: 1px solid rgba(255,255,255,.13) !important; border-radius: 7px; padding: .26rem .6rem; font-size: .74rem; color: #7a8394 !important; font-weight: 500; }
@@ -257,7 +257,7 @@ body {
 .amc-head { padding: .9rem 1rem .75rem; display: flex; align-items: flex-start; gap: .85rem; }
 .amc-ico { width: 38px; height: 38px; border-radius: 9px; background: rgba(245,98,15,.15) !important; border: 1px solid rgba(245,98,15,.25) !important; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
 .amc-route { font-family: var(--fh); font-size: 1rem; letter-spacing: .03em; color: #f0f2f5 !important; margin-bottom: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.amc-id { font-size: .68rem; font-weight: 600; letter-spacing: .1em; color: #3d4452 !important; text-transform: uppercase; }
+.amc-id { font-size: .68rem; font-weight: 600; letter-spacing: .03em; color: #3d4452 !important; text-transform: uppercase; }
 .amc-convoyeur { margin-top: .25rem; font-size: .78rem; color: #7a8394 !important; }
 .amc-convoyeur strong { color: #22c55e !important; }
 .amc-bot { display: flex; border-top: 1px solid rgba(255,255,255,.07) !important; background: #111318 !important; }
@@ -341,7 +341,7 @@ body {
 }
 .login-logo {
   font-family: var(--fh);
-  font-size: 3.8rem; letter-spacing: .12em;
+  font-size: 3.8rem; letter-spacing: .02em;
   color: #f0f2f5 !important;
   position: relative; z-index: 1;
 }
@@ -360,7 +360,7 @@ body {
 }
 .login-box h2 {
   font-family: var(--fh); font-size: 1.6rem;
-  letter-spacing: .06em; text-transform: uppercase;
+  letter-spacing: .01em; text-transform: uppercase;
   color: #f0f2f5 !important; margin-bottom: 1.3rem;
 }
 
@@ -386,7 +386,7 @@ body {
   color: #7a8394 !important;
   font-size: .72rem;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .02em;
   text-transform: uppercase;
 }
 
@@ -400,7 +400,7 @@ body {
   padding: 1rem !important;
   font-size: 1rem !important;
   font-weight: 700 !important;
-  letter-spacing: .1em !important;
+  letter-spacing: .03em !important;
   text-transform: uppercase !important;
   box-shadow: 0 6px 24px rgba(245,98,15,.4) !important;
 }
@@ -414,7 +414,7 @@ body {
    CONVOYEUR — HOME
 ══════════════════════════════════════════ */
 .home-head { background: var(--bg2); padding: 1rem 1.1rem 1.1rem; border-bottom: 1px solid var(--line); flex-shrink: 0; }
-.home-hi { color: var(--txt2); font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .12rem; }
+.home-hi { color: var(--txt2); font-size: .75rem; font-weight: 500; letter-spacing: .02em; text-transform: uppercase; margin-bottom: .12rem; }
 .home-name { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .9rem; }
 .avail-toggle {
   display: inline-flex; align-items: center; gap: .55rem;
@@ -434,7 +434,7 @@ body {
 /* Claimed overlay */
 .mc-claimed { position: absolute; inset: 0; background: rgba(8,10,15,.8); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .28s; border-radius: var(--r); }
 .mc-claimed.on { opacity: 1; pointer-events: all; }
-.mc-claimed-lbl { font-family: var(--fh); font-size: .9rem; letter-spacing: .1em; color: var(--txt3); text-transform: uppercase; border: 1px solid var(--line2); padding: .45rem 1.1rem; border-radius: 8px; background: var(--card); }
+.mc-claimed-lbl { font-family: var(--fh); font-size: .9rem; letter-spacing: .03em; color: var(--txt3); text-transform: uppercase; border: 1px solid var(--line2); padding: .45rem 1.1rem; border-radius: 8px; background: var(--card); }
 
 /* Claim modal info */
 .m-info { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: .85rem .95rem; margin-bottom: 1.1rem; }
@@ -443,7 +443,7 @@ body {
 
 /* ── CONVOYEUR DETAIL ── */
 .detail-head { background: var(--bg2); border-bottom: 1px solid var(--line); padding: 1.1rem; flex-shrink: 0; }
-.d-id { font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: .25rem; }
+.d-id { font-size: .7rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--orange); margin-bottom: .25rem; }
 .d-route { font-family: var(--fh); font-size: 1.9rem; line-height: 1; letter-spacing: .03em; margin-bottom: .8rem; }
 .d-chips { display: flex; gap: .45rem; flex-wrap: wrap; }
 .dchip { background: var(--card); border: 1px solid var(--line2); border-radius: 7px; padding: .26rem .6rem; font-size: .74rem; color: var(--txt2); font-weight: 500; }
@@ -458,7 +458,7 @@ body {
 .prog-dot { width: 24px; height: 24px; border-radius: 50%; background: var(--card); border: 2px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: .7rem; position: relative; z-index: 1; transition: all .3s; }
 .prog-step.done .prog-dot { background: var(--green); border-color: var(--green); color: #fff; }
 .prog-step.cur  .prog-dot { border-color: var(--orange); box-shadow: 0 0 0 4px rgba(245,98,15,.14); }
-.prog-lbl { font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); transition: color .3s; }
+.prog-lbl { font-size: .58rem; font-weight: 700; letter-spacing: .01em; text-transform: uppercase; color: var(--txt3); transition: color .3s; }
 .prog-step.done .prog-lbl { color: var(--green); } .prog-step.cur .prog-lbl { color: var(--orange); }
 
 /* Photo slots */
@@ -492,7 +492,7 @@ body {
 .ps { padding: .9rem; text-align: center; border-right: 1px solid var(--line); }
 .ps:last-child { border-right: none; }
 .ps-n { font-family: var(--fh); font-size: 1.6rem; color: var(--txt); }
-.ps-l { color: var(--txt3); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-top: .08rem; }
+.ps-l { color: var(--txt3); font-size: .62rem; text-transform: uppercase; letter-spacing: .02em; font-weight: 600; margin-top: .08rem; }
 .menu-item { display: flex; align-items: center; gap: .9rem; padding: .88rem 1.1rem; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; }
 .menu-item:active { background: var(--card); }
 .mi-ico { width: 34px; height: 34px; background: var(--card2); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .95rem; }
@@ -513,7 +513,7 @@ body {
 .admin-tabs::-webkit-scrollbar { display: none; }
 .atab {
   flex-shrink: 0; padding: .75rem 1.1rem;
-  font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+  font-size: .72rem; font-weight: 700; letter-spacing: .03em;
   text-transform: uppercase; color: var(--txt3);
   border-bottom: 2px solid transparent; cursor: pointer;
   transition: color .2s, border-color .2s; white-space: nowrap;
@@ -525,7 +525,7 @@ body {
   background: #0e1117 !important; padding: 1rem 1.1rem 1rem;
   border-bottom: 1px solid rgba(255,255,255,.08) !important; flex-shrink: 0;
 }
-.admin-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .1em; color: #f0f2f5 !important; }
+.admin-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .03em; color: #f0f2f5 !important; }
 .admin-logo .o { color: #f5620f !important; }
 .admin-role { font-size: .68rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #f5620f !important; margin-bottom: .8rem; }
 .admin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
@@ -537,7 +537,7 @@ body {
 /* Admin tabs */
 .admin-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,.08) !important; background: #0e1117 !important; flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
 .admin-tabs::-webkit-scrollbar { display: none; }
-.atab { flex-shrink: 0; padding: .75rem 1.1rem; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #3d4452 !important; border-bottom: 2px solid transparent; cursor: pointer; transition: color .2s, border-color .2s; white-space: nowrap; }
+.atab { flex-shrink: 0; padding: .75rem 1.1rem; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #3d4452 !important; border-bottom: 2px solid transparent; cursor: pointer; transition: color .2s, border-color .2s; white-space: nowrap; }
 .atab.on { color: #f5620f !important; border-bottom-color: #f5620f !important; }
 
 /* Kanban — cards with visible style */
@@ -580,16 +580,16 @@ body {
 /* BOL (Bon de livraison) */
 .bol-wrap { padding: 1.1rem; }
 .bol-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.2rem; }
-.bol-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .1em; }
+.bol-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .03em; }
 .bol-logo .o { color: var(--orange); }
 .bol-meta { text-align: right; font-size: .75rem; color: var(--txt2); line-height: 1.6; }
-.bol-title { font-family: var(--fh); font-size: 1.1rem; letter-spacing: .1em; text-transform: uppercase; color: var(--txt2); border-bottom: 1px solid var(--line2); padding-bottom: .6rem; margin-bottom: .9rem; }
+.bol-title { font-family: var(--fh); font-size: 1.1rem; letter-spacing: .03em; text-transform: uppercase; color: var(--txt2); border-bottom: 1px solid var(--line2); padding-bottom: .6rem; margin-bottom: .9rem; }
 .bol-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 .bol-table td { padding: .45rem 0; border-bottom: 1px solid var(--line); font-size: .83rem; vertical-align: top; }
 .bol-table td:first-child { color: var(--txt2); width: 40%; }
 .bol-table td:last-child { color: var(--txt); font-weight: 500; }
 .bol-sig-box { border: 1px solid var(--line2); border-radius: 10px; padding: .9rem; text-align: center; margin-top: .7rem; }
-.bol-sig-label { font-size: .7rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .5rem; }
+.bol-sig-label { font-size: .7rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .03em; margin-bottom: .5rem; }
 .bol-sig-area { height: 55px; border: 1px dashed var(--line2); border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--txt3); font-size: .75rem; }
 
 /* Create mission form */
@@ -879,11 +879,288 @@ body {
     <div class="ps"><div class="ps-n">18k</div><div class="ps-l">km</div></div>
   </div>
   <div class="scroll">
-    <div class="menu-item" onclick="showToast('📄 Documents')"><div class="mi-ico">📄</div><div class="mi-lbl">Mes documents</div><div class="mi-arr">›</div></div>
-    <div class="menu-item" onclick="showToast('💶 Paiements')"><div class="mi-ico">💶</div><div class="mi-lbl">Historique paiements</div><div class="mi-arr">›</div></div>
-    <div class="menu-item" onclick="showToast('📊 Stats')"><div class="mi-ico">📊</div><div class="mi-lbl">Mes statistiques</div><div class="mi-arr">›</div></div>
+    <div class="menu-item" onclick="go('documents')"><div class="mi-ico">📄</div><div class="mi-lbl">Mes documents</div><div class="mi-arr">›</div></div>
+    <div class="menu-item" onclick="go('paiements')"><div class="mi-ico">💶</div><div class="mi-lbl">Historique paiements</div><div class="mi-arr">›</div></div>
+    <div class="menu-item" onclick="go('statistiques')"><div class="mi-ico">📊</div><div class="mi-lbl">Mes statistiques</div><div class="mi-arr">›</div></div>
     <div class="menu-item danger" onclick="doLogout()"><div class="mi-ico">🚪</div><div class="mi-lbl">Déconnexion</div><div class="mi-arr">›</div></div>
     <div class="safe-bot"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     DOCUMENTS
+════════════════════════════════════════ -->
+
+<div id="s-documents" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="go('profile')">←</div>
+    <div class="tb-title">Mes documents</div>
+  </div>
+  <div class="scroll">
+    <div style="padding:.8rem 1.1rem .3rem;font-size:.75rem;color:#7a8394;line-height:1.5">
+      Uploadez vos documents pour valider votre profil convoyeur. Formats acceptés : JPG, PNG, PDF.
+    </div>
+
+```
+<!-- Permis de conduire -->
+<div style="margin:.8rem 1.1rem 0;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;overflow:hidden">
+  <div style="padding:.9rem 1rem;display:flex;align-items:center;gap:.9rem">
+    <div style="width:44px;height:44px;border-radius:10px;background:rgba(245,98,15,.15);border:1px solid rgba(245,98,15,.25);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🪪</div>
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:.92rem;color:#f0f2f5">Permis de conduire</div>
+      <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem" id="doc-permis-status">Non uploadé</div>
+    </div>
+    <div id="doc-permis-badge" style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#7a8394">EN ATTENTE</div>
+  </div>
+  <div style="padding:.6rem 1rem .9rem;border-top:1px solid rgba(255,255,255,.07)">
+    <label style="display:flex;align-items:center;justify-content:center;gap:.5rem;background:#f5620f;color:#fff;font-weight:700;font-size:.82rem;padding:.65rem 1rem;border-radius:9px;cursor:pointer;letter-spacing:.03em">
+      📎 Choisir un fichier
+      <input type="file" accept="image/*,application/pdf" style="display:none" onchange="docUploaded(this,'permis')"/>
+    </label>
+  </div>
+</div>
+
+<!-- Carte d'identité -->
+<div style="margin:.7rem 1.1rem 0;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;overflow:hidden">
+  <div style="padding:.9rem 1rem;display:flex;align-items:center;gap:.9rem">
+    <div style="width:44px;height:44px;border-radius:10px;background:rgba(245,98,15,.15);border:1px solid rgba(245,98,15,.25);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🪪</div>
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:.92rem;color:#f0f2f5">Carte d'identité</div>
+      <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem" id="doc-cni-status">Non uploadé</div>
+    </div>
+    <div id="doc-cni-badge" style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#7a8394">EN ATTENTE</div>
+  </div>
+  <div style="padding:.6rem 1rem .9rem;border-top:1px solid rgba(255,255,255,.07)">
+    <label style="display:flex;align-items:center;justify-content:center;gap:.5rem;background:#f5620f;color:#fff;font-weight:700;font-size:.82rem;padding:.65rem 1rem;border-radius:9px;cursor:pointer;letter-spacing:.03em">
+      📎 Choisir un fichier
+      <input type="file" accept="image/*,application/pdf" style="display:none" onchange="docUploaded(this,'cni')"/>
+    </label>
+  </div>
+</div>
+
+<!-- Kbis / SIRET -->
+<div style="margin:.7rem 1.1rem 0;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;overflow:hidden">
+  <div style="padding:.9rem 1rem;display:flex;align-items:center;gap:.9rem">
+    <div style="width:44px;height:44px;border-radius:10px;background:rgba(245,98,15,.15);border:1px solid rgba(245,98,15,.25);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🏢</div>
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:.92rem;color:#f0f2f5">Kbis / SIRET</div>
+      <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem" id="doc-kbis-status">Non uploadé</div>
+    </div>
+    <div id="doc-kbis-badge" style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#7a8394">EN ATTENTE</div>
+  </div>
+  <div style="padding:.6rem 1rem .9rem;border-top:1px solid rgba(255,255,255,.07)">
+    <label style="display:flex;align-items:center;justify-content:center;gap:.5rem;background:#f5620f;color:#fff;font-weight:700;font-size:.82rem;padding:.65rem 1rem;border-radius:9px;cursor:pointer;letter-spacing:.03em">
+      📎 Choisir un fichier
+      <input type="file" accept="image/*,application/pdf" style="display:none" onchange="docUploaded(this,'kbis')"/>
+    </label>
+  </div>
+</div>
+
+<!-- Attestation assurance -->
+<div style="margin:.7rem 1.1rem 0;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;overflow:hidden">
+  <div style="padding:.9rem 1rem;display:flex;align-items:center;gap:.9rem">
+    <div style="width:44px;height:44px;border-radius:10px;background:rgba(245,98,15,.15);border:1px solid rgba(245,98,15,.25);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🛡️</div>
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:.92rem;color:#f0f2f5">Attestation assurance</div>
+      <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem" id="doc-assurance-status">Non uploadé</div>
+    </div>
+    <div id="doc-assurance-badge" style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#7a8394">EN ATTENTE</div>
+  </div>
+  <div style="padding:.6rem 1rem .9rem;border-top:1px solid rgba(255,255,255,.07)">
+    <label style="display:flex;align-items:center;justify-content:center;gap:.5rem;background:#f5620f;color:#fff;font-weight:700;font-size:.82rem;padding:.65rem 1rem;border-radius:9px;cursor:pointer;letter-spacing:.03em">
+      📎 Choisir un fichier
+      <input type="file" accept="image/*,application/pdf" style="display:none" onchange="docUploaded(this,'assurance')"/>
+    </label>
+  </div>
+</div>
+
+<div style="margin:1.2rem 1.1rem;padding:.9rem 1rem;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:10px;font-size:.8rem;color:#7a8394;line-height:1.6">
+  🔒 Vos documents sont transmis uniquement à l'équipe SECOTO pour validation. Ils ne sont jamais partagés avec des tiers.
+</div>
+<div class="safe-bot"></div>
+```
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAIEMENTS
+════════════════════════════════════════ -->
+
+<div id="s-paiements" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="go('profile')">←</div>
+    <div class="tb-title">Paiements</div>
+  </div>
+  <div class="scroll">
+    <!-- Total gagné -->
+    <div style="margin:1rem 1.1rem;background:linear-gradient(135deg,rgba(245,98,15,.15),rgba(245,98,15,.05));border:1px solid rgba(245,98,15,.3);border-radius:14px;padding:1.4rem 1.2rem;text-align:center">
+      <div style="font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#f5620f;margin-bottom:.4rem">Total gagné</div>
+      <div style="font-size:3rem;font-weight:800;color:#f0f2f5;line-height:1" id="total-gagne">6 624 €</div>
+      <div style="font-size:.75rem;color:#7a8394;margin-top:.3rem">Depuis votre inscription</div>
+    </div>
+
+```
+<!-- Bouton télécharger relevé -->
+<div style="padding:0 1.1rem .8rem">
+  <button onclick="downloadReleve()" style="width:100%;background:#16191f;border:1px solid rgba(255,255,255,.12);color:#f0f2f5;font-family:var(--fb);font-size:.88rem;font-weight:600;padding:.85rem;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem">
+    📄 Télécharger mon relevé PDF
+  </button>
+</div>
+
+<!-- Historique missions payées -->
+<div style="padding:.2rem 1.1rem .4rem;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#3d4452">Missions payées</div>
+
+<div id="paiements-list">
+  <!-- Généré dynamiquement -->
+  <div style="margin:0 1.1rem .6rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden">
+    <div style="padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:600;font-size:.9rem;color:#f0f2f5">Paris → Marseille</div>
+        <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem">Lun. 14 avr. · BMW Série 3</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:1rem;color:#22c55e">+ 426 €</div>
+        <div style="font-size:.65rem;color:#3d4452;margin-top:.1rem">Payé</div>
+      </div>
+    </div>
+  </div>
+  <div style="margin:0 1.1rem .6rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden">
+    <div style="padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:600;font-size:.9rem;color:#f0f2f5">Lyon → Bordeaux</div>
+        <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem">Mar. 8 avr. · Renault Clio</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:1rem;color:#22c55e">+ 306 €</div>
+        <div style="font-size:.65rem;color:#3d4452;margin-top:.1rem">Payé</div>
+      </div>
+    </div>
+  </div>
+  <div style="margin:0 1.1rem .6rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden">
+    <div style="padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:600;font-size:.9rem;color:#f0f2f5">Nantes → Paris</div>
+        <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem">Ven. 4 avr. · Peugeot 308</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:1rem;color:#22c55e">+ 209 €</div>
+        <div style="font-size:.65rem;color:#3d4452;margin-top:.1rem">Payé</div>
+      </div>
+    </div>
+  </div>
+  <div style="margin:0 1.1rem .6rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden">
+    <div style="padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:600;font-size:.9rem;color:#f0f2f5">Strasbourg → Lyon</div>
+        <div style="font-size:.75rem;color:#7a8394;margin-top:.1rem">Mer. 2 avr. · Audi A4</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;font-size:1rem;color:#22c55e">+ 255 €</div>
+        <div style="font-size:.65rem;color:#3d4452;margin-top:.1rem">Payé</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="safe-bot"></div>
+```
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     STATISTIQUES
+════════════════════════════════════════ -->
+
+<div id="s-statistiques" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="go('profile')">←</div>
+    <div class="tb-title">Statistiques</div>
+  </div>
+  <div class="scroll">
+    <!-- KPIs -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;padding:1rem 1.1rem .5rem">
+      <div style="background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:1rem;text-align:center">
+        <div style="font-size:2rem;font-weight:800;color:#f5620f;line-height:1">18 432</div>
+        <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.3rem">km parcourus</div>
+      </div>
+      <div style="background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:1rem;text-align:center">
+        <div style="font-size:2rem;font-weight:800;color:#22c55e;line-height:1">48</div>
+        <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.3rem">missions totales</div>
+      </div>
+      <div style="background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:1rem;text-align:center">
+        <div style="font-size:2rem;font-weight:800;color:#f0f2f5;line-height:1" id="stat-missions-mois">7</div>
+        <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.3rem">missions ce mois</div>
+      </div>
+      <div style="background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:1rem;text-align:center">
+        <div style="font-size:2rem;font-weight:800;color:#f5620f;line-height:1" id="stat-revenus-mois">1 196 €</div>
+        <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7a8394;margin-top:.3rem">revenus ce mois</div>
+      </div>
+    </div>
+
+```
+<!-- Graphique activité mensuelle -->
+<div style="margin:.5rem 1.1rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:1.1rem">
+  <div style="font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#f5620f;margin-bottom:1rem">Activité des 6 derniers mois</div>
+  <div style="display:flex;align-items:flex-end;gap:.5rem;height:100px">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.25);border-radius:4px 4px 0 0;height:40px;position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:4px 4px 0 0;height:40%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#3d4452">Nov</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.25);border-radius:4px 4px 0 0;height:60px;position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:4px 4px 0 0;height:60%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#3d4452">Déc</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.25);border-radius:4px 4px 0 0;height:45px;position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:4px 4px 0 0;height:45%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#3d4452">Jan</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.25);border-radius:4px 4px 0 0;height:80px;position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:4px 4px 0 0;height:80%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#3d4452">Fév</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.25);border-radius:4px 4px 0 0;height:65px;position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:4px 4px 0 0;height:65%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#3d4452">Mar</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.4rem">
+      <div style="width:100%;background:rgba(245,98,15,.35);border-radius:4px 4px 0 0;height:100px;border:1px solid rgba(245,98,15,.5);position:relative">
+        <div style="position:absolute;bottom:0;width:100%;background:#f5620f;border-radius:3px 3px 0 0;height:100%"></div>
+      </div>
+      <div style="font-size:.62rem;color:#f5620f;font-weight:700">Avr</div>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-top:.8rem;padding-top:.7rem;border-top:1px solid rgba(255,255,255,.07)">
+    <div style="font-size:.75rem;color:#7a8394">Meilleur mois : <strong style="color:#f0f2f5">Avril</strong></div>
+    <div style="font-size:.75rem;color:#7a8394">Moy. : <strong style="color:#f0f2f5">6,8 missions</strong></div>
+  </div>
+</div>
+
+<!-- Note moyenne -->
+<div style="margin:0 1.1rem .8rem;background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:1.1rem;display:flex;align-items:center;gap:1.1rem">
+  <div style="font-size:2.5rem">⭐</div>
+  <div>
+    <div style="font-size:1.8rem;font-weight:800;color:#f0f2f5;line-height:1">4.9 <span style="font-size:1rem;color:#7a8394">/ 5</span></div>
+    <div style="font-size:.75rem;color:#7a8394;margin-top:.2rem">Basé sur 48 missions · Excellent</div>
+  </div>
+</div>
+
+<div class="safe-bot"></div>
+```
+
   </div>
 </div>
 
@@ -1011,7 +1288,7 @@ body {
     <!-- Prix calculé -->
     <div style="background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-size:.68rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:.2rem">Rémunération estimée</div>
+        <div style="font-size:.68rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-bottom:.2rem">Rémunération estimée</div>
         <div style="font-size:.75rem;color:var(--txt2)" id="price-detail">Renseignez la distance</div>
       </div>
       <div style="font-family:var(--fh);font-size:1.8rem;color:var(--orange)" id="cf-price">— €</div>
@@ -1257,7 +1534,7 @@ body {
   /* ══════════════════════════════
      NAVIGATION
   ══════════════════════════════ */
-  const SCREEN_IDS = { home:'s-home', missions:'s-missions', detail:'s-detail', profile:'s-profile', admin:'s-admin', 'admin-detail':'s-admin-detail', login:'s-login', register:'s-register' };
+  const SCREEN_IDS = { home:'s-home', missions:'s-missions', detail:'s-detail', profile:'s-profile', admin:'s-admin', 'admin-detail':'s-admin-detail', login:'s-login', register:'s-register', documents:'s-documents', paiements:'s-paiements', statistiques:'s-statistiques' };
 
   window.go = function(name) {
     if (name === cur) return;
@@ -1684,7 +1961,7 @@ body {
     item.innerHTML = `
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.85rem">
-        <div style="font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)">🏍️ Moto ${n}</div>
+        <div style="font-size:.72rem;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--orange)">🏍️ Moto ${n}</div>
         ${n>1?`<div onclick="removeMoto(${n})" style="font-size:.7rem;color:var(--txt3);cursor:pointer;padding:.22rem .55rem;border:1px solid var(--line2);border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">✕ Supprimer</div>`:''}
       </div>
 
@@ -1905,6 +2182,31 @@ body {
       container.appendChild(item);
     });
   }
+
+  /* ══════════════════════════════
+     DOCUMENTS
+  ══════════════════════════════ */
+  window.docUploaded = function(input, docKey) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('doc-'+docKey+'-status');
+    const badgeEl  = document.getElementById('doc-'+docKey+'-badge');
+    if (statusEl) statusEl.textContent = '✓ ' + file.name;
+    if (badgeEl) {
+      badgeEl.textContent = 'ENVOYÉ';
+      badgeEl.style.background = 'rgba(34,197,94,.12)';
+      badgeEl.style.borderColor = 'rgba(34,197,94,.3)';
+      badgeEl.style.color = '#22c55e';
+    }
+    showToast('✅ Document envoyé — en attente de validation');
+  };
+
+  /* ══════════════════════════════
+     PAIEMENTS
+  ══════════════════════════════ */
+  window.downloadReleve = function() {
+    showToast('📄 Relevé PDF — disponible avec le backend complet');
+  };
 
   /* ══════════════════════════════
      TOAST
