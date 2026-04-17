@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#080a0f"/>
+  <title>SECOTO · App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+```
+:root {
+  --bg:       #080a0f;
+  --bg2:      #0e1117;
+  --bg3:      #13171f;
+  --card:     #111318;
+  --card2:    #16191f;
+  --line:     rgba(255,255,255,.07);
+  --line2:    rgba(255,255,255,.13);
+  --txt:      #f0f2f5;
+  --txt2:     #7a8394;
+  --txt3:     #3d4452;
+  --orange:   #f5620f;
+  --orange2:  #ff9a3c;
+  --green:    #22c55e;
+  --gbg:      rgba(34,197,94,.08);
+  --gbd:      rgba(34,197,94,.22);
+  --red:      #ef4444;
+  --rbg:      rgba(239,68,68,.08);
+  --yellow:   #f59e0b;
+  --ybg:      rgba(245,158,11,.08);
+  --fh:       'Bebas Neue', sans-serif;
+  --fb:       'DM Sans', sans-serif;
+  --r:        13px;
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+html, body { height: 100%; overflow: hidden; background: var(--bg); }
+body { font-family: var(--fb); color: var(--txt); max-width: 430px; margin: 0 auto; }
+
+/* ── SCREENS ── */
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none;
+  transform: translateX(20px);
+  transition: opacity .25s, transform .25s;
+  overflow: hidden;
+}
+.screen.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+.screen.exit   { opacity: 0; transform: translateX(-20px); transition: opacity .18s, transform .18s; }
+
+.scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.safe-top { height: calc(50px + var(--safe-top)); flex-shrink: 0; }
+.safe-bot { height: calc(72px + var(--safe-bot)); flex-shrink: 0; }
+.safe-bot-sm { height: calc(16px + var(--safe-bot)); flex-shrink: 0; }
+
+/* ── SHARED COMPONENTS ── */
+.topbar {
+  display: flex; align-items: center;
+  padding: .85rem 1.1rem .7rem;
+  gap: .8rem; flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+}
+.tb-back {
+  width: 34px; height: 34px;
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  font-size: .95rem; cursor: pointer; flex-shrink: 0;
+  transition: background .15s;
+}
+.tb-back:active { background: var(--line2); }
+.tb-title { font-family: var(--fh); font-size: 1.2rem; letter-spacing: .06em; text-transform: uppercase; flex: 1; }
+.tb-action {
+  font-size: .75rem; font-weight: 600; letter-spacing: .06em;
+  padding: .32rem .75rem; border-radius: 7px; cursor: pointer;
+  background: rgba(245,98,15,.12); color: var(--orange);
+  border: 1px solid rgba(245,98,15,.25); transition: background .15s;
+}
+.tb-action:active { background: rgba(245,98,15,.2); }
+
+.sec-label {
+  font-size: .68rem; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--txt3);
+  padding: .9rem 1.1rem .4rem;
+}
+
+/* Buttons */
+.btn-main {
+  width: 100%; background: var(--orange); color: #fff;
+  font-family: var(--fh); font-size: 1.05rem; letter-spacing: .1em; text-transform: uppercase;
+  padding: .95rem; border: none; border-radius: 10px; cursor: pointer;
+  transition: opacity .2s, transform .15s; display: flex; align-items: center; justify-content: center; gap: .5rem;
+}
+.btn-main:active { opacity: .85; transform: scale(.98); }
+.btn-main:disabled { opacity: .3; pointer-events: none; }
+.btn-main.green { background: var(--green); }
+.btn-main.red   { background: var(--red); }
+.btn-ghost {
+  width: 100%; background: transparent; border: 1px solid var(--line2);
+  color: var(--txt2); font-family: var(--fh); font-size: .95rem;
+  letter-spacing: .1em; text-transform: uppercase; padding: .8rem;
+  border-radius: 10px; cursor: pointer; transition: border-color .2s, opacity .2s;
+}
+.btn-ghost:active { opacity: .7; }
+
+/* Form fields */
+.f-group { margin-bottom: .85rem; }
+.f-group label {
+  display: block; font-size: .7rem; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt2); margin-bottom: .38rem;
+}
+.f-group input, .f-group select, .f-group textarea {
+  width: 100%; background: var(--bg2); border: 1px solid var(--line2);
+  border-radius: 9px; padding: .8rem .95rem;
+  font-family: var(--fb); font-size: .95rem; color: var(--txt); outline: none;
+  transition: border-color .2s, box-shadow .2s; -webkit-appearance: none;
+}
+.f-group input::placeholder, .f-group textarea::placeholder { color: var(--txt3); }
+.f-group input:focus, .f-group select:focus, .f-group textarea:focus {
+  border-color: rgba(245,98,15,.5); box-shadow: 0 0 0 3px rgba(245,98,15,.08);
+}
+.f-group select option { background: var(--bg2); }
+.f-group textarea { resize: vertical; min-height: 80px; }
+.f-row { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+
+/* Info rows */
+.info-sec { padding: .9rem 1.1rem; border-bottom: 1px solid var(--line); }
+.info-sec-title {
+  font-size: .68rem; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--txt3); margin-bottom: .7rem;
+}
+.ir { display: flex; justify-content: space-between; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--line); font-size: .87rem; }
+.ir:last-child { border-bottom: none; }
+.ir-k { color: var(--txt2); }
+.ir-v { color: var(--txt); font-weight: 500; }
+.ir-v.o { color: var(--orange); } .ir-v.g { color: var(--green); } .ir-v.r { color: var(--red); }
+
+/* Status badges */
+.badge {
+  font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  padding: .22rem .55rem; border-radius: 6px; flex-shrink: 0;
+}
+.b-open   { color: var(--green); background: var(--gbg); border: 1px solid var(--gbd); }
+.b-taken  { color: var(--orange); background: rgba(245,98,15,.1); border: 1px solid rgba(245,98,15,.25); }
+.b-active { color: #fff; background: var(--orange); }
+.b-done   { color: var(--txt3); background: transparent; border: 1px solid var(--line2); }
+.b-cancel { color: var(--red); background: var(--rbg); border: 1px solid rgba(239,68,68,.25); }
+
+/* Mission card */
+.mc {
+  margin: 0 .9rem .6rem; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--r);
+  overflow: hidden; cursor: pointer;
+  transition: border-color .2s, transform .15s; position: relative;
+}
+.mc:active { transform: scale(.985); }
+.mc-top { padding: 1rem 1rem .8rem; display: flex; align-items: center; gap: .9rem; }
+.mc-ico {
+  width: 40px; height: 40px; border-radius: 9px;
+  background: var(--bg3); border: 1px solid var(--line2);
+  display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;
+}
+.mc-main { flex: 1; min-width: 0; }
+.mc-route { font-family: var(--fh); font-size: 1.05rem; letter-spacing: .03em; color: var(--txt); margin-bottom: .18rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-sub { color: var(--txt2); font-size: .78rem; }
+.mc-bot { display: flex; border-top: 1px solid var(--line); background: var(--bg2); }
+.mc-fact { flex: 1; padding: .55rem .8rem; border-right: 1px solid var(--line); }
+.mc-fact:last-child { border-right: none; }
+.mc-fact-v { font-family: var(--fh); font-size: .95rem; color: var(--txt); letter-spacing: .02em; }
+.mc-fact-l { font-size: .6rem; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin-top: .08rem; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: calc(72px + var(--safe-bot) + .7rem);
+  left: 50%; transform: translateX(-50%) translateY(10px);
+  background: var(--card2); border: 1px solid var(--line2);
+  border-radius: 9px; padding: .6rem 1rem;
+  font-size: .83rem; font-weight: 600; color: var(--txt);
+  white-space: nowrap; opacity: 0;
+  transition: opacity .22s, transform .22s;
+  z-index: 9999; pointer-events: none; backdrop-filter: blur(16px);
+  max-width: calc(100% - 2rem);
+}
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Bottom nav */
+.bnav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  background: rgba(8,10,15,.95); border-top: 1px solid var(--line);
+  display: none; padding-bottom: var(--safe-bot); z-index: 200;
+  backdrop-filter: blur(20px);
+}
+.bnav.on { display: flex; }
+.bni { flex: 1; display: flex; flex-direction: column; align-items: center; padding: .6rem .5rem; gap: .18rem; cursor: pointer; }
+.bni-ico { font-size: 1.25rem; line-height: 1; }
+.bni-lbl { font-size: .6rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); transition: color .2s; }
+.bni.on .bni-lbl { color: var(--orange); }
+.bni-bar { width: 18px; height: 2px; background: var(--orange); border-radius: 2px; opacity: 0; transition: opacity .2s; }
+.bni.on .bni-bar { opacity: 1; }
+
+/* Modal bottom sheet */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(8,10,15,.88);
+  backdrop-filter: blur(8px); z-index: 500;
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity .22s;
+}
+.modal-bg.on { opacity: 1; pointer-events: all; }
+.modal-sheet {
+  width: 100%; max-width: 430px; margin: 0 auto;
+  background: var(--card); border-radius: 18px 18px 0 0;
+  border: 1px solid var(--line2); border-bottom: none;
+  padding: 1.4rem 1.3rem calc(1.3rem + var(--safe-bot));
+  transform: translateY(40px); transition: transform .28s;
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-bg.on .modal-sheet { transform: translateY(0); }
+.modal-handle { width: 34px; height: 3px; background: var(--line2); border-radius: 2px; margin: 0 auto 1.3rem; }
+.modal-title { font-family: var(--fh); font-size: 1.5rem; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .25rem; }
+.modal-sub { color: var(--txt2); font-size: .83rem; line-height: 1.55; margin-bottom: 1.2rem; }
+.modal-btns { display: flex; gap: .6rem; margin-top: 1rem; }
+
+/* ══════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════ */
+#s-login {
+  background: var(--bg); align-items: center; justify-content: center;
+  padding: 2rem 1.5rem; gap: 0; z-index: 999;
+}
+.login-glow {
+  position: absolute; width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(245,98,15,.09) 0%, transparent 70%);
+  top: 8%; left: 50%; transform: translateX(-50%); pointer-events: none;
+}
+.login-logo { font-family: var(--fh); font-size: 3.8rem; letter-spacing: .12em; color: var(--txt); position: relative; z-index: 1; }
+.login-logo .o { color: var(--orange); }
+.login-tagline { color: var(--txt2); font-size: .72rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 3rem; position: relative; z-index: 1; }
+.login-box { width: 100%; background: var(--card); border: 1px solid var(--line2); border-radius: 16px; padding: 1.7rem 1.4rem; position: relative; z-index: 1; }
+.login-box h2 { font-family: var(--fh); font-size: 1.6rem; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 1.3rem; }
+.login-hint { text-align: center; color: var(--txt3); font-size: .72rem; margin-top: .9rem; line-height: 1.5; }
+
+/* ══════════════════════════════════════════
+   CONVOYEUR — HOME
+══════════════════════════════════════════ */
+.home-head { background: var(--bg2); padding: 1rem 1.1rem 1.1rem; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.home-hi { color: var(--txt2); font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .12rem; }
+.home-name { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .05em; text-transform: uppercase; margin-bottom: .9rem; }
+.avail-toggle {
+  display: inline-flex; align-items: center; gap: .55rem;
+  background: var(--card); border: 1px solid var(--line2);
+  border-radius: 30px; padding: .35rem .85rem .35rem .4rem; cursor: pointer; transition: border-color .2s, background .2s;
+}
+.avail-toggle.on { border-color: var(--gbd); background: var(--gbg); }
+.avail-knob { width: 26px; height: 26px; border-radius: 50%; background: var(--card2); display: flex; align-items: center; justify-content: center; font-size: .8rem; transition: background .2s; }
+.avail-toggle.on .avail-knob { background: var(--green); }
+.avail-lbl { font-size: .8rem; font-weight: 600; color: var(--txt2); transition: color .2s; }
+.avail-toggle.on .avail-lbl { color: var(--green); }
+.mini-stats { display: flex; gap: .6rem; margin-top: .85rem; }
+.mstat { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .65rem; text-align: center; }
+.mstat-n { font-family: var(--fh); font-size: 1.55rem; color: var(--txt); line-height: 1; }
+.mstat-l { color: var(--txt3); font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; margin-top: .12rem; }
+
+/* Claimed overlay */
+.mc-claimed { position: absolute; inset: 0; background: rgba(8,10,15,.8); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .28s; border-radius: var(--r); }
+.mc-claimed.on { opacity: 1; pointer-events: all; }
+.mc-claimed-lbl { font-family: var(--fh); font-size: .9rem; letter-spacing: .1em; color: var(--txt3); text-transform: uppercase; border: 1px solid var(--line2); padding: .45rem 1.1rem; border-radius: 8px; background: var(--card); }
+
+/* Claim modal info */
+.m-info { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: .85rem .95rem; margin-bottom: 1.1rem; }
+.m-row { display: flex; justify-content: space-between; font-size: .84rem; padding: .28rem 0; }
+.m-row-k { color: var(--txt2); } .m-row-v { color: var(--txt); font-weight: 600; } .m-row-v.g { color: var(--green); }
+
+/* ── CONVOYEUR DETAIL ── */
+.detail-head { background: var(--bg2); border-bottom: 1px solid var(--line); padding: 1.1rem; flex-shrink: 0; }
+.d-id { font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: .25rem; }
+.d-route { font-family: var(--fh); font-size: 1.9rem; line-height: 1; letter-spacing: .03em; margin-bottom: .8rem; }
+.d-chips { display: flex; gap: .45rem; flex-wrap: wrap; }
+.dchip { background: var(--card); border: 1px solid var(--line2); border-radius: 7px; padding: .26rem .6rem; font-size: .74rem; color: var(--txt2); font-weight: 500; }
+.dchip.g { color: var(--green); background: var(--gbg); border-color: var(--gbd); }
+
+/* Progress bar */
+.prog-bar { display: flex; padding: .9rem 1.1rem; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.prog-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .25rem; position: relative; }
+.prog-step:not(:last-child)::after { content: ''; position: absolute; left: 50%; top: 12px; width: 100%; height: 2px; background: var(--line2); transition: background .4s; }
+.prog-step.done:not(:last-child)::after { background: var(--green); }
+.prog-step.cur:not(:last-child)::after { background: linear-gradient(90deg, var(--orange), var(--line2)); }
+.prog-dot { width: 24px; height: 24px; border-radius: 50%; background: var(--card); border: 2px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: .7rem; position: relative; z-index: 1; transition: all .3s; }
+.prog-step.done .prog-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.prog-step.cur  .prog-dot { border-color: var(--orange); box-shadow: 0 0 0 4px rgba(245,98,15,.14); }
+.prog-lbl { font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); transition: color .3s; }
+.prog-step.done .prog-lbl { color: var(--green); } .prog-step.cur .prog-lbl { color: var(--orange); }
+
+/* Photo slots */
+.photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.pslot { aspect-ratio: 4/3; background: var(--card2); border: 1.5px dashed var(--line2); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem; cursor: pointer; position: relative; overflow: hidden; transition: border-color .2s; }
+.pslot:active { border-color: var(--orange); }
+.pslot.filled { border-style: solid; border-color: var(--green); }
+.pslot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pslot-ico { font-size: 1.2rem; opacity: .45; }
+.pslot-lbl { font-size: .65rem; color: var(--txt3); font-weight: 500; text-align: center; }
+.pslot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.pslot-ok { position: absolute; top: .3rem; right: .3rem; width: 18px; height: 18px; background: var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .6rem; color: #fff; font-weight: 700; }
+
+/* Signature */
+.sig-area { background: rgba(255,255,255,.97); border-radius: 10px; overflow: hidden; position: relative; }
+.sig-area canvas { display: block; width: 100%; touch-action: none; }
+.sig-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: rgba(0,0,0,.2); font-size: .78rem; pointer-events: none; text-align: center; transition: opacity .3s; white-space: nowrap; }
+.sig-btns { display: flex; gap: .6rem; margin-top: .55rem; }
+.btn-sec { flex: 1; background: var(--card); border: 1px solid var(--line2); color: var(--txt); font-family: var(--fb); font-size: .83rem; font-weight: 600; padding: .65rem; border-radius: 8px; cursor: pointer; transition: background .15s; }
+.btn-sec:active { background: var(--card2); }
+.btn-sec.g { color: var(--green); border-color: var(--gbd); }
+
+.act-zone { padding: .9rem 1.1rem; display: flex; flex-direction: column; gap: .55rem; }
+
+/* Profile */
+.prof-head { background: var(--bg2); border-bottom: 1px solid var(--line); padding: 1.3rem 1.1rem; display: flex; align-items: center; gap: 1.1rem; flex-shrink: 0; }
+.prof-av { width: 52px; height: 52px; border-radius: 13px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-family: var(--fh); font-size: 1.4rem; color: #fff; flex-shrink: 0; }
+.prof-name { font-family: var(--fh); font-size: 1.35rem; letter-spacing: .05em; text-transform: uppercase; }
+.prof-role { color: var(--txt2); font-size: .76rem; margin-top: .12rem; }
+.prof-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--line); }
+.ps { padding: .9rem; text-align: center; border-right: 1px solid var(--line); }
+.ps:last-child { border-right: none; }
+.ps-n { font-family: var(--fh); font-size: 1.6rem; color: var(--txt); }
+.ps-l { color: var(--txt3); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-top: .08rem; }
+.menu-item { display: flex; align-items: center; gap: .9rem; padding: .88rem 1.1rem; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; }
+.menu-item:active { background: var(--card); }
+.mi-ico { width: 34px; height: 34px; background: var(--card2); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .95rem; }
+.mi-lbl { flex: 1; font-size: .88rem; font-weight: 500; }
+.mi-arr { color: var(--txt3); font-size: .88rem; }
+.menu-item.danger .mi-lbl { color: var(--red); }
+
+/* ══════════════════════════════════════════
+   ADMIN STYLES
+══════════════════════════════════════════ */
+
+/* Admin nav tabs */
+.admin-tabs {
+  display: flex; border-bottom: 1px solid var(--line);
+  background: var(--bg2); flex-shrink: 0; overflow-x: auto;
+  scrollbar-width: none;
+}
+.admin-tabs::-webkit-scrollbar { display: none; }
+.atab {
+  flex-shrink: 0; padding: .75rem 1.1rem;
+  font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt3);
+  border-bottom: 2px solid transparent; cursor: pointer;
+  transition: color .2s, border-color .2s; white-space: nowrap;
+}
+.atab.on { color: var(--orange); border-bottom-color: var(--orange); }
+
+/* Admin header */
+.admin-head {
+  background: var(--bg2); padding: 1rem 1.1rem 1rem;
+  border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.admin-logo { font-family: var(--fh); font-size: 1.6rem; letter-spacing: .1em; color: var(--txt); }
+.admin-logo .o { color: var(--orange); }
+.admin-role { font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: .7rem; }
+.admin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .65rem .5rem; text-align: center; }
+.kpi-n { font-family: var(--fh); font-size: 1.5rem; color: var(--txt); line-height: 1; }
+.kpi-n.o { color: var(--orange); } .kpi-n.g { color: var(--green); } .kpi-n.r { color: var(--red); }
+.kpi-l { font-size: .58rem; color: var(--txt3); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: .1rem; }
+
+/* Admin mission card (richer than convoyeur) */
+.amc {
+  margin: 0 .9rem .6rem; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--r);
+  overflow: hidden; cursor: pointer;
+  transition: border-color .2s, transform .15s;
+}
+.amc:active { transform: scale(.985); }
+.amc-head { padding: .9rem 1rem .75rem; display: flex; align-items: flex-start; gap: .85rem; }
+.amc-ico { width: 38px; height: 38px; border-radius: 9px; background: var(--bg3); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+.amc-main { flex: 1; min-width: 0; }
+.amc-route { font-family: var(--fh); font-size: 1rem; letter-spacing: .03em; color: var(--txt); margin-bottom: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amc-id { font-size: .68rem; font-weight: 600; letter-spacing: .1em; color: var(--txt3); text-transform: uppercase; }
+.amc-convoyeur { margin-top: .25rem; font-size: .78rem; color: var(--txt2); }
+.amc-convoyeur strong { color: var(--green); }
+.amc-bot { display: flex; border-top: 1px solid var(--line); background: var(--bg2); }
+.amc-fact { flex: 1; padding: .5rem .8rem; border-right: 1px solid var(--line); }
+.amc-fact:last-child { border-right: none; }
+.amc-fact-v { font-family: var(--fh); font-size: .9rem; color: var(--txt); }
+.amc-fact-l { font-size: .58rem; color: var(--txt3); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: .06rem; }
+
+/* Kanban */
+.kanban-wrap { display: flex; gap: .7rem; padding: .8rem .9rem; overflow-x: auto; align-items: flex-start; scrollbar-width: none; }
+.kanban-wrap::-webkit-scrollbar { display: none; }
+.kanban-col { flex-shrink: 0; width: 220px; }
+.kanban-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .55rem; }
+.kanban-col-title { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--txt2); }
+.kanban-count { font-family: var(--fh); font-size: .9rem; color: var(--txt3); }
+.kanban-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: .8rem; margin-bottom: .5rem; cursor: pointer;
+  transition: border-color .2s, transform .15s;
+}
+.kanban-card:active { transform: scale(.97); }
+.kanban-card-route { font-family: var(--fh); font-size: .95rem; letter-spacing: .03em; color: var(--txt); margin-bottom: .25rem; }
+.kanban-card-sub { font-size: .72rem; color: var(--txt2); margin-bottom: .5rem; }
+.kanban-card-footer { display: flex; justify-content: space-between; align-items: center; }
+.kanban-card-km { font-size: .72rem; color: var(--txt3); }
+
+/* Convoyeur list */
+.convoyeur-item {
+  display: flex; align-items: center; gap: .9rem;
+  padding: .9rem 1.1rem; border-bottom: 1px solid var(--line); cursor: pointer;
+  transition: background .15s;
+}
+.convoyeur-item:active { background: var(--card); }
+.c-av { width: 42px; height: 42px; border-radius: 11px; background: var(--orange); display: flex; align-items: center; justify-content: center; font-family: var(--fh); font-size: 1.1rem; color: #fff; flex-shrink: 0; }
+.c-av.offline { background: var(--card2); }
+.c-info { flex: 1; }
+.c-name { font-weight: 600; font-size: .9rem; color: var(--txt); }
+.c-status { font-size: .74rem; color: var(--txt2); margin-top: .1rem; }
+.c-status.on { color: var(--green); }
+.c-missions { font-family: var(--fh); font-size: 1.1rem; color: var(--txt2); }
+
+/* Admin mission detail */
+.adm-detail-actions { display: flex; flex-direction: column; gap: .55rem; padding: .9rem 1.1rem; }
+
+/* BOL (Bon de livraison) */
+.bol-wrap { padding: 1.1rem; }
+.bol-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.2rem; }
+.bol-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .1em; }
+.bol-logo .o { color: var(--orange); }
+.bol-meta { text-align: right; font-size: .75rem; color: var(--txt2); line-height: 1.6; }
+.bol-title { font-family: var(--fh); font-size: 1.1rem; letter-spacing: .1em; text-transform: uppercase; color: var(--txt2); border-bottom: 1px solid var(--line2); padding-bottom: .6rem; margin-bottom: .9rem; }
+.bol-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.bol-table td { padding: .45rem 0; border-bottom: 1px solid var(--line); font-size: .83rem; vertical-align: top; }
+.bol-table td:first-child { color: var(--txt2); width: 40%; }
+.bol-table td:last-child { color: var(--txt); font-weight: 500; }
+.bol-sig-box { border: 1px solid var(--line2); border-radius: 10px; padding: .9rem; text-align: center; margin-top: .7rem; }
+.bol-sig-label { font-size: .7rem; color: var(--txt3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .5rem; }
+.bol-sig-area { height: 55px; border: 1px dashed var(--line2); border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--txt3); font-size: .75rem; }
+
+/* Create mission form */
+.create-form { padding: 1.1rem; }
+.form-section-title { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); margin: 1rem 0 .7rem; }
+.form-section-title:first-child { margin-top: 0; }
+```
+
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     LOGIN
+════════════════════════════════════════ -->
+
+<div id="s-login" class="screen active">
+  <div class="login-glow"></div>
+  <div class="login-logo">SEC<span class="o">O</span>TO</div>
+  <div class="login-tagline">Plateforme convoyage</div>
+  <div class="login-box">
+    <h2>Connexion</h2>
+    <div class="f-group">
+      <label>Email</label>
+      <input type="email" id="l-email" placeholder="vous@secoto.fr" autocomplete="email"/>
+    </div>
+    <div class="f-group">
+      <label>Mot de passe</label>
+      <input type="password" id="l-pwd" placeholder="••••••••"/>
+    </div>
+    <button class="btn-main" onclick="doLogin()" style="margin-top:.3rem">Se connecter →</button>
+    <div style="text-align:center;margin-top:1rem">
+      <span style="color:var(--txt3);font-size:.8rem">Pas encore de compte ? </span>
+      <span onclick="goRegister()" style="color:var(--orange);font-size:.8rem;font-weight:600;cursor:pointer">Créer un compte</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     REGISTER
+════════════════════════════════════════ -->
+
+<div id="s-register" class="screen">
+  <div class="login-glow"></div>
+  <div class="login-logo">SEC<span class="o">O</span>TO</div>
+  <div class="login-tagline">Créer un compte</div>
+  <div class="login-box">
+
+```
+<!-- Sélecteur de rôle -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.2rem">
+  <div id="role-conv-btn" onclick="selectRole('conv')" style="background:rgba(34,197,94,.12);border:2px solid var(--green);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s">
+    <div style="font-size:1.4rem">🚗</div>
+    <div style="font-family:var(--fh);font-size:.9rem;letter-spacing:.06em;color:var(--green);margin-top:.3rem">CONVOYEUR</div>
+  </div>
+  <div id="role-admin-btn" onclick="selectRole('admin')" style="background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s">
+    <div style="font-size:1.4rem">🛡️</div>
+    <div style="font-family:var(--fh);font-size:.9rem;letter-spacing:.06em;color:var(--txt2);margin-top:.3rem">ADMIN</div>
+  </div>
+</div>
+
+<!-- Code secret admin (caché par défaut) -->
+<div id="admin-code-wrap" style="display:none">
+  <div class="f-group">
+    <label>Code secret admin</label>
+    <input type="password" id="r-admin-code" placeholder="Code fourni par SECOTO"/>
+  </div>
+</div>
+
+<div class="f-row">
+  <div class="f-group"><label>Prénom</label><input type="text" id="r-firstname" placeholder="Jean"/></div>
+  <div class="f-group"><label>Nom</label><input type="text" id="r-lastname" placeholder="Dupont"/></div>
+</div>
+<div class="f-group">
+  <label>Email</label>
+  <input type="email" id="r-email" placeholder="jean.dupont@email.fr"/>
+</div>
+<div class="f-group">
+  <label>Téléphone</label>
+  <input type="tel" id="r-phone" placeholder="+33 6 00 00 00 00"/>
+</div>
+<div class="f-group">
+  <label>Mot de passe</label>
+  <input type="password" id="r-pwd" placeholder="Minimum 6 caractères"/>
+</div>
+<div class="f-group">
+  <label>Confirmer le mot de passe</label>
+  <input type="password" id="r-pwd2" placeholder="Répétez le mot de passe"/>
+</div>
+
+<button class="btn-main" onclick="doRegister()" style="margin-top:.3rem">Créer mon compte →</button>
+<div style="text-align:center;margin-top:1rem">
+  <span onclick="goLogin()" style="color:var(--orange);font-size:.8rem;font-weight:600;cursor:pointer">← Retour à la connexion</span>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     CONVOYEUR — HOME
+════════════════════════════════════════ -->
+
+<div id="s-home" class="screen">
+  <div class="safe-top"></div>
+  <div class="home-head">
+    <div class="home-hi">Bonjour 👋</div>
+    <div class="home-name" id="h-name">Nawfel B.</div>
+    <div class="avail-toggle on" id="avail-btn" onclick="toggleAvail()">
+      <div class="avail-knob">✓</div>
+      <div class="avail-lbl" id="avail-lbl">Disponible</div>
+    </div>
+    <div class="mini-stats">
+      <div class="mstat"><div class="mstat-n" id="ms-open">3</div><div class="mstat-l">Libres</div></div>
+      <div class="mstat"><div class="mstat-n" id="ms-mine">0</div><div class="mstat-l">Mes missions</div></div>
+      <div class="mstat"><div class="mstat-n">12</div><div class="mstat-l">Ce mois</div></div>
+    </div>
+  </div>
+  <div class="scroll">
+    <div class="sec-label">Missions disponibles</div>
+    <div class="mc" id="mc-041" onclick="askClaim('041')">
+      <div class="mc-top">
+        <div class="mc-ico">🚗</div>
+        <div class="mc-main"><div class="mc-route">Paris → Marseille</div><div class="mc-sub">Berline · Auj. 14h00</div></div>
+        <div class="badge b-open">Libre</div>
+      </div>
+      <div style="padding:.5rem 1rem .6rem;border-top:1px solid var(--line);background:var(--bg2)">
+        <div style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.3rem">
+          <span style="font-size:.62rem;color:var(--green);font-weight:800;flex-shrink:0;letter-spacing:.06em">DEP</span>
+          <span style="font-size:.75rem;color:var(--txt2)">12 rue de Rivoli, Paris 1er</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:flex-start">
+          <span style="font-size:.62rem;color:var(--orange);font-weight:800;flex-shrink:0;letter-spacing:.06em">ARR</span>
+          <span style="font-size:.75rem;color:var(--txt2)">8 av. du Prado, Marseille 8e</span>
+        </div>
+      </div>
+      <div class="mc-bot">
+        <div class="mc-fact"><div class="mc-fact-v">775 km</div><div class="mc-fact-l">Distance</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">426 €</div><div class="mc-fact-l">Rémunération</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">1 j</div><div class="mc-fact-l">Durée</div></div>
+      </div>
+      <div class="mc-claimed" id="claimed-041"><div class="mc-claimed-lbl">Mission attribuée</div></div>
+    </div>
+    <div class="mc" id="mc-042" onclick="askClaim('042')">
+      <div class="mc-top">
+        <div class="mc-ico">🚗</div>
+        <div class="mc-main"><div class="mc-route">Lyon → Bordeaux</div><div class="mc-sub">Citadine · Dem. 09h00</div></div>
+        <div class="badge b-open">Libre</div>
+      </div>
+      <div style="padding:.5rem 1rem .6rem;border-top:1px solid var(--line);background:var(--bg2)">
+        <div style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.3rem">
+          <span style="font-size:.62rem;color:var(--green);font-weight:800;flex-shrink:0;letter-spacing:.06em">DEP</span>
+          <span style="font-size:.75rem;color:var(--txt2)">5 place Bellecour, Lyon 2e</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:flex-start">
+          <span style="font-size:.62rem;color:var(--orange);font-weight:800;flex-shrink:0;letter-spacing:.06em">ARR</span>
+          <span style="font-size:.75rem;color:var(--txt2)">14 cours de l'Intendance, Bordeaux Centre</span>
+        </div>
+      </div>
+      <div class="mc-bot">
+        <div class="mc-fact"><div class="mc-fact-v">556 km</div><div class="mc-fact-l">Distance</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">306 €</div><div class="mc-fact-l">Rémunération</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">1 j</div><div class="mc-fact-l">Durée</div></div>
+      </div>
+      <div class="mc-claimed" id="claimed-042"><div class="mc-claimed-lbl">Mission attribuée</div></div>
+    </div>
+    <div class="mc" id="mc-043" onclick="askClaim('043')">
+      <div class="mc-top">
+        <div class="mc-ico">🏍️</div>
+        <div class="mc-main"><div class="mc-route">Lille → Nice</div><div class="mc-sub">Moto · Jeu. 08h30</div></div>
+        <div class="badge b-open">Libre</div>
+      </div>
+      <div style="padding:.5rem 1rem .6rem;border-top:1px solid var(--line);background:var(--bg2)">
+        <div style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.3rem">
+          <span style="font-size:.62rem;color:var(--green);font-weight:800;flex-shrink:0;letter-spacing:.06em">DEP</span>
+          <span style="font-size:.75rem;color:var(--txt2)">3 Grand Place, Lille</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:flex-start">
+          <span style="font-size:.62rem;color:var(--orange);font-weight:800;flex-shrink:0;letter-spacing:.06em">ARR</span>
+          <span style="font-size:.75rem;color:var(--txt2)">22 Promenade des Anglais, Nice</span>
+        </div>
+      </div>
+      <div class="mc-bot">
+        <div class="mc-fact"><div class="mc-fact-v">1 040 km</div><div class="mc-fact-l">Distance</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">Sur devis</div><div class="mc-fact-l">Rémunération</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">2 j</div><div class="mc-fact-l">Durée</div></div>
+      </div>
+      <div class="mc-claimed" id="claimed-043"><div class="mc-claimed-lbl">Mission attribuée</div></div>
+    </div>
+    <div class="safe-bot"></div>
+  </div>
+</div>
+
+<!-- CONVOYEUR — MES MISSIONS -->
+
+<div id="s-missions" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar"><div class="tb-title">Mes missions</div></div>
+  <div class="scroll" id="my-list">
+    <div id="no-missions" style="display:flex;flex-direction:column;align-items:center;padding:4rem 2rem;gap:.7rem;color:var(--txt3);text-align:center">
+      <div style="font-size:2.2rem;opacity:.3">📋</div>
+      <div style="font-size:.83rem">Aucune mission acceptée.<br>Consultez les missions disponibles.</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONVOYEUR — DETAIL -->
+
+<div id="s-detail" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="goBack()">←</div>
+    <div class="tb-title">Ma mission</div>
+    <div class="tb-action" id="d-pill">En cours</div>
+  </div>
+  <div class="scroll">
+    <div class="detail-head">
+      <div class="d-id" id="d-id">M-2024-041</div>
+      <div class="d-route" id="d-route">Paris → Marseille</div>
+      <div class="d-chips">
+        <div class="dchip" id="d-type">🚗 Convoyage</div>
+        <div class="dchip" id="d-km">775 km</div>
+        <div class="dchip" id="d-price">697 €</div>
+      </div>
+    </div>
+    <div class="prog-bar">
+      <div class="prog-step done" id="ps0"><div class="prog-dot">✓</div><div class="prog-lbl">Acceptée</div></div>
+      <div class="prog-step cur"  id="ps1"><div class="prog-dot">📸</div><div class="prog-lbl">Photos</div></div>
+      <div class="prog-step"      id="ps2"><div class="prog-dot">🚗</div><div class="prog-lbl">Trajet</div></div>
+      <div class="prog-step"      id="ps3"><div class="prog-dot">✍️</div><div class="prog-lbl">Livraison</div></div>
+    </div>
+    <div class="info-sec">
+      <div class="info-sec-title">Véhicule</div>
+      <div class="ir"><span class="ir-k">Modèle</span><span class="ir-v" id="d-vehicle">—</span></div>
+      <div class="ir"><span class="ir-k">Immatriculation</span><span class="ir-v" id="d-plate">—</span></div>
+      <div class="ir"><span class="ir-k">Couleur</span><span class="ir-v" id="d-color">—</span></div>
+      <div class="ir"><span class="ir-k">Carburant</span><span class="ir-v" id="d-fuel">—</span></div>
+    </div>
+    <div class="info-sec">
+      <div class="info-sec-title">Client</div>
+      <div class="ir"><span class="ir-k">Société</span><span class="ir-v" id="d-company">—</span></div>
+      <div class="ir"><span class="ir-k">Contact</span><span class="ir-v" id="d-contact">—</span></div>
+      <div class="ir"><span class="ir-k">Téléphone</span><span class="ir-v o" id="d-phone">—</span></div>
+      <div class="ir"><span class="ir-k">Départ</span><span class="ir-v" id="d-from">—</span></div>
+      <div class="ir"><span class="ir-k">Arrivée</span><span class="ir-v" id="d-to">—</span></div>
+    </div>
+    <div class="info-sec" id="photos-sec">
+      <div class="info-sec-title" style="margin-bottom:.4rem">Photos état des lieux · Départ</div>
+      <div style="font-size:.73rem;color:var(--txt3);margin-bottom:.75rem">4 photos requises avant de démarrer</div>
+      <div class="photo-grid">
+        <div class="pslot" id="pfl"><div class="pslot-ico">📷</div><div class="pslot-lbl">Avant gauche</div><input type="file" accept="image/*" capture="environment" onchange="photoTaken(this,'pfl')"/></div>
+        <div class="pslot" id="pfr"><div class="pslot-ico">📷</div><div class="pslot-lbl">Avant droit</div><input type="file" accept="image/*" capture="environment" onchange="photoTaken(this,'pfr')"/></div>
+        <div class="pslot" id="prl"><div class="pslot-ico">📷</div><div class="pslot-lbl">Arrière gauche</div><input type="file" accept="image/*" capture="environment" onchange="photoTaken(this,'prl')"/></div>
+        <div class="pslot" id="prr"><div class="pslot-ico">📷</div><div class="pslot-lbl">Arrière droit</div><input type="file" accept="image/*" capture="environment" onchange="photoTaken(this,'prr')"/></div>
+      </div>
+    </div>
+    <div class="info-sec" id="sig-sec" style="display:none">
+      <div class="info-sec-title">Signature de livraison</div>
+      <div style="font-size:.73rem;color:var(--txt3);margin-bottom:.75rem">Le destinataire confirme la réception</div>
+      <div class="sig-area"><canvas id="sig-canvas" height="150"></canvas><div class="sig-hint" id="sig-hint">Signez ici avec le doigt</div></div>
+      <div class="sig-btns">
+        <button class="btn-sec" onclick="clearSig()">Effacer</button>
+        <button class="btn-sec g" onclick="validateSig()">Valider ✓</button>
+      </div>
+    </div>
+    <div class="act-zone">
+      <button class="btn-main" id="main-cta" onclick="nextStep()"><span id="main-cta-txt">📸 Valider les photos</span></button>
+      <button class="btn-ghost" id="abort-btn" onclick="showToast('📞 Contactez le support : support@secoto.fr')">Signaler un problème</button>
+    </div>
+    <div class="safe-bot"></div>
+  </div>
+</div>
+
+<!-- CONVOYEUR — PROFILE -->
+
+<div id="s-profile" class="screen">
+  <div class="safe-top"></div>
+  <div class="prof-head">
+    <div class="prof-av" id="p-av">NB</div>
+    <div><div class="prof-name" id="p-name">Nawfel B.</div><div class="prof-role">Convoyeur certifié · SECOTO</div></div>
+  </div>
+  <div class="prof-stats">
+    <div class="ps"><div class="ps-n">48</div><div class="ps-l">Missions</div></div>
+    <div class="ps"><div class="ps-n">4.9</div><div class="ps-l">Note</div></div>
+    <div class="ps"><div class="ps-n">18k</div><div class="ps-l">km</div></div>
+  </div>
+  <div class="scroll">
+    <div class="menu-item" onclick="showToast('📄 Documents')"><div class="mi-ico">📄</div><div class="mi-lbl">Mes documents</div><div class="mi-arr">›</div></div>
+    <div class="menu-item" onclick="showToast('💶 Paiements')"><div class="mi-ico">💶</div><div class="mi-lbl">Historique paiements</div><div class="mi-arr">›</div></div>
+    <div class="menu-item" onclick="showToast('📊 Stats')"><div class="mi-ico">📊</div><div class="mi-lbl">Mes statistiques</div><div class="mi-arr">›</div></div>
+    <div class="menu-item danger" onclick="doLogout()"><div class="mi-ico">🚪</div><div class="mi-lbl">Déconnexion</div><div class="mi-arr">›</div></div>
+    <div class="safe-bot"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     ADMIN — DASHBOARD
+════════════════════════════════════════ -->
+
+<div id="s-admin" class="screen">
+  <div class="safe-top"></div>
+  <div class="admin-head">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">
+      <div class="admin-logo">SEC<span class="o">O</span>TO</div>
+      <button class="btn-ghost" style="width:auto;padding:.35rem .8rem;font-size:.75rem" onclick="doLogout()">Déco</button>
+    </div>
+    <div class="admin-role">Dashboard Admin</div>
+    <div class="admin-kpis">
+      <div class="kpi"><div class="kpi-n o" id="kpi-open">3</div><div class="kpi-l">Libres</div></div>
+      <div class="kpi"><div class="kpi-n" id="kpi-taken">1</div><div class="kpi-l">En cours</div></div>
+      <div class="kpi"><div class="kpi-n g" id="kpi-done">8</div><div class="kpi-l">Terminées</div></div>
+      <div class="kpi"><div class="kpi-n" id="kpi-conv">4</div><div class="kpi-l">Convoyeurs</div></div>
+    </div>
+  </div>
+  <div class="admin-tabs">
+    <div class="atab on" onclick="adminTab(this,'tab-missions')">Missions</div>
+    <div class="atab" onclick="adminTab(this,'tab-kanban')">Kanban</div>
+    <div class="atab" onclick="adminTab(this,'tab-convoyeurs')">Convoyeurs</div>
+    <div class="atab" onclick="adminTab(this,'tab-create')">+ Créer</div>
+  </div>
+  <div class="scroll">
+
+```
+<!-- TAB: MISSIONS LIST -->
+<div id="tab-missions">
+  <div class="sec-label">Toutes les missions</div>
+  <div id="admin-missions-list"></div>
+  <div class="safe-bot"></div>
+</div>
+
+<!-- TAB: KANBAN -->
+<div id="tab-kanban" style="display:none">
+  <div class="kanban-wrap" id="kanban-board"></div>
+</div>
+
+<!-- TAB: CONVOYEURS -->
+<div id="tab-convoyeurs" style="display:none">
+  <div class="sec-label">Comptes convoyeurs</div>
+  <div id="convoyeurs-list"></div>
+  <div style="padding:.5rem 1.1rem 1.1rem">
+    <button class="btn-main" onclick="go('admin');showToast('💡 Partagez le lien de l\'app avec vos convoyeurs pour qu\'ils créent leur compte')">
+      + Inviter un convoyeur
+    </button>
+  </div>
+  <div class="safe-bot"></div>
+</div>
+
+<!-- TAB: CREATE MISSION -->
+<div id="tab-create" style="display:none">
+  <div class="create-form">
+    <div class="form-section-title">Trajet</div>
+    <div class="f-row">
+      <div class="f-group"><label>Ville départ *</label><input type="text" id="cf-from" placeholder="Paris"/></div>
+      <div class="f-group"><label>Ville arrivée *</label><input type="text" id="cf-to" placeholder="Marseille"/></div>
+    </div>
+    <div class="f-row">
+      <div class="f-group"><label>Distance (km)</label><input type="number" id="cf-km" placeholder="775" oninput="calcMissionPrice()"/></div>
+      <div class="f-group"><label>Date & heure</label><input type="datetime-local" id="cf-date"/></div>
+    </div>
+    <div class="f-group">
+      <label>Type de mission</label>
+      <select id="cf-type" onchange="toggleMotoSection()">
+        <option value="auto">🚗 Convoyage automobile</option>
+        <option value="moto">🏍️ Transport moto</option>
+      </select>
+    </div>
+
+    <!-- SECTION AUTO -->
+    <div id="section-auto">
+      <div class="form-section-title">Véhicule</div>
+      <div class="f-row">
+        <div class="f-group"><label>Marque</label><input type="text" id="cf-brand" placeholder="BMW"/></div>
+        <div class="f-group"><label>Modèle</label><input type="text" id="cf-model" placeholder="Série 3"/></div>
+      </div>
+      <div class="f-row">
+        <div class="f-group"><label>Immatriculation</label><input type="text" id="cf-plate" placeholder="AA-123-BB"/></div>
+        <div class="f-group"><label>Couleur</label><input type="text" id="cf-color" placeholder="Noir"/></div>
+      </div>
+      <div class="f-row">
+        <div class="f-group"><label>Carburant</label>
+          <select id="cf-fuel"><option>Diesel</option><option>Essence</option><option>Électrique</option><option>Hybride</option></select>
+        </div>
+        <div class="f-group"><label>Type véhicule</label>
+          <select id="cf-vtype"><option>Berline</option><option>SUV</option><option>Citadine</option><option>Break</option><option>Cabriolet</option><option>Utilitaire léger</option><option>Moto</option></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION MOTO -->
+    <div id="section-moto" style="display:none">
+      <div class="form-section-title">Motos à transporter</div>
+      <div style="font-size:.75rem;color:var(--txt2);margin-bottom:.8rem;line-height:1.5">Ajoutez chaque moto individuellement. Vous pouvez en ajouter plusieurs sur un même trajet.</div>
+      <div id="motos-list"></div>
+      <button type="button" onclick="addMoto()" style="width:100%;background:var(--card);border:1px dashed var(--line2);color:var(--orange);font-family:var(--fb);font-size:.85rem;font-weight:600;padding:.75rem;border-radius:10px;cursor:pointer;margin-bottom:.5rem;transition:background .15s">+ Ajouter une moto</button>
+    </div>
+
+    <div class="form-section-title">Client</div>
+    <div class="f-row">
+      <div class="f-group"><label>Société</label><input type="text" id="cf-company" placeholder="Garage Martin"/></div>
+      <div class="f-group"><label>Contact</label><input type="text" id="cf-contact" placeholder="Jean M."/></div>
+    </div>
+    <div class="f-group"><label>Téléphone</label><input type="tel" id="cf-phone" placeholder="+33 6 00 00 00 00"/></div>
+    <div class="f-group"><label>Adresse de prise en charge *</label><input type="text" id="cf-addr-from" placeholder="12 rue de Rivoli, Paris 1er"/></div>
+    <div class="f-group"><label>Adresse de livraison *</label><input type="text" id="cf-addr-to" placeholder="8 av. du Prado, Marseille 8e"/></div>
+    <div class="f-group" id="delivery-diff-wrap">
+      <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.83rem;font-weight:500;color:var(--txt2)">
+        <input type="checkbox" id="cf-diff-delivery" onchange="toggleDeliveryAddr()" style="width:16px;height:16px;accent-color:var(--orange)"/>
+        Adresse de livraison finale différente de l'arrivée
+      </label>
+    </div>
+    <div class="f-group" id="cf-addr-delivery-wrap" style="display:none">
+      <label>Adresse de livraison finale</label>
+      <input type="text" id="cf-addr-delivery" placeholder="Ex : 3 rue du Faubourg, Paris 11e (si retour en ville différent)"/>
+    </div>
+    <div class="f-group"><label>Instructions particulières</label><textarea id="cf-notes" placeholder="Clés chez la réception, accès parking B2, horaires d'ouverture..."></textarea></div>
+
+    <!-- Prix calculé -->
+    <div style="background:var(--card);border:1px solid var(--line2);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:.68rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:.2rem">Rémunération estimée</div>
+        <div style="font-size:.75rem;color:var(--txt2)" id="price-detail">Renseignez la distance</div>
+      </div>
+      <div style="font-family:var(--fh);font-size:1.8rem;color:var(--orange)" id="cf-price">— €</div>
+    </div>
+
+    <button class="btn-main" onclick="createMission()">Publier la mission →</button>
+    <div style="height:1rem"></div>
+  </div>
+  <div class="safe-bot"></div>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- ADMIN — MISSION DETAIL -->
+
+<div id="s-admin-detail" class="screen">
+  <div class="safe-top"></div>
+  <div class="topbar">
+    <div class="tb-back" onclick="go('admin')">←</div>
+    <div class="tb-title">Détail mission</div>
+    <div class="tb-action" id="adm-status-pill">Libre</div>
+  </div>
+  <div class="scroll">
+    <div class="detail-head">
+      <div class="d-id" id="adm-d-id">—</div>
+      <div class="d-route" id="adm-d-route">—</div>
+      <div class="d-chips">
+        <div class="dchip" id="adm-d-type">—</div>
+        <div class="dchip" id="adm-d-km">—</div>
+        <div class="dchip" id="adm-d-price">—</div>
+      </div>
+    </div>
+    <div class="info-sec">
+      <div class="info-sec-title">Véhicule</div>
+      <div class="ir"><span class="ir-k">Modèle</span><span class="ir-v" id="adm-vehicle">—</span></div>
+      <div class="ir"><span class="ir-k">Immatriculation</span><span class="ir-v" id="adm-plate">—</span></div>
+      <div class="ir"><span class="ir-k">Couleur</span><span class="ir-v" id="adm-color">—</span></div>
+      <div class="ir"><span class="ir-k">Carburant</span><span class="ir-v" id="adm-fuel">—</span></div>
+    </div>
+    <div class="info-sec">
+      <div class="info-sec-title">Client</div>
+      <div class="ir"><span class="ir-k">Société</span><span class="ir-v" id="adm-company">—</span></div>
+      <div class="ir"><span class="ir-k">Contact</span><span class="ir-v" id="adm-contact">—</span></div>
+      <div class="ir"><span class="ir-k">Téléphone</span><span class="ir-v o" id="adm-phone">—</span></div>
+      <div class="ir"><span class="ir-k">Adresse départ</span><span class="ir-v" id="adm-from">—</span></div>
+      <div class="ir"><span class="ir-k">Adresse arrivée</span><span class="ir-v" id="adm-to">—</span></div>
+    </div>
+    <div class="info-sec">
+      <div class="info-sec-title">Convoyeur assigné</div>
+      <div class="ir"><span class="ir-k">Nom</span><span class="ir-v g" id="adm-convoyeur">Non assigné</span></div>
+      <div class="ir"><span class="ir-k">Statut</span><span class="ir-v" id="adm-conv-status">En attente</span></div>
+      <div class="ir"><span class="ir-k">Étape</span><span class="ir-v" id="adm-conv-step">—</span></div>
+    </div>
+    <!-- BON DE LIVRAISON -->
+    <div class="info-sec" id="bol-section">
+      <div class="info-sec-title" style="margin-bottom:.8rem">Bon de livraison</div>
+      <div class="bol-wrap" style="padding:0">
+        <div class="bol-header">
+          <div><div class="bol-logo">SEC<span class="o">O</span>TO</div><div style="font-size:.72rem;color:var(--txt2);margin-top:.2rem">secoto.fr · contact@secoto.fr</div></div>
+          <div class="bol-meta" id="bol-meta">N° —<br>—</div>
+        </div>
+        <div class="bol-title">Bon de livraison</div>
+        <table class="bol-table" id="bol-table">
+          <tr><td>Trajet</td><td id="bol-route">—</td></tr>
+          <tr><td>Distance</td><td id="bol-km">—</td></tr>
+          <tr><td>Véhicule</td><td id="bol-vehicle">—</td></tr>
+          <tr><td>Immatriculation</td><td id="bol-plate">—</td></tr>
+          <tr><td>Client</td><td id="bol-client">—</td></tr>
+          <tr><td>Convoyeur</td><td id="bol-convoyeur">—</td></tr>
+          <tr><td>Rémunération</td><td id="bol-price" style="color:var(--orange);font-weight:700">—</td></tr>
+        </table>
+        <div class="bol-sig-box">
+          <div class="bol-sig-label">Signature destinataire</div>
+          <div class="bol-sig-area">En attente de livraison</div>
+        </div>
+      </div>
+    </div>
+    <div class="adm-detail-actions">
+      <button class="btn-main" onclick="showToast('📧 Notification envoyée au convoyeur')">Notifier le convoyeur</button>
+      <button class="btn-main" onclick="downloadBOL()" style="background:var(--bg3);border:1px solid var(--line2);color:var(--txt)">📄 Télécharger le BOL</button>
+      <button class="btn-ghost" onclick="cancelMission()">Annuler la mission</button>
+    </div>
+    <div class="safe-bot"></div>
+  </div>
+</div>
+
+<!-- ════════════
+     BOTTOM NAVS
+════════════ -->
+
+<!-- Convoyeur nav -->
+
+<div class="bnav" id="bnav-conv">
+  <div class="bni on" id="bni-home" onclick="go('home')"><div class="bni-ico">🏠</div><div class="bni-bar"></div><div class="bni-lbl">Accueil</div></div>
+  <div class="bni" id="bni-missions" onclick="go('missions')"><div class="bni-ico">📋</div><div class="bni-bar"></div><div class="bni-lbl">Missions</div></div>
+  <div class="bni" id="bni-profile" onclick="go('profile')"><div class="bni-ico">👤</div><div class="bni-bar"></div><div class="bni-lbl">Profil</div></div>
+</div>
+
+<!-- CLAIM MODAL -->
+
+<div class="modal-bg" id="claim-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Accepter la mission ?</div>
+    <div class="modal-sub">Elle vous sera attribuée en exclusivité et disparaîtra pour les autres convoyeurs.</div>
+    <div class="m-info">
+      <div class="m-row"><span class="m-row-k">Trajet</span><span class="m-row-v" id="m-route">—</span></div>
+      <div class="m-row"><span class="m-row-k">Départ</span><span class="m-row-v" id="m-from" style="font-size:.8rem;text-align:right;max-width:60%">—</span></div>
+      <div class="m-row"><span class="m-row-k">Arrivée</span><span class="m-row-v" id="m-to" style="font-size:.8rem;text-align:right;max-width:60%">—</span></div>
+      <div class="m-row"><span class="m-row-k">Distance</span><span class="m-row-v" id="m-km">—</span></div>
+      <div class="m-row"><span class="m-row-k">Date</span><span class="m-row-v" id="m-date">—</span></div>
+      <div class="m-row"><span class="m-row-k">Rémunération</span><span class="m-row-v g" id="m-price">—</span></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-ghost" style="flex:1" onclick="closeModal()">Annuler</button>
+      <button class="btn-main" style="flex:2" onclick="confirmClaim()">Accepter →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast-el"></div>
+
+<script>
+(() => {
+  /* ══════════════════════════════
+     DATA
+  ══════════════════════════════ */
+  const MISSIONS = {
+    '041': { id:'M-2024-041', route:'Paris → Marseille', type:'🚗 Convoyage', sub:'Berline · Auj. 14h00', km:'775 km', price:'426 €', duration:'1 j', date:'Auj. 14h00', vehicle:'BMW Série 3', plate:'AA-123-BB', color:'Noir métallisé', fuel:'Diesel', company:'Garage Mécauto', contact:'Thomas M.', phone:'+33 6 12 34 56 78', from:'12 rue de Rivoli, Paris', to:'8 av. du Prado, Marseille' },
+    '042': { id:'M-2024-042', route:'Lyon → Bordeaux',   type:'🚗 Convoyage', sub:'Citadine · Dem. 09h00', km:'556 km', price:'306 €', duration:'1 j', date:'Dem. 09h00', vehicle:'Renault Clio', plate:'CC-456-DD', color:'Blanc', fuel:'Essence', company:'AutoFleet Lyon', contact:'Marie D.', phone:'+33 6 98 76 54 32', from:'5 place Bellecour, Lyon', to:'14 cours de l\'Intendance, Bordeaux' },
+    '043': { id:'M-2024-043', route:'Lille → Nice',      type:'🏍️ Transport moto', sub:'Moto · Jeu. 08h30', km:'1 040 km', price:'Sur devis', duration:'2 j', date:'Jeu. 08h30', vehicle:'Honda CBR 600', plate:'EE-789-FF', color:'Rouge', fuel:'Essence', company:'MotoCity Lille', contact:'Paul V.', phone:'+33 7 11 22 33 44', from:'3 Grand Place, Lille', to:'22 Promenade des Anglais, Nice' },
+  };
+
+  /* ══════════════════════════════
+     ACCOUNTS (localStorage)
+  ══════════════════════════════ */
+  const ADMIN_SECRET = 'SECOTO2024'; // Code secret pour créer un compte admin
+
+  function getAccounts() {
+    try { return JSON.parse(localStorage.getItem('sct_accounts') || '[]'); } catch { return []; }
+  }
+  function saveAccounts(arr) { localStorage.setItem('sct_accounts', JSON.stringify(arr)); }
+
+  function findUser(email, pwd) {
+    const accounts = getAccounts();
+    return accounts.find(u => u.email === email.toLowerCase() && u.pwd === pwd) || null;
+  }
+
+  // Seed admin par défaut si aucun compte existe
+  function seedDefaultAdmin() {
+    const accounts = getAccounts();
+    if (!accounts.find(u => u.role === 'admin')) {
+      accounts.push({ email:'admin@secoto.fr', pwd:'secoto2024', role:'admin', name:'Admin SECOTO', initials:'AS', phone:'' });
+      saveAccounts(accounts);
+    }
+  }
+  seedDefaultAdmin();
+
+  /* ── REGISTER UI ── */
+  let selectedRole = 'conv';
+
+  window.goRegister = function() {
+    document.getElementById('s-login').classList.remove('active');
+    document.getElementById('s-register').classList.add('active');
+    cur = 'register';
+  };
+
+  window.goLogin = function() {
+    document.getElementById('s-register').classList.remove('active');
+    document.getElementById('s-login').classList.add('active');
+    cur = 'login';
+  };
+
+  window.selectRole = function(role) {
+    selectedRole = role;
+    const convBtn  = document.getElementById('role-conv-btn');
+    const adminBtn = document.getElementById('role-admin-btn');
+    const codeWrap = document.getElementById('admin-code-wrap');
+    if (role === 'conv') {
+      convBtn.style.cssText  = 'background:rgba(34,197,94,.12);border:2px solid var(--green);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      convBtn.querySelector('div:last-child').style.color = 'var(--green)';
+      adminBtn.style.cssText = 'background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      adminBtn.querySelector('div:last-child').style.color = 'var(--txt2)';
+      codeWrap.style.display = 'none';
+    } else {
+      adminBtn.style.cssText = 'background:rgba(245,98,15,.1);border:2px solid var(--orange);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      adminBtn.querySelector('div:last-child').style.color = 'var(--orange)';
+      convBtn.style.cssText  = 'background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      convBtn.querySelector('div:last-child').style.color = 'var(--txt2)';
+      codeWrap.style.display = '';
+    }
+  };
+
+  window.doRegister = function() {
+    const firstname = document.getElementById('r-firstname').value.trim();
+    const lastname  = document.getElementById('r-lastname').value.trim();
+    const email     = document.getElementById('r-email').value.trim().toLowerCase();
+    const phone     = document.getElementById('r-phone').value.trim();
+    const pwd       = document.getElementById('r-pwd').value;
+    const pwd2      = document.getElementById('r-pwd2').value;
+    const adminCode = document.getElementById('r-admin-code')?.value.trim();
+
+    if (!firstname || !lastname) { showToast('⚠️ Prénom et nom requis'); return; }
+    if (!email || !email.includes('@')) { showToast('⚠️ Email invalide'); return; }
+    if (pwd.length < 6) { showToast('⚠️ Mot de passe trop court (6 min)'); return; }
+    if (pwd !== pwd2) { showToast('⚠️ Les mots de passe ne correspondent pas'); return; }
+    if (selectedRole === 'admin' && adminCode !== ADMIN_SECRET) { showToast('❌ Code secret incorrect'); return; }
+
+    const accounts = getAccounts();
+    if (accounts.find(u => u.email === email)) { showToast('❌ Email déjà utilisé'); return; }
+
+    const initials = (firstname[0] + lastname[0]).toUpperCase();
+    const name = firstname + ' ' + lastname;
+    accounts.push({ email, pwd, role: selectedRole, name, initials, phone });
+    saveAccounts(accounts);
+
+    showToast('✅ Compte créé ! Connectez-vous');
+    // Pré-remplir le login
+    document.getElementById('l-email').value = email;
+    document.getElementById('l-pwd').value = '';
+    goLogin();
+  };
+
+  /* ══════════════════════════════
+     STATE
+  ══════════════════════════════ */
+  let cur = 'login', prev = 'home';
+  let role = null, userName = '';
+  let availOn = true;
+  let pendingClaim = null, activeMission = null;
+  let missionStep = 0;
+  let photosDone = new Set();
+  let sigHasMark = false, sigDrawing = false;
+  let currentAdminMission = null;
+
+  function getClaimed() { try { return JSON.parse(localStorage.getItem('sct_claimed')||'{}'); } catch { return {}; } }
+  function setClaimed(id, by) { const d=getClaimed(); d[id]=by; localStorage.setItem('sct_claimed', JSON.stringify(d)); }
+  function getCreated() { try { return JSON.parse(localStorage.getItem('sct_created')||'[]'); } catch { return []; } }
+  function saveCreated(arr) { localStorage.setItem('sct_created', JSON.stringify(arr)); }
+
+  /* ══════════════════════════════
+     NAVIGATION
+  ══════════════════════════════ */
+  const SCREEN_IDS = { home:'s-home', missions:'s-missions', detail:'s-detail', profile:'s-profile', admin:'s-admin', 'admin-detail':'s-admin-detail', login:'s-login', register:'s-register' };
+
+  window.go = function(name) {
+    if (name === cur) return;
+    const oldEl = document.getElementById(SCREEN_IDS[cur]);
+    const newEl = document.getElementById(SCREEN_IDS[name]);
+    if (!newEl) return;
+    oldEl.classList.remove('active'); oldEl.classList.add('exit');
+    setTimeout(() => oldEl.classList.remove('exit'), 200);
+    newEl.classList.add('active');
+    prev = cur; cur = name;
+    // Update conv nav
+    if (role === 'conv') {
+      ['home','missions','profile'].forEach(n => document.getElementById('bni-'+n)?.classList.toggle('on', n===name));
+    }
+    if (name === 'missions') renderMyMissions();
+    if (name === 'admin') { renderAdminMissions(); renderKanban(); }
+  };
+
+  window.goBack = function() { go(prev || (role==='admin'?'admin':'home')); };
+
+  /* ══════════════════════════════
+     LOGIN / LOGOUT
+  ══════════════════════════════ */
+  window.doLogin = function() {
+    const email = document.getElementById('l-email').value.trim().toLowerCase();
+    const pwd   = document.getElementById('l-pwd').value;
+    if (!email || !pwd) { showToast('⚠️ Remplissez tous les champs'); return; }
+    const user = findUser(email, pwd);
+    if (!user) { showToast('❌ Identifiants incorrects'); return; }
+    role = user.role; userName = user.name;
+    document.getElementById('s-login').classList.remove('active');
+    if (role === 'conv') {
+      document.getElementById('h-name').textContent = userName;
+      document.getElementById('p-name').textContent = userName;
+      document.getElementById('p-av').textContent = user.initials;
+      document.getElementById('bnav-conv').classList.add('on');
+      renderClaimed();
+      go('home');
+    } else {
+      renderAdminMissions(); renderKanban();
+      go('admin');
+    }
+    showToast('✅ Bienvenue ' + user.name.split(' ')[0] + ' !');
+  };
+
+  window.doLogout = function() {
+    document.getElementById('bnav-conv').classList.remove('on');
+    role = null;
+    document.getElementById('s-login').classList.add('active');
+    cur = 'login';
+    const old = document.getElementById(SCREEN_IDS[cur === 'login' ? prev : cur]);
+    if (old) { old.classList.remove('active'); }
+    // Make login active
+    document.getElementById('s-login').classList.add('active');
+    cur = 'login';
+    showToast('👋 Déconnecté');
+  };
+
+  document.getElementById('l-pwd').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+  /* ══════════════════════════════
+     AVAILABILITY (convoyeur)
+  ══════════════════════════════ */
+  let availIdx = 0;
+  window.toggleAvail = function() {
+    availOn = !availOn;
+    const btn = document.getElementById('avail-btn');
+    btn.classList.toggle('on', availOn);
+    btn.querySelector('.avail-knob').textContent = availOn ? '✓' : '·';
+    document.getElementById('avail-lbl').textContent = availOn ? 'Disponible' : 'Indisponible';
+    showToast(availOn ? '🟢 Vous êtes disponible' : '⚫ Indisponible');
+  };
+
+  /* ══════════════════════════════
+     CLAIMED / MISSIONS DISPO
+  ══════════════════════════════ */
+  function renderClaimed() {
+    const claimed = getClaimed();
+    let open = 0;
+    Object.keys(MISSIONS).forEach(id => {
+      const ov = document.getElementById('claimed-'+id);
+      if (ov) { const taken = !!claimed[id]; ov.classList.toggle('on', taken); if(!taken) open++; }
+    });
+    const openEl = document.getElementById('ms-open');
+    if (openEl) openEl.textContent = open;
+    // Created missions
+    getCreated().forEach(m => {
+      const existing = document.getElementById('mc-'+m.key);
+      if (!existing) renderNewMissionCard(m);
+    });
+  }
+
+  /* ══════════════════════════════
+     CLAIM FLOW
+  ══════════════════════════════ */
+  window.askClaim = function(id) {
+    if (cur === 'login') return;
+    const claimed = getClaimed();
+    if (claimed[id]) { showToast('❌ Mission déjà attribuée'); return; }
+    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+    if (!m) return;
+    pendingClaim = id;
+    document.getElementById('m-route').textContent = m.route;
+    document.getElementById('m-from').textContent  = m.from || m.addrFrom || '—';
+    document.getElementById('m-to').textContent    = m.to   || m.addrTo   || '—';
+    document.getElementById('m-km').textContent    = m.km;
+    document.getElementById('m-date').textContent  = m.date || m.sub;
+    document.getElementById('m-price').textContent = m.price;
+    document.getElementById('claim-modal').classList.add('on');
+  };
+
+  window.closeModal = function() { document.getElementById('claim-modal').classList.remove('on'); pendingClaim=null; };
+
+  window.confirmClaim = function() {
+    if (!pendingClaim) return;
+    const id = pendingClaim;
+    setClaimed(id, userName||'Convoyeur');
+    activeMission = id; missionStep = 0; photosDone.clear(); sigHasMark = false;
+    closeModal(); renderClaimed(); renderMyMissions();
+    const mine = Object.keys(getClaimed()).filter(k=>getClaimed()[k]===userName||getClaimed()[k]==='Convoyeur').length;
+    const mineEl = document.getElementById('ms-mine');
+    if (mineEl) mineEl.textContent = mine;
+    openConvDetail(id);
+    showToast('✅ Mission acceptée !');
+  };
+
+  /* ══════════════════════════════
+     CONVOYEUR DETAIL
+  ══════════════════════════════ */
+  function openConvDetail(id) {
+    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+    if (!m) return;
+    document.getElementById('d-id').textContent = m.id||('M-'+id);
+    document.getElementById('d-route').textContent = m.route;
+    document.getElementById('d-type').textContent = m.type;
+    document.getElementById('d-km').textContent = m.km;
+    document.getElementById('d-price').textContent = m.price;
+    document.getElementById('d-vehicle').textContent = m.vehicle;
+    document.getElementById('d-plate').textContent = m.plate;
+    document.getElementById('d-color').textContent = m.color||'—';
+    document.getElementById('d-fuel').textContent = m.fuel||'—';
+    document.getElementById('d-company').textContent = m.company;
+    document.getElementById('d-contact').textContent = m.contact;
+    document.getElementById('d-phone').textContent = m.phone;
+    document.getElementById('d-from').textContent = m.from||m.addrFrom||'—';
+    document.getElementById('d-to').textContent = m.to||m.addrTo||'—';
+    missionStep = 0; updateStepUI();
+    setTimeout(resizeCanvas, 80);
+    go('detail');
+  }
+
+  function updateStepUI() {
+    ['ps0','ps1','ps2','ps3'].forEach((sid,i) => {
+      const el = document.getElementById(sid);
+      el.className = 'prog-step' + (i<missionStep?' done':i===missionStep?' cur':'');
+      el.querySelector('.prog-dot').textContent = i<missionStep?'✓':['✓','📸','🚗','✍️'][i];
+    });
+    const cta = document.getElementById('main-cta-txt');
+    const pSec = document.getElementById('photos-sec');
+    const sSec = document.getElementById('sig-sec');
+    const abort = document.getElementById('abort-btn');
+    if (missionStep===0) { cta.textContent='📸 Valider les photos'; pSec.style.display=''; sSec.style.display='none'; abort.style.display=''; }
+    else if (missionStep===1) { cta.textContent='🚗 Démarrer le trajet'; pSec.style.display='none'; sSec.style.display='none'; abort.style.display=''; }
+    else if (missionStep===2) { cta.textContent='🏁 Confirmer l\'arrivée'; pSec.style.display='none'; sSec.style.display='none'; abort.style.display='none'; }
+    else if (missionStep===3) { cta.textContent='✅ Finaliser la livraison'; pSec.style.display='none'; sSec.style.display=''; abort.style.display='none'; }
+    else { document.getElementById('main-cta').style.display='none'; abort.style.display='none'; document.getElementById('d-pill').textContent='Terminée'; }
+  }
+
+  window.nextStep = function() {
+    if (missionStep===0) { if(photosDone.size<4){showToast('⚠️ 4 photos requises ('+photosDone.size+'/4)');return;} missionStep=1; updateStepUI(); showToast('📸 Photos validées'); }
+    else if (missionStep===1) { missionStep=2; updateStepUI(); showToast('🚗 Trajet démarré — bon voyage !'); }
+    else if (missionStep===2) { missionStep=3; updateStepUI(); showToast('🏁 Arrivée confirmée'); }
+    else if (missionStep===3) { if(!sigHasMark){showToast('⚠️ Signature requise');return;} missionStep=4; updateStepUI(); showToast('✅ Mission terminée — bravo !'); }
+  };
+
+  function renderMyMissions() {
+    const claimed = getClaimed();
+    const mine = Object.keys(claimed);
+    const container = document.getElementById('my-list');
+    const noMsg = document.getElementById('no-missions');
+    container.querySelectorAll('.mc').forEach(c=>c.remove());
+    if (mine.length===0) { noMsg.style.display='flex'; return; }
+    noMsg.style.display='none';
+    mine.forEach(id => {
+      const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+      if (!m) return;
+      const card = document.createElement('div');
+      card.className='mc'; card.style.marginTop='.5rem';
+      card.innerHTML=`<div class="mc-top"><div class="mc-ico">${m.type.split(' ')[0]}</div><div class="mc-main"><div class="mc-route">${m.route}</div><div class="mc-sub">${m.sub||m.date}</div></div><div class="badge b-taken">Ma mission</div></div><div class="mc-bot"><div class="mc-fact"><div class="mc-fact-v">${m.km}</div><div class="mc-fact-l">Distance</div></div><div class="mc-fact"><div class="mc-fact-v">${m.price}</div><div class="mc-fact-l">Rémuné.</div></div><div class="mc-fact"><div class="mc-fact-v">${m.duration||'—'}</div><div class="mc-fact-l">Durée</div></div></div>`;
+      card.onclick = () => { activeMission=id; openConvDetail(id); };
+      container.appendChild(card);
+    });
+  }
+
+  /* ══════════════════════════════
+     PHOTOS
+  ══════════════════════════════ */
+  window.photoTaken = function(input, slotId) {
+    const slot = document.getElementById(slotId);
+    const file = input.files[0]; if (!file) return;
+    const url = URL.createObjectURL(file);
+    slot.classList.add('filled');
+    let img = slot.querySelector('img');
+    if (!img) { img=document.createElement('img'); slot.prepend(img); }
+    img.src = url;
+    if (!slot.querySelector('.pslot-ok')) { const ok=document.createElement('div'); ok.className='pslot-ok'; ok.textContent='✓'; slot.appendChild(ok); }
+    photosDone.add(slotId);
+    showToast(`📸 ${photosDone.size}/4 photos`);
+  };
+
+  /* ══════════════════════════════
+     SIGNATURE
+  ══════════════════════════════ */
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const w = canvas.offsetWidth; if (!w) return;
+    canvas.width = w * window.devicePixelRatio;
+    canvas.height = 150 * window.devicePixelRatio;
+    canvas.style.height = '150px';
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 2.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  }
+
+  function lockScroll(lock) {
+    const s = document.querySelector('#s-detail .scroll');
+    if (s) { s.style.overflow = lock?'hidden':''; s.style.touchAction = lock?'none':''; }
+  }
+  function gpos(e) { const r=canvas.getBoundingClientRect(),src=e.touches?e.touches[0]:e; return {x:src.clientX-r.left,y:src.clientY-r.top}; }
+
+  canvas.addEventListener('touchstart', e=>{e.preventDefault();e.stopPropagation();sigDrawing=true;sigHasMark=true;lockScroll(true);document.getElementById('sig-hint').style.opacity='0';const p=gpos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
+  canvas.addEventListener('touchmove',  e=>{e.preventDefault();e.stopPropagation();if(!sigDrawing)return;const p=gpos(e);ctx.lineTo(p.x,p.y);ctx.stroke();},{passive:false});
+  canvas.addEventListener('touchend',   e=>{e.preventDefault();sigDrawing=false;lockScroll(false);},{passive:false});
+  canvas.addEventListener('touchcancel',()=>{sigDrawing=false;lockScroll(false);});
+  canvas.addEventListener('mousedown',  e=>{sigDrawing=true;sigHasMark=true;document.getElementById('sig-hint').style.opacity='0';const p=gpos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);});
+  canvas.addEventListener('mousemove',  e=>{if(!sigDrawing)return;const p=gpos(e);ctx.lineTo(p.x,p.y);ctx.stroke();});
+  canvas.addEventListener('mouseup',    ()=>sigDrawing=false);
+  canvas.addEventListener('mouseleave', ()=>sigDrawing=false);
+
+  window.clearSig = function(){ctx.clearRect(0,0,canvas.width/window.devicePixelRatio,canvas.height/window.devicePixelRatio);sigHasMark=false;document.getElementById('sig-hint').style.opacity='1';};
+  window.validateSig = function(){if(!sigHasMark){showToast('⚠️ Signez d\'abord');return;}showToast('✅ Signature validée');};
+
+  /* ══════════════════════════════
+     ADMIN — MISSIONS LIST
+  ══════════════════════════════ */
+  function allMissions() {
+    const base = Object.values(MISSIONS);
+    const created = getCreated().map(m => ({...m, id: m.id||'M-'+m.key}));
+    return [...base, ...created];
+  }
+
+  function renderAdminMissions() {
+    const claimed = getClaimed();
+    const container = document.getElementById('admin-missions-list');
+    container.innerHTML = '';
+    let open=0, taken=0, done=0;
+    allMissions().forEach(m => {
+      const id = m.key || Object.keys(MISSIONS).find(k=>MISSIONS[k]===m);
+      const claimedBy = claimed[id];
+      let statusTxt, badgeClass;
+      if (!claimedBy) { statusTxt='Libre'; badgeClass='b-open'; open++; }
+      else { statusTxt='Acceptée'; badgeClass='b-taken'; taken++; }
+      const card = document.createElement('div');
+      card.className = 'amc';
+      card.innerHTML=`
+        <div class="amc-head">
+          <div class="amc-ico">${m.type.split(' ')[0]}</div>
+          <div class="amc-main">
+            <div class="amc-route">${m.route}</div>
+            <div class="amc-id">${m.id||('M-'+id)} · ${m.sub||m.date||''}</div>
+            <div class="amc-convoyeur">${claimedBy?'<strong>'+claimedBy+'</strong>':'Non assignée'}</div>
+          </div>
+          <div class="badge ${badgeClass}">${statusTxt}</div>
+        </div>
+        <div class="amc-bot">
+          <div class="amc-fact"><div class="amc-fact-v">${m.km}</div><div class="amc-fact-l">Distance</div></div>
+          <div class="amc-fact"><div class="amc-fact-v">${m.price}</div><div class="amc-fact-l">Rémuné.</div></div>
+          <div class="amc-fact"><div class="amc-fact-v">${m.duration||'—'}</div><div class="amc-fact-l">Durée</div></div>
+        </div>`;
+      card.onclick = () => openAdminDetail(id||m.key, claimedBy);
+      container.appendChild(card);
+    });
+    document.getElementById('kpi-open').textContent = open;
+    document.getElementById('kpi-taken').textContent = taken;
+  }
+
+  function openAdminDetail(id, claimedBy) {
+    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+    if (!m) return;
+    currentAdminMission = id;
+    document.getElementById('adm-d-id').textContent = m.id||('M-'+id);
+    document.getElementById('adm-d-route').textContent = m.route;
+    document.getElementById('adm-d-type').textContent = m.type;
+    document.getElementById('adm-d-km').textContent = m.km;
+    document.getElementById('adm-d-price').textContent = m.price;
+    document.getElementById('adm-vehicle').textContent = m.vehicle;
+    document.getElementById('adm-plate').textContent = m.plate;
+    document.getElementById('adm-color').textContent = m.color||'—';
+    document.getElementById('adm-fuel').textContent = m.fuel||'—';
+    document.getElementById('adm-company').textContent = m.company;
+    document.getElementById('adm-contact').textContent = m.contact;
+    document.getElementById('adm-phone').textContent = m.phone;
+    document.getElementById('adm-from').textContent = m.from||m.addrFrom||'—';
+    document.getElementById('adm-to').textContent = m.to||m.addrTo||'—';
+    document.getElementById('adm-convoyeur').textContent = claimedBy||'Non assigné';
+    document.getElementById('adm-conv-status').textContent = claimedBy?'En mission':'En attente';
+    document.getElementById('adm-conv-step').textContent = claimedBy?'Photos / Trajet en cours':'—';
+    document.getElementById('adm-status-pill').textContent = claimedBy?'En cours':'Libre';
+    // BOL
+    document.getElementById('bol-meta').innerHTML = (m.id||'M-'+id)+'<br>'+new Date().toLocaleDateString('fr-FR');
+    document.getElementById('bol-route').textContent = m.route;
+    document.getElementById('bol-km').textContent = m.km;
+    document.getElementById('bol-vehicle').textContent = m.vehicle;
+    document.getElementById('bol-plate').textContent = m.plate;
+    document.getElementById('bol-client').textContent = m.company+' — '+m.contact;
+    document.getElementById('bol-convoyeur').textContent = claimedBy||'Non assigné';
+    document.getElementById('bol-price').textContent = m.price;
+    go('admin-detail');
+  }
+
+  window.cancelMission = function() {
+    if (!currentAdminMission) return;
+    const d = getClaimed(); delete d[currentAdminMission]; localStorage.setItem('sct_claimed', JSON.stringify(d));
+    showToast('🗑️ Mission annulée'); go('admin');
+  };
+
+  window.downloadBOL = function() { showToast('📄 BOL généré — fonctionnalité complète avec backend'); };
+
+  /* ══════════════════════════════
+     ADMIN — KANBAN
+  ══════════════════════════════ */
+  function renderKanban() {
+    const claimed = getClaimed();
+    const cols = { 'Libres':[], 'Assignées':[], 'En cours':[], 'Terminées':[] };
+    allMissions().forEach(m => {
+      const id = m.key || Object.keys(MISSIONS).find(k=>MISSIONS[k]===m);
+      if (!claimed[id]) cols['Libres'].push({m,id});
+      else cols['Assignées'].push({m,id});
+    });
+    // Demo done
+    cols['Terminées'].push({m:{route:'Paris → Lyon', km:'465 km', price:'418 €', sub:'Lun. terminé'},id:'done1'});
+    const board = document.getElementById('kanban-board');
+    board.innerHTML = '';
+    Object.entries(cols).forEach(([title, items]) => {
+      const col = document.createElement('div');
+      col.className = 'kanban-col';
+      col.innerHTML = `<div class="kanban-col-head"><div class="kanban-col-title">${title}</div><div class="kanban-count">${items.length}</div></div>`;
+      items.forEach(({m,id}) => {
+        const card = document.createElement('div');
+        card.className = 'kanban-card';
+        card.innerHTML=`<div class="kanban-card-route">${m.route}</div><div class="kanban-card-sub">${m.sub||m.date||''}</div><div class="kanban-card-footer"><span class="kanban-card-km">${m.km}</span><span style="font-family:var(--fh);font-size:.85rem;color:var(--orange)">${m.price}</span></div>`;
+        card.onclick = () => { if(title!=='Terminées') openAdminDetail(id, getClaimed()[id]); };
+        col.appendChild(card);
+      });
+      board.appendChild(col);
+    });
+  }
+
+  /* ══════════════════════════════
+     ADMIN — CREATE MISSION
+  ══════════════════════════════ */
+  window.calcMissionPrice = function() {
+    const km = parseFloat(document.getElementById('cf-km').value);
+    const priceEl = document.getElementById('cf-price');
+    const detailEl = document.getElementById('price-detail');
+    const type = document.getElementById('cf-type').value;
+    if (!km || km<1) { priceEl.textContent='— €'; detailEl.textContent='Renseignez la distance'; return; }
+    if (type === 'moto') {
+      priceEl.textContent = 'Devis';
+      detailEl.textContent = 'Transport moto — tarif sur devis selon nb de motos';
+      return;
+    }
+    // Tarif convoyeur : 0,55€/km fixe
+    const rate = 0.55;
+    const total = Math.round(km * rate);
+    priceEl.textContent = total + '€';
+    detailEl.textContent = km + ' km × 0,55 €/km';
+  };
+
+  /* ── MOTO SECTION TOGGLE ── */
+  let motoCount = 0;
+  window.toggleMotoSection = function() {
+    const type = document.getElementById('cf-type').value;
+    document.getElementById('section-auto').style.display = type==='auto' ? '' : 'none';
+    document.getElementById('section-moto').style.display = type==='moto' ? '' : 'none';
+    if (type==='moto' && document.getElementById('motos-list').children.length===0) addMoto();
+    calcMissionPrice();
+  };
+
+  window.addMoto = function() {
+    motoCount++;
+    const n = motoCount;
+    const list = document.getElementById('motos-list');
+
+    // Collect previous delivery addresses for autocomplete suggestions
+    const prevAddrs    = [];
+    const prevClients  = [];
+    const prevContacts = [];
+    const prevPhones   = [];
+    document.querySelectorAll('[id^="moto-item-"]').forEach(item => {
+      const idx = item.id.replace('moto-item-','');
+      const addr    = document.getElementById('moto-delivery-'+idx)?.value?.trim();
+      const client  = document.getElementById('moto-client-'+idx)?.value?.trim();
+      const contact = document.getElementById('moto-contact-'+idx)?.value?.trim();
+      const phone   = document.getElementById('moto-phone-'+idx)?.value?.trim();
+      if (addr && !prevAddrs.includes(addr)) prevAddrs.push(addr);
+      if (client && !prevClients.includes(client)) prevClients.push(client);
+      if (contact && !prevContacts.includes(contact)) prevContacts.push(contact);
+      if (phone && !prevPhones.includes(phone)) prevPhones.push(phone);
+    });
+
+    const makeDatalist = (id, items) => items.length===0 ? '' :
+      `<datalist id="${id}">${items.map(v=>`<option value="${v}"/>`).join('')}</datalist>`;
+
+    const dlAddr    = 'dl-addr-'+n;
+    const dlClient  = 'dl-client-'+n;
+    const dlContact = 'dl-contact-'+n;
+    const dlPhone   = 'dl-phone-'+n;
+
+    const item = document.createElement('div');
+    item.id = 'moto-item-'+n;
+    item.style.cssText = 'background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:.95rem;margin-bottom:.7rem';
+    item.innerHTML = `
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.85rem">
+        <div style="font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--orange)">🏍️ Moto ${n}</div>
+        ${n>1?`<div onclick="removeMoto(${n})" style="font-size:.7rem;color:var(--txt3);cursor:pointer;padding:.22rem .55rem;border:1px solid var(--line2);border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">✕ Supprimer</div>`:''}
+      </div>
+
+      <!-- Véhicule -->
+      <div style="font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);margin-bottom:.55rem">Véhicule</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.7rem">
+        <div class="f-group" style="margin:0"><label>Marque</label><input type="text" id="moto-brand-${n}" placeholder="Honda"/></div>
+        <div class="f-group" style="margin:0"><label>Modèle</label><input type="text" id="moto-model-${n}" placeholder="CBR 600"/></div>
+        <div class="f-group" style="margin:0"><label>Immatriculation</label><input type="text" id="moto-plate-${n}" placeholder="AA-123-BB"/></div>
+        <div class="f-group" style="margin:0"><label>Cylindrée</label>
+          <select id="moto-cc-${n}"><option>&lt; 125cc</option><option>125–500cc</option><option>500–1000cc</option><option>&gt; 1000cc</option></select>
+        </div>
+      </div>
+
+      <!-- Récupération -->
+      <div style="font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);margin-bottom:.55rem">Adresse de récupération</div>
+      <div class="f-group" style="margin-bottom:.7rem">
+        <label>Adresse précise de prise en charge</label>
+        <input type="text" id="moto-addr-${n}" placeholder="Identique au départ global, ou précisez ici" list="${dlAddr}"/>
+        ${makeDatalist(dlAddr, prevAddrs)}
+      </div>
+
+      <!-- Séparateur -->
+      <div style="border-top:1px solid var(--line);margin:.2rem 0 .8rem"></div>
+
+      <!-- Client destinataire -->
+      <div style="font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);margin-bottom:.55rem">Client destinataire</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.55rem">
+        <div class="f-group" style="margin:0">
+          <label>Société / Nom</label>
+          <input type="text" id="moto-client-${n}" placeholder="Garage Dupont" list="${dlClient}"/>
+          ${makeDatalist(dlClient, prevClients)}
+        </div>
+        <div class="f-group" style="margin:0">
+          <label>Contact</label>
+          <input type="text" id="moto-contact-${n}" placeholder="Jean D." list="${dlContact}"/>
+          ${makeDatalist(dlContact, prevContacts)}
+        </div>
+      </div>
+      <div class="f-group" style="margin-bottom:.7rem">
+        <label>Téléphone destinataire</label>
+        <input type="tel" id="moto-phone-${n}" placeholder="+33 6 00 00 00 00" list="${dlPhone}"/>
+        ${makeDatalist(dlPhone, prevPhones)}
+      </div>
+
+      <!-- Livraison -->
+      <div style="font-size:.62rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--txt3);margin-bottom:.55rem">Adresse de livraison</div>
+      <div class="f-group" style="margin:0">
+        <label>Adresse précise de livraison</label>
+        <input type="text" id="moto-delivery-${n}" placeholder="14 rue des Lilas, Paris 11e" list="${dlAddr}"/>
+      </div>`;
+
+    list.appendChild(item);
+  };
+
+  window.removeMoto = function(n) {
+    const item = document.getElementById('moto-item-'+n);
+    if (item) item.remove();
+  };
+
+  window.createMission = function() {
+    const from = document.getElementById('cf-from').value.trim();
+    const to   = document.getElementById('cf-to').value.trim();
+    const km   = document.getElementById('cf-km').value;
+    const type = document.getElementById('cf-type').value;
+    if (!from||!to) { showToast('⚠️ Départ et arrivée requis'); return; }
+    const key = 'new_'+Date.now();
+    const kmNum = parseFloat(km)||0;
+    const typeLabel = type==='auto'?'🚗 Convoyage':'🏍️ Transport moto';
+
+    let price = '—', vehicle = '—', plate = '—', color = '—', fuel = '—';
+
+    if (type === 'auto') {
+      if (kmNum>0) price = Math.round(kmNum * 0.55)+'€';
+      vehicle = (document.getElementById('cf-brand').value+' '+document.getElementById('cf-model').value).trim()||'—';
+      plate   = document.getElementById('cf-plate').value||'—';
+      color   = document.getElementById('cf-color').value||'—';
+      fuel    = document.getElementById('cf-fuel').value;
+    } else {
+      // Collect motos with full client + delivery info
+      const motos = [];
+      document.querySelectorAll('[id^="moto-item-"]').forEach(item => {
+        const n = item.id.replace('moto-item-','');
+        motos.push({
+          label:    (document.getElementById('moto-brand-'+n)?.value+' '+document.getElementById('moto-model-'+n)?.value).trim()||'Moto '+n,
+          plate:    document.getElementById('moto-plate-'+n)?.value||'—',
+          cc:       document.getElementById('moto-cc-'+n)?.value||'—',
+          pickup:   document.getElementById('moto-addr-'+n)?.value||'',
+          delivery: document.getElementById('moto-delivery-'+n)?.value||'',
+          client:   document.getElementById('moto-client-'+n)?.value||'—',
+          contact:  document.getElementById('moto-contact-'+n)?.value||'—',
+          phone:    document.getElementById('moto-phone-'+n)?.value||'—',
+        });
+      });
+      vehicle = motos.length>0 ? motos.map(m=>m.label+' ('+m.plate+')').join(' · ') : 'Moto';
+      plate   = motos.map(m=>m.plate).join(', ');
+      price   = 'Sur devis';
+      fuel    = 'Essence';
+      color   = motos.length+' moto'+(motos.length>1?'s':'');
+    }
+
+    const mission = {
+      key, id:'M-'+Date.now().toString().slice(-6),
+      route: from+' → '+to, type: typeLabel,
+      sub: document.getElementById('cf-date').value||'Date à confirmer',
+      km: km?km+' km':'À calculer',
+      price, duration:'—', vehicle, plate, color, fuel,
+      company: document.getElementById('cf-company').value||'—',
+      contact: document.getElementById('cf-contact').value||'—',
+      phone: document.getElementById('cf-phone').value||'—',
+      from: document.getElementById('cf-addr-from').value||from,
+      to: document.getElementById('cf-addr-to').value||to,
+      delivery: document.getElementById('cf-diff-delivery')?.checked ? document.getElementById('cf-addr-delivery').value : (document.getElementById('cf-addr-to').value||to),
+    };
+    const created = getCreated(); created.push(mission); saveCreated(created);
+    renderNewMissionCard(mission);
+    // Clear form
+    ['cf-from','cf-to','cf-km','cf-brand','cf-model','cf-plate','cf-color','cf-company','cf-contact','cf-phone','cf-addr-from','cf-addr-to','cf-addr-delivery','cf-notes'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    const cbx = document.getElementById('cf-diff-delivery'); if(cbx) cbx.checked=false;
+    document.getElementById('cf-addr-delivery-wrap').style.display='none';
+    document.getElementById('motos-list').innerHTML='';
+    motoCount=0;
+    document.getElementById('cf-price').textContent='— €';
+    document.getElementById('price-detail').textContent='Renseignez la distance';
+    document.getElementById('section-auto').style.display='';
+    document.getElementById('section-moto').style.display='none';
+    document.getElementById('cf-type').value='auto';
+    showToast('✅ Mission publiée — visible par les convoyeurs');
+    setTimeout(()=>{ const tab=document.querySelector('.atab'); adminTab(tab,'tab-missions'); },800);
+  };
+
+  window.toggleDeliveryAddr = function() {
+    const checked = document.getElementById('cf-diff-delivery').checked;
+    document.getElementById('cf-addr-delivery-wrap').style.display = checked ? '' : 'none';
+  };
+
+  function renderNewMissionCard(m) {
+    const homeScroll = document.querySelector('#s-home .scroll');
+    if (!homeScroll) return;
+    if (document.getElementById('mc-'+m.key)) return;
+    const card = document.createElement('div');
+    card.className='mc'; card.id='mc-'+m.key;
+    const fromAddr = m.from || m.addrFrom || '—';
+    const toAddr   = m.delivery || m.to || m.addrTo || '—';
+    card.innerHTML=`
+      <div class="mc-top">
+        <div class="mc-ico">${m.type.split(' ')[0]}</div>
+        <div class="mc-main"><div class="mc-route">${m.route}</div><div class="mc-sub">${m.sub}</div></div>
+        <div class="badge b-open">Libre</div>
+      </div>
+      <div style="padding:.5rem 1rem .6rem;border-top:1px solid var(--line);background:var(--bg2)">
+        <div style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.3rem">
+          <span style="font-size:.62rem;color:var(--green);font-weight:800;flex-shrink:0;letter-spacing:.06em">DEP</span>
+          <span style="font-size:.75rem;color:var(--txt2)">${fromAddr}</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:flex-start">
+          <span style="font-size:.62rem;color:var(--orange);font-weight:800;flex-shrink:0;letter-spacing:.06em">ARR</span>
+          <span style="font-size:.75rem;color:var(--txt2)">${toAddr}</span>
+        </div>
+      </div>
+      <div class="mc-bot">
+        <div class="mc-fact"><div class="mc-fact-v">${m.km}</div><div class="mc-fact-l">Distance</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">${m.price}</div><div class="mc-fact-l">Rémuné.</div></div>
+        <div class="mc-fact"><div class="mc-fact-v">—</div><div class="mc-fact-l">Durée</div></div>
+      </div>
+      <div class="mc-claimed" id="claimed-${m.key}"><div class="mc-claimed-lbl">Mission attribuée</div></div>`;
+    card.onclick = () => askClaim(m.key);
+    homeScroll.insertBefore(card, homeScroll.querySelector('.safe-bot'));
+  }
+
+  /* ══════════════════════════════
+     ADMIN — TABS
+  ══════════════════════════════ */
+  window.adminTab = function(el, tabId) {
+    document.querySelectorAll('.atab').forEach(t=>t.classList.remove('on'));
+    el.classList.add('on');
+    ['tab-missions','tab-kanban','tab-convoyeurs','tab-create'].forEach(t => {
+      document.getElementById(t).style.display = t===tabId?'':'none';
+    });
+    if (tabId==='tab-missions') renderAdminMissions();
+    if (tabId==='tab-kanban') renderKanban();
+  };
+
+  /* ══════════════════════════════
+     TOAST
+  ══════════════════════════════ */
+  let toastT;
+  window.showToast = function(msg) {
+    const el = document.getElementById('toast-el');
+    el.textContent = msg; el.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(()=>el.classList.remove('on'), 2600);
+  };
+
+  /* ══════════════════════════════
+     POLL (simule multi-convoyeurs)
+  ══════════════════════════════ */
+  setInterval(()=>{ if(role==='conv') renderClaimed(); if(role==='admin'){ renderAdminMissions(); renderKanban(); } }, 3000);
+
+  /* INIT */
+  renderClaimed();
+
+})();
+</script>
+
+</body>
+</html>
