@@ -1264,7 +1264,7 @@ body {
   <div class="sec-label">Comptes convoyeurs</div>
   <div id="convoyeurs-list"></div>
   <div style="padding:.5rem 1.1rem 1.1rem">
-    <button class="btn-main" onclick="go('admin');showToast('💡 Partagez le lien de l\'app avec vos convoyeurs pour qu\'ils créent leur compte')">
+    <button class="btn-main" onclick="openInviteModal()">
       + Inviter un convoyeur
     </button>
   </div>
@@ -1463,6 +1463,47 @@ body {
       <button class="btn-ghost" style="flex:1" onclick="closeModal()">Annuler</button>
       <button class="btn-main" style="flex:2" onclick="confirmClaim()">Accepter →</button>
     </div>
+  </div>
+</div>
+
+<!-- INVITE MODAL -->
+
+<div class="modal-bg" id="invite-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Inviter un convoyeur</div>
+    <div class="modal-sub">Partagez ce lien avec votre convoyeur. Il pourra créer son compte directement depuis l'app.</div>
+
+```
+<!-- Lien de l'app -->
+<div style="background:#0e1117;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:.9rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.8rem">
+  <div style="font-size:1.1rem">🔗</div>
+  <div style="flex:1;overflow:hidden">
+    <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7a8394;margin-bottom:.2rem">Lien de l'app</div>
+    <div id="invite-link" style="font-size:.82rem;color:#f0f2f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">nawfelbch.github.io/Secoto-app</div>
+  </div>
+</div>
+
+<!-- Message à envoyer -->
+<div style="background:#0e1117;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:.9rem 1rem;margin-bottom:1.2rem">
+  <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7a8394;margin-bottom:.6rem">Message à envoyer</div>
+  <div id="invite-msg" style="font-size:.85rem;color:#f0f2f5;line-height:1.6">Bonjour, je vous invite à rejoindre la plateforme SECOTO pour la gestion de vos missions de convoyage. Créez votre compte ici : nawfelbch.github.io/Secoto-app</div>
+</div>
+
+<!-- Actions -->
+<div style="display:flex;flex-direction:column;gap:.7rem">
+  <button class="btn-main" onclick="copyInviteLink()" id="copy-btn">
+    📋 Copier le lien
+  </button>
+  <button onclick="shareInvite()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#f0f2f5;font-weight:700;font-size:.9rem;padding:.85rem;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem">
+    📤 Partager via SMS / WhatsApp
+  </button>
+  <button onclick="closeInviteModal()" style="width:100%;background:transparent;border:none;color:#7a8394;font-size:.85rem;padding:.6rem;cursor:pointer">
+    Fermer
+  </button>
+</div>
+```
+
   </div>
 </div>
 
@@ -2374,6 +2415,60 @@ body {
     showToast('🗑️ Compte supprimé');
     go('admin');
     setTimeout(renderConvoyeurs, 300);
+  };
+
+  /* ══════════════════════════════
+     INVITE
+  ══════════════════════════════ */
+  window.openInviteModal = function() {
+    // Récupère l'URL actuelle de l'app
+    const appUrl = window.location.href.split('?')[0];
+    document.getElementById('invite-link').textContent = appUrl;
+    document.getElementById('invite-msg').textContent =
+      'Bonjour, je vous invite à rejoindre la plateforme SECOTO pour la gestion de vos missions de convoyage.\n\nCréez votre compte ici : ' + appUrl;
+    document.getElementById('invite-modal').classList.add('on');
+  };
+
+  window.closeInviteModal = function() {
+    document.getElementById('invite-modal').classList.remove('on');
+  };
+
+  window.copyInviteLink = function() {
+    const url = document.getElementById('invite-link').textContent;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '✅ Lien copié !';
+        btn.style.background = 'rgba(34,197,94,.8)';
+        setTimeout(() => {
+          btn.textContent = '📋 Copier le lien';
+          btn.style.background = '';
+        }, 2000);
+      });
+    } else {
+      // Fallback iOS
+      const el = document.createElement('textarea');
+      el.value = url;
+      el.style.position = 'fixed'; el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.focus(); el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      showToast('✅ Lien copié !');
+    }
+  };
+
+  window.shareInvite = function() {
+    const url = document.getElementById('invite-link').textContent;
+    const msg = 'Bonjour, je vous invite à rejoindre la plateforme SECOTO pour la gestion de vos missions de convoyage. Créez votre compte ici : ' + url;
+    if (navigator.share) {
+      navigator.share({ title: 'Rejoindre SECOTO', text: msg, url })
+        .then(() => closeInviteModal())
+        .catch(() => {});
+    } else {
+      // Fallback — ouvre SMS sur mobile
+      window.open('sms:?body=' + encodeURIComponent(msg));
+    }
   };
 
   /* ══════════════════════════════
