@@ -133,10 +133,11 @@ body {
   letter-spacing: .12em; text-transform: uppercase; color: var(--txt2); margin-bottom: .38rem;
 }
 .f-group input, .f-group select, .f-group textarea {
-  width: 100%; background: var(--bg2); border: 1px solid var(--line2);
+  width: 100%; background: #0e1117 !important; border: 1px solid rgba(255,255,255,.13);
   border-radius: 9px; padding: .8rem .95rem;
-  font-family: var(--fb); font-size: .95rem; color: var(--txt); outline: none;
+  font-family: var(--fb); font-size: .95rem; color: #f0f2f5 !important; outline: none;
   transition: border-color .2s, box-shadow .2s; -webkit-appearance: none;
+  -webkit-text-fill-color: #f0f2f5 !important;
 }
 .f-group input::placeholder, .f-group textarea::placeholder { color: var(--txt3); }
 .f-group input:focus, .f-group select:focus, .f-group textarea:focus {
@@ -263,15 +264,79 @@ body {
 }
 .login-glow {
   position: absolute; width: 280px; height: 280px;
-  background: radial-gradient(circle, rgba(245,98,15,.09) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(245,98,15,.12) 0%, transparent 70%);
   top: 8%; left: 50%; transform: translateX(-50%); pointer-events: none;
 }
-.login-logo { font-family: var(--fh); font-size: 3.8rem; letter-spacing: .12em; color: var(--txt); position: relative; z-index: 1; }
-.login-logo .o { color: var(--orange); }
-.login-tagline { color: var(--txt2); font-size: .72rem; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 3rem; position: relative; z-index: 1; }
-.login-box { width: 100%; background: #111318 !important; border: 1px solid rgba(255,255,255,.13); border-radius: 16px; padding: 1.7rem 1.4rem; position: relative; z-index: 1; }
-.login-box h2 { font-family: var(--fh); font-size: 1.6rem; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 1.3rem; }
-.login-hint { text-align: center; color: var(--txt3); font-size: .72rem; margin-top: .9rem; line-height: 1.5; }
+.login-logo {
+  font-family: var(--fh);
+  font-size: 3.8rem; letter-spacing: .12em;
+  color: #f0f2f5 !important;
+  position: relative; z-index: 1;
+}
+.login-logo .o { color: #f5620f !important; }
+.login-tagline {
+  color: #7a8394 !important; font-size: .72rem; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase;
+  margin-bottom: 2.5rem; position: relative; z-index: 1;
+}
+.login-box {
+  width: 100%;
+  background: #181c25 !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  border-radius: 16px; padding: 1.7rem 1.4rem;
+  position: relative; z-index: 1;
+}
+.login-box h2 {
+  font-family: var(--fh); font-size: 1.6rem;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: #f0f2f5 !important; margin-bottom: 1.3rem;
+}
+
+/* Champs dans login/register */
+#s-login .f-group input,
+#s-register .f-group input,
+#s-register .f-group select {
+  background: #0e1117 !important;
+  border: 1.5px solid rgba(255,255,255,.2) !important;
+  border-radius: 10px !important;
+  padding: .9rem 1rem !important;
+  color: #f0f2f5 !important;
+  -webkit-text-fill-color: #f0f2f5 !important;
+  font-size: 1rem !important;
+}
+#s-login .f-group input:focus,
+#s-register .f-group input:focus {
+  border-color: #f5620f !important;
+  box-shadow: 0 0 0 3px rgba(245,98,15,.15) !important;
+}
+#s-login .f-group label,
+#s-register .f-group label {
+  color: #7a8394 !important;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* Bouton principal login */
+#s-login .btn-main,
+#s-register .btn-main {
+  background: #f5620f !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 10px !important;
+  padding: 1rem !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .1em !important;
+  text-transform: uppercase !important;
+  box-shadow: 0 6px 24px rgba(245,98,15,.4) !important;
+}
+#s-login .btn-main:active,
+#s-register .btn-main:active {
+  opacity: .85 !important;
+  transform: scale(.98) !important;
+}
 
 /* ══════════════════════════════════════════
    CONVOYEUR — HOME
