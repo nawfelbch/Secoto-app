@@ -235,6 +235,15 @@ body { font-family: var(--fb); color: var(--txt); max-width: 430px; margin: 0 au
   background: var(--bg); align-items: center; justify-content: center;
   padding: 2rem 1.5rem; gap: 0; z-index: 999;
 }
+#s-register {
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: center;
+  padding: 2rem 1.5rem calc(2rem + var(--safe-bot));
+  gap: 0;
+  z-index: 999;
+}
 .login-glow {
   position: absolute; width: 280px; height: 280px;
   background: radial-gradient(circle, rgba(245,98,15,.09) 0%, transparent 70%);
@@ -485,55 +494,57 @@ body { font-family: var(--fb); color: var(--txt); max-width: 430px; margin: 0 au
 
 <div id="s-register" class="screen">
   <div class="login-glow"></div>
-  <div class="login-logo">SEC<span class="o">O</span>TO</div>
-  <div class="login-tagline">Créer un compte</div>
-  <div class="login-box">
+
+  <div style="position:relative;z-index:1;width:100%">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:1.8rem">
+      <div class="login-logo" style="margin-bottom:.1rem">SEC<span class="o">O</span>TO</div>
+      <div class="login-tagline">Créer un compte</div>
+    </div>
 
 ```
-<!-- Sélecteur de rôle -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.2rem">
-  <div id="role-conv-btn" onclick="selectRole('conv')" style="background:rgba(34,197,94,.12);border:2px solid var(--green);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s">
-    <div style="font-size:1.4rem">🚗</div>
-    <div style="font-family:var(--fh);font-size:.9rem;letter-spacing:.06em;color:var(--green);margin-top:.3rem">CONVOYEUR</div>
+<!-- Role selector -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:1.3rem">
+  <div id="role-conv-btn" onclick="selectRole('conv')"
+    style="background:rgba(34,197,94,.12);border:2px solid var(--green);border-radius:12px;padding:.9rem;text-align:center;cursor:pointer;transition:all .2s">
+    <div style="font-size:1.5rem">🚗</div>
+    <div style="font-family:var(--fh);font-size:.95rem;letter-spacing:.08em;color:var(--green);margin-top:.3rem">CONVOYEUR</div>
   </div>
-  <div id="role-admin-btn" onclick="selectRole('admin')" style="background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s">
-    <div style="font-size:1.4rem">🛡️</div>
-    <div style="font-family:var(--fh);font-size:.9rem;letter-spacing:.06em;color:var(--txt2);margin-top:.3rem">ADMIN</div>
-  </div>
-</div>
-
-<!-- Code secret admin (caché par défaut) -->
-<div id="admin-code-wrap" style="display:none">
-  <div class="f-group">
-    <label>Code secret admin</label>
-    <input type="password" id="r-admin-code" placeholder="Code fourni par SECOTO"/>
+  <div id="role-admin-btn" onclick="selectRole('admin')"
+    style="background:var(--card);border:2px solid var(--line2);border-radius:12px;padding:.9rem;text-align:center;cursor:pointer;transition:all .2s">
+    <div style="font-size:1.5rem">🛡️</div>
+    <div style="font-family:var(--fh);font-size:.95rem;letter-spacing:.08em;color:var(--txt2);margin-top:.3rem">ADMIN</div>
   </div>
 </div>
 
-<div class="f-row">
-  <div class="f-group"><label>Prénom</label><input type="text" id="r-firstname" placeholder="Jean"/></div>
-  <div class="f-group"><label>Nom</label><input type="text" id="r-lastname" placeholder="Dupont"/></div>
-</div>
-<div class="f-group">
-  <label>Email</label>
-  <input type="email" id="r-email" placeholder="jean.dupont@email.fr"/>
-</div>
-<div class="f-group">
-  <label>Téléphone</label>
-  <input type="tel" id="r-phone" placeholder="+33 6 00 00 00 00"/>
-</div>
-<div class="f-group">
-  <label>Mot de passe</label>
-  <input type="password" id="r-pwd" placeholder="Minimum 6 caractères"/>
-</div>
-<div class="f-group">
-  <label>Confirmer le mot de passe</label>
-  <input type="password" id="r-pwd2" placeholder="Répétez le mot de passe"/>
+<!-- Form card -->
+<div style="background:var(--card);border:1px solid var(--line2);border-radius:16px;padding:1.5rem 1.3rem;width:100%">
+
+  <!-- Code secret admin -->
+  <div id="admin-code-wrap" style="display:none;margin-bottom:.9rem">
+    <div style="background:rgba(245,98,15,.08);border:1px solid rgba(245,98,15,.2);border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.78rem;color:var(--txt2);line-height:1.5">
+      🔐 Réservé à SECOTO. Entrez le code secret fourni par l'administrateur.
+    </div>
+    <div class="f-group" style="margin-bottom:0">
+      <label>Code secret admin</label>
+      <input type="password" id="r-admin-code" placeholder="Code secret SECOTO"/>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+    <div class="f-group" style="margin:0"><label>Prénom *</label><input type="text" id="r-firstname" placeholder="Jean" autocomplete="given-name"/></div>
+    <div class="f-group" style="margin:0"><label>Nom *</label><input type="text" id="r-lastname" placeholder="Dupont" autocomplete="family-name"/></div>
+  </div>
+  <div style="height:.7rem"></div>
+  <div class="f-group"><label>Email *</label><input type="email" id="r-email" placeholder="jean@email.fr" autocomplete="email"/></div>
+  <div class="f-group"><label>Téléphone</label><input type="tel" id="r-phone" placeholder="+33 6 00 00 00 00" autocomplete="tel"/></div>
+  <div class="f-group"><label>Mot de passe * (6 min)</label><input type="password" id="r-pwd" placeholder="••••••••" autocomplete="new-password"/></div>
+  <div class="f-group" style="margin-bottom:0"><label>Confirmer le mot de passe *</label><input type="password" id="r-pwd2" placeholder="••••••••" autocomplete="new-password"/></div>
 </div>
 
-<button class="btn-main" onclick="doRegister()" style="margin-top:.3rem">Créer mon compte →</button>
-<div style="text-align:center;margin-top:1rem">
-  <span onclick="goLogin()" style="color:var(--orange);font-size:.8rem;font-weight:600;cursor:pointer">← Retour à la connexion</span>
+<button class="btn-main" onclick="doRegister()" style="margin-top:1rem">Créer mon compte →</button>
+<div style="text-align:center;margin-top:1rem;padding-bottom:.5rem">
+  <span onclick="goLogin()" style="color:var(--orange);font-size:.85rem;font-weight:600;cursor:pointer">← Retour à la connexion</span>
 </div>
 ```
 
@@ -1715,7 +1726,45 @@ body { font-family: var(--fb); color: var(--txt); max-width: 430px; margin: 0 au
     });
     if (tabId==='tab-missions') renderAdminMissions();
     if (tabId==='tab-kanban') renderKanban();
+    if (tabId==='tab-convoyeurs') renderConvoyeurs();
   };
+
+  function renderConvoyeurs() {
+    const claimed = getClaimed();
+    const accounts = getAccounts().filter(u => u.role === 'conv');
+    const container = document.getElementById('convoyeurs-list');
+    if (!container) return;
+    container.innerHTML = '';
+    if (accounts.length === 0) {
+      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:3rem 2rem;gap:.7rem;color:var(--txt3);text-align:center"><div style="font-size:2rem;opacity:.3">👤</div><div style="font-size:.83rem">Aucun convoyeur inscrit.<br>Partagez le lien de l\'app pour les inviter.</div></div>';
+      return;
+    }
+    // Count missions per convoyeur
+    const missionCount = {};
+    Object.values(claimed).forEach(name => { missionCount[name] = (missionCount[name]||0) + 1; });
+
+    accounts.forEach(u => {
+      const count = missionCount[u.name] || 0;
+      const item = document.createElement('div');
+      item.className = 'convoyeur-item';
+      item.innerHTML = `
+        <div class="c-av">${u.initials}</div>
+        <div class="c-info">
+          <div class="c-name">${u.name}</div>
+          <div class="c-status ${count>0?'on':''}">${count>0?'● En mission':'⚫ Disponible'}</div>
+          <div style="font-size:.72rem;color:var(--txt3);margin-top:.1rem">${u.email}${u.phone?' · '+u.phone:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:.1rem">
+          <div class="c-missions">${count}</div>
+          <div style="font-size:.58rem;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em">missions</div>
+        </div>`;
+      // Long press to delete
+      let pressTimer;
+      item.addEventListener('touchstart', () => { pressTimer = setTimeout(() => { if(confirm('Supprimer le compte de '+u.name+' ?')) { const accs = getAccounts().filter(a=>a.email!==u.email); saveAccounts(accs); renderConvoyeurs(); showToast('🗑️ Compte supprimé'); } }, 1000); });
+      item.addEventListener('touchend', () => clearTimeout(pressTimer));
+      container.appendChild(item);
+    });
+  }
 
   /* ══════════════════════════════
      TOAST
