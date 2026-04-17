@@ -1549,10 +1549,16 @@ body {
     setTimeout(() => oldEl.classList.remove('exit'), 200);
     newEl.classList.add('active');
     prev = cur; cur = name;
-    // Update conv nav
+
+    // Nav convoyeur uniquement si rôle conv
+    const convNav = document.getElementById('bnav-conv');
     if (role === 'conv') {
+      convNav.classList.add('on');
       ['home','missions','profile'].forEach(n => document.getElementById('bni-'+n)?.classList.toggle('on', n===name));
+    } else {
+      convNav.classList.remove('on');
     }
+
     if (name === 'missions') renderMyMissions();
     if (name === 'admin') { renderAdminMissions(); renderKanban(); }
   };
@@ -1569,16 +1575,24 @@ body {
     const user = findUser(email, pwd);
     if (!user) { showToast('❌ Identifiants incorrects'); return; }
     role = user.role; userName = user.name;
+
+    // Cache tous les écrans sauf login
     document.getElementById('s-login').classList.remove('active');
+
+    // Reset nav
+    document.getElementById('bnav-conv').classList.remove('on');
+
     if (role === 'conv') {
       document.getElementById('h-name').textContent = userName;
       document.getElementById('p-name').textContent = userName;
       document.getElementById('p-av').textContent = user.initials;
-      document.getElementById('bnav-conv').classList.add('on');
       renderClaimed();
+      cur = 'login'; // reset pour que go() fonctionne
       go('home');
     } else {
+      // Admin — pas de bottom nav
       renderAdminMissions(); renderKanban();
+      cur = 'login';
       go('admin');
     }
     showToast('✅ Bienvenue ' + user.name.split(' ')[0] + ' !');
