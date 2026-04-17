@@ -1521,29 +1521,52 @@ body {
   };
 
   /* ══════════════════════════════
-     ACCOUNTS (localStorage)
+     SUPABASE CONFIG
   ══════════════════════════════ */
-  const ADMIN_SECRET = 'SECOTO2024'; // Code secret pour créer un compte admin
+  const SB_URL = 'https://znnigxmzacukpfueqfrh.supabase.co';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpubmlneG16YWN1a3BmdWVxZnJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyODQ2NzgsImV4cCI6MjA5MTg2MDY3OH0.YNnKgsxm5AoorOsk-FVRWBgP2AVFI6rZKSmlbUSsfXo';
 
-  function getAccounts() {
-    try { return JSON.parse(localStorage.getItem('sct_accounts') || '[]'); } catch { return []; }
-  }
-  function saveAccounts(arr) { localStorage.setItem('sct_accounts', JSON.stringify(arr)); }
+  const sbHeaders = {
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + SB_KEY,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  };
 
-  function findUser(email, pwd) {
-    const accounts = getAccounts();
-    return accounts.find(u => u.email === email.toLowerCase() && u.pwd === pwd) || null;
+  async function sbGet(table, params='') {
+    const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+params, { headers: sbHeaders });
+    return r.json();
+  }
+  async function sbPost(table, body) {
+    const r = await fetch(SB_URL+'/rest/v1/'+table, { method:'POST', headers: sbHeaders, body: JSON.stringify(body) });
+    return r.json();
+  }
+  async function sbPatch(table, params, body) {
+    const r = await fetch(SB_URL+'/rest/v1/'+table+'?'+params, { method:'PATCH', headers: sbHeaders, body: JSON.stringify(body) });
+    return r.json();
+  }
+  async function sbDelete(table, params) {
+    await fetch(SB_URL+'/rest/v1/'+table+'?'+params, { method:'DELETE', headers: sbHeaders });
   }
 
-  // Seed admin par défaut si aucun compte existe
-  function seedDefaultAdmin() {
-    const accounts = getAccounts();
-    if (!accounts.find(u => u.role === 'admin')) {
-      accounts.push({ email:'admin@secoto.fr', pwd:'secoto2024', role:'admin', name:'Admin SECOTO', initials:'AS', phone:'' });
-      saveAccounts(accounts);
-    }
+  /* ══════════════════════════════
+     ACCOUNTS — Supabase
+  ══════════════════════════════ */
+  const ADMIN_SECRET = 'SECOTO2024';
+
+  async function findUser(email, pwd) {
+    const data = await sbGet('accounts', 'email=eq.'+encodeURIComponent(email)+'&pwd=eq.'+encodeURIComponent(pwd));
+    return Array.isArray(data) && data.length > 0 ? data[0] : null;
   }
-  seedDefaultAdmin();
+
+  async function emailExists(email) {
+    const data = await sbGet('accounts', 'email=eq.'+encodeURIComponent(email));
+    return Array.isArray(data) && data.length > 0;
+  }
+
+  async function getConvAccounts() {
+    return await sbGet('accounts', 'role=eq.conv');
+  }
 
   /* ── REGISTER UI ── */
   let selectedRole = 'conv';
@@ -1568,19 +1591,19 @@ body {
     if (role === 'conv') {
       convBtn.style.cssText  = 'background:rgba(34,197,94,.12);border:2px solid var(--green);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
       convBtn.querySelector('div:last-child').style.color = 'var(--green)';
-      adminBtn.style.cssText = 'background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
-      adminBtn.querySelector('div:last-child').style.color = 'var(--txt2)';
+      adminBtn.style.cssText = 'background:var(--card);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      adminBtn.querySelector('div:last-child').style.color = '#7a8394';
       codeWrap.style.display = 'none';
     } else {
       adminBtn.style.cssText = 'background:rgba(245,98,15,.1);border:2px solid var(--orange);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
       adminBtn.querySelector('div:last-child').style.color = 'var(--orange)';
-      convBtn.style.cssText  = 'background:var(--surface);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
-      convBtn.querySelector('div:last-child').style.color = 'var(--txt2)';
+      convBtn.style.cssText  = 'background:var(--card);border:2px solid var(--line2);border-radius:10px;padding:.8rem;text-align:center;cursor:pointer;transition:all .2s';
+      convBtn.querySelector('div:last-child').style.color = '#7a8394';
       codeWrap.style.display = '';
     }
   };
 
-  window.doRegister = function() {
+  window.doRegister = async function() {
     const firstname = document.getElementById('r-firstname').value.trim();
     const lastname  = document.getElementById('r-lastname').value.trim();
     const email     = document.getElementById('r-email').value.trim().toLowerCase();
@@ -1595,26 +1618,28 @@ body {
     if (pwd !== pwd2) { showToast('⚠️ Les mots de passe ne correspondent pas'); return; }
     if (selectedRole === 'admin' && adminCode !== ADMIN_SECRET) { showToast('❌ Code secret incorrect'); return; }
 
-    const accounts = getAccounts();
-    if (accounts.find(u => u.email === email)) { showToast('❌ Email déjà utilisé'); return; }
+    showToast('⏳ Création du compte...');
+    if (await emailExists(email)) { showToast('❌ Email déjà utilisé'); return; }
 
     const initials = (firstname[0] + lastname[0]).toUpperCase();
     const name = firstname + ' ' + lastname;
-    accounts.push({ email, pwd, role: selectedRole, name, initials, phone });
-    saveAccounts(accounts);
+    const result = await sbPost('accounts', { email, pwd, role: selectedRole, name, initials, phone });
 
-    showToast('✅ Compte créé ! Connectez-vous');
-    // Pré-remplir le login
-    document.getElementById('l-email').value = email;
-    document.getElementById('l-pwd').value = '';
-    goLogin();
+    if (Array.isArray(result) && result.length > 0) {
+      showToast('✅ Compte créé ! Connectez-vous');
+      document.getElementById('l-email').value = email;
+      document.getElementById('l-pwd').value = '';
+      goLogin();
+    } else {
+      showToast('❌ Erreur lors de la création');
+    }
   };
 
   /* ══════════════════════════════
      STATE
   ══════════════════════════════ */
   let cur = 'login', prev = 'home';
-  let role = null, userName = '';
+  let role = null, userName = '', userEmail = '';
   let availOn = true;
   let pendingClaim = null, activeMission = null;
   let missionStep = 0;
@@ -1622,10 +1647,27 @@ body {
   let sigHasMark = false, sigDrawing = false;
   let currentAdminMission = null;
 
-  function getClaimed() { try { return JSON.parse(localStorage.getItem('sct_claimed')||'{}'); } catch { return {}; } }
-  function setClaimed(id, by) { const d=getClaimed(); d[id]=by; localStorage.setItem('sct_claimed', JSON.stringify(d)); }
-  function getCreated() { try { return JSON.parse(localStorage.getItem('sct_created')||'[]'); } catch { return []; } }
-  function saveCreated(arr) { localStorage.setItem('sct_created', JSON.stringify(arr)); }
+  // Cache local pour éviter trop de requêtes
+  let missionsCache = {};
+  let claimedCache = {};
+
+  async function getClaimed() {
+    const data = await sbGet('missions', 'claimed_by=not.is.null&select=id,claimed_by');
+    const map = {};
+    if (Array.isArray(data)) data.forEach(m => { map[m.id] = m.claimed_by; });
+    claimedCache = map;
+    return map;
+  }
+  async function setClaimed(id, by) {
+    await sbPatch('missions', 'id=eq.'+id, { claimed_by: by, claimed_at: new Date().toISOString() });
+  }
+  async function getAllMissions() {
+    const data = await sbGet('missions', 'order=created_at.desc');
+    return Array.isArray(data) ? data : [];
+  }
+  async function saveMission(m) {
+    await sbPost('missions', m);
+  }
 
   /* ══════════════════════════════
      NAVIGATION
@@ -1660,41 +1702,32 @@ body {
   /* ══════════════════════════════
      LOGIN / LOGOUT
   ══════════════════════════════ */
-  window.doLogin = function() {
+  window.doLogin = async function() {
     const email = document.getElementById('l-email').value.trim().toLowerCase();
     const pwd   = document.getElementById('l-pwd').value;
     if (!email || !pwd) { showToast('⚠️ Remplissez tous les champs'); return; }
-    const user = findUser(email, pwd);
+    showToast('⏳ Connexion...');
+    const user = await findUser(email, pwd);
     if (!user) { showToast('❌ Identifiants incorrects'); return; }
-    role = user.role; userName = user.name;
-
-    // Cache tous les écrans sauf login
+    role = user.role; userName = user.name; userEmail = user.email;
     document.getElementById('s-login').classList.remove('active');
-
-    // Reset nav
     document.getElementById('bnav-conv').classList.remove('on');
-
     if (role === 'conv') {
       document.getElementById('h-name').textContent = userName;
       document.getElementById('p-name').textContent = userName;
       document.getElementById('p-av').textContent = user.initials;
-      renderClaimed();
-      cur = 'login'; // reset pour que go() fonctionne
-      go('home');
+      await refreshClaimed();
+      cur = 'login'; go('home');
     } else {
-      // Admin — pas de bottom nav
-      renderAdminMissions(); renderKanban();
-      cur = 'login';
-      go('admin');
+      cur = 'login'; go('admin');
     }
     showToast('✅ Bienvenue ' + user.name.split(' ')[0] + ' !');
   };
 
   window.doLogout = function() {
-    // Cache tous les écrans actifs
     document.querySelectorAll('.screen.active').forEach(s => s.classList.remove('active'));
     document.getElementById('bnav-conv').classList.remove('on');
-    role = null; userName = ''; cur = 'login';
+    role = null; userName = ''; userEmail = ''; cur = 'login';
     document.getElementById('s-login').classList.add('active');
     showToast('👋 Déconnecté');
   };
@@ -1702,7 +1735,7 @@ body {
   document.getElementById('l-pwd').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
   /* ══════════════════════════════
-     AVAILABILITY (convoyeur)
+     AVAILABILITY
   ══════════════════════════════ */
   let availIdx = 0;
   window.toggleAvail = function() {
@@ -1715,37 +1748,47 @@ body {
   };
 
   /* ══════════════════════════════
-     CLAIMED / MISSIONS DISPO
+     MISSIONS — Supabase
   ══════════════════════════════ */
-  function renderClaimed() {
-    const claimed = getClaimed();
+  async function refreshClaimed() {
+    const allM = await getAllMissions();
+    // Missions statiques
     let open = 0;
     Object.keys(MISSIONS).forEach(id => {
+      const dbM = allM.find(m => m.id === id);
+      const taken = dbM ? !!dbM.claimed_by : false;
       const ov = document.getElementById('claimed-'+id);
-      if (ov) { const taken = !!claimed[id]; ov.classList.toggle('on', taken); if(!taken) open++; }
+      if (ov) { ov.classList.toggle('on', taken); if(!taken) open++; }
+    });
+    // Missions créées par l'admin
+    allM.filter(m => !MISSIONS[m.id]).forEach(m => {
+      const existing = document.getElementById('mc-'+m.id);
+      if (!existing) renderNewMissionCard({...m, key:m.id});
+      else {
+        const ov = document.getElementById('claimed-'+m.id);
+        if (ov) ov.classList.toggle('on', !!m.claimed_by);
+      }
     });
     const openEl = document.getElementById('ms-open');
     if (openEl) openEl.textContent = open;
-    // Created missions
-    getCreated().forEach(m => {
-      const existing = document.getElementById('mc-'+m.key);
-      if (!existing) renderNewMissionCard(m);
-    });
   }
 
   /* ══════════════════════════════
      CLAIM FLOW
   ══════════════════════════════ */
-  window.askClaim = function(id) {
+  window.askClaim = async function(id) {
     if (cur === 'login') return;
-    const claimed = getClaimed();
-    if (claimed[id]) { showToast('❌ Mission déjà attribuée'); return; }
-    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+    // Vérifie en temps réel dans Supabase
+    const data = await sbGet('missions', 'id=eq.'+id+'&select=id,claimed_by');
+    if (Array.isArray(data) && data.length > 0 && data[0].claimed_by) {
+      showToast('❌ Mission déjà attribuée'); await refreshClaimed(); return;
+    }
+    const m = MISSIONS[id] || (await getAllMissions()).find(m=>m.id===id);
     if (!m) return;
     pendingClaim = id;
     document.getElementById('m-route').textContent = m.route;
-    document.getElementById('m-from').textContent  = m.from || m.addrFrom || '—';
-    document.getElementById('m-to').textContent    = m.to   || m.addrTo   || '—';
+    document.getElementById('m-from').textContent  = m.from || m.addr_from || '—';
+    document.getElementById('m-to').textContent    = m.to   || m.addr_to   || '—';
     document.getElementById('m-km').textContent    = m.km;
     document.getElementById('m-date').textContent  = m.date || m.sub;
     document.getElementById('m-price').textContent = m.price;
@@ -1754,25 +1797,48 @@ body {
 
   window.closeModal = function() { document.getElementById('claim-modal').classList.remove('on'); pendingClaim=null; };
 
-  window.confirmClaim = function() {
+  window.confirmClaim = async function() {
     if (!pendingClaim) return;
     const id = pendingClaim;
-    setClaimed(id, userName||'Convoyeur');
+    showToast('⏳ Réservation en cours...');
+    // Double vérif anti-race condition
+    const check = await sbGet('missions', 'id=eq.'+id+'&select=claimed_by');
+    if (Array.isArray(check) && check.length > 0 && check[0].claimed_by) {
+      showToast('❌ Mission prise par un autre convoyeur !');
+      closeModal(); await refreshClaimed(); return;
+    }
+    // Créer la mission dans Supabase si elle n'existe pas encore
+    const existing = await sbGet('missions', 'id=eq.'+id);
+    if (!Array.isArray(existing) || existing.length === 0) {
+      const m = MISSIONS[id];
+      if (m) await saveMission({id, route:m.route, type:m.type, sub:m.sub, km:m.km, price:m.price, duration:m.duration, vehicle:m.vehicle, plate:m.plate, color:m.color, fuel:m.fuel, company:m.company, contact:m.contact, phone:m.phone, addr_from:m.from, addr_to:m.to});
+    }
+    await setClaimed(id, userName);
     activeMission = id; missionStep = 0; photosDone.clear(); sigHasMark = false;
-    closeModal(); renderClaimed(); renderMyMissions();
-    const mine = Object.keys(getClaimed()).filter(k=>getClaimed()[k]===userName||getClaimed()[k]==='Convoyeur').length;
+    closeModal();
+    await refreshClaimed();
+    const allM = await getAllMissions();
+    const mine = allM.filter(m => m.claimed_by === userName).length;
     const mineEl = document.getElementById('ms-mine');
     if (mineEl) mineEl.textContent = mine;
-    openConvDetail(id);
+    openConvDetailById(id);
     showToast('✅ Mission acceptée !');
   };
 
   /* ══════════════════════════════
      CONVOYEUR DETAIL
   ══════════════════════════════ */
-  function openConvDetail(id) {
-    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+  async function openConvDetailById(id) {
+    let m = MISSIONS[id];
+    if (!m) {
+      const data = await sbGet('missions', 'id=eq.'+id);
+      m = Array.isArray(data) && data.length > 0 ? {...data[0], from:data[0].addr_from, to:data[0].addr_to} : null;
+    }
     if (!m) return;
+    openConvDetail(id, m);
+  }
+
+  function openConvDetail(id, m) {
     document.getElementById('d-id').textContent = m.id||('M-'+id);
     document.getElementById('d-route').textContent = m.route;
     document.getElementById('d-type').textContent = m.type;
@@ -1816,21 +1882,19 @@ body {
     else if (missionStep===3) { if(!sigHasMark){showToast('⚠️ Signature requise');return;} missionStep=4; updateStepUI(); showToast('✅ Mission terminée — bravo !'); }
   };
 
-  function renderMyMissions() {
-    const claimed = getClaimed();
-    const mine = Object.keys(claimed);
+  async function renderMyMissions() {
+    const allM = await getAllMissions();
+    const mine = allM.filter(m => m.claimed_by === userName);
     const container = document.getElementById('my-list');
     const noMsg = document.getElementById('no-missions');
     container.querySelectorAll('.mc').forEach(c=>c.remove());
     if (mine.length===0) { noMsg.style.display='flex'; return; }
     noMsg.style.display='none';
-    mine.forEach(id => {
-      const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
-      if (!m) return;
+    mine.forEach(m => {
       const card = document.createElement('div');
       card.className='mc'; card.style.marginTop='.5rem';
-      card.innerHTML=`<div class="mc-top"><div class="mc-ico">${m.type.split(' ')[0]}</div><div class="mc-main"><div class="mc-route">${m.route}</div><div class="mc-sub">${m.sub||m.date}</div></div><div class="badge b-taken">Ma mission</div></div><div class="mc-bot"><div class="mc-fact"><div class="mc-fact-v">${m.km}</div><div class="mc-fact-l">Distance</div></div><div class="mc-fact"><div class="mc-fact-v">${m.price}</div><div class="mc-fact-l">Rémuné.</div></div><div class="mc-fact"><div class="mc-fact-v">${m.duration||'—'}</div><div class="mc-fact-l">Durée</div></div></div>`;
-      card.onclick = () => { activeMission=id; openConvDetail(id); };
+      card.innerHTML=`<div class="mc-top"><div class="mc-ico">${(m.type||'🚗').split(' ')[0]}</div><div class="mc-main"><div class="mc-route">${m.route}</div><div class="mc-sub">${m.sub||m.date||''}</div></div><div class="badge b-taken">Ma mission</div></div><div class="mc-bot"><div class="mc-fact"><div class="mc-fact-v">${m.km}</div><div class="mc-fact-l">Distance</div></div><div class="mc-fact"><div class="mc-fact-v">${m.price}</div><div class="mc-fact-l">Rémuné.</div></div><div class="mc-fact"><div class="mc-fact-v">${m.duration||'—'}</div><div class="mc-fact-l">Durée</div></div></div>`;
+      card.onclick = () => { activeMission=m.id; openConvDetailById(m.id); };
       container.appendChild(card);
     });
   }
@@ -1884,23 +1948,27 @@ body {
   window.clearSig = function(){ctx.clearRect(0,0,canvas.width/window.devicePixelRatio,canvas.height/window.devicePixelRatio);sigHasMark=false;document.getElementById('sig-hint').style.opacity='1';};
   window.validateSig = function(){if(!sigHasMark){showToast('⚠️ Signez d\'abord');return;}showToast('✅ Signature validée');};
 
-  /* ══════════════════════════════
-     ADMIN — MISSIONS LIST
-  ══════════════════════════════ */
-  function allMissions() {
-    const base = Object.values(MISSIONS);
-    const created = getCreated().map(m => ({...m, id: m.id||'M-'+m.key}));
-    return [...base, ...created];
+  async function allMissions() {
+    const sbM = await getAllMissions();
+    const sbIds = sbM.map(m=>m.id);
+    // Fusionne statiques + Supabase
+    const base = Object.entries(MISSIONS).map(([id,m]) => {
+      const sb = sbM.find(s=>s.id===id);
+      return sb ? {...m, ...sb, from:sb.addr_from||m.from, to:sb.addr_to||m.to} : m;
+    });
+    const extra = sbM.filter(m => !MISSIONS[m.id]).map(m=>({...m, from:m.addr_from, to:m.addr_to}));
+    return [...base, ...extra];
   }
 
-  function renderAdminMissions() {
-    const claimed = getClaimed();
+  async function renderAdminMissions() {
+    const allM = await allMissions();
     const container = document.getElementById('admin-missions-list');
+    container.innerHTML = '<div style="padding:1rem 1.1rem;color:#7a8394;font-size:.83rem">Chargement...</div>';
+    let open=0, taken=0;
     container.innerHTML = '';
-    let open=0, taken=0, done=0;
-    allMissions().forEach(m => {
-      const id = m.key || Object.keys(MISSIONS).find(k=>MISSIONS[k]===m);
-      const claimedBy = claimed[id];
+    allM.forEach(m => {
+      const id = m.id || m.key;
+      const claimedBy = m.claimed_by;
       let statusTxt, badgeClass;
       if (!claimedBy) { statusTxt='Libre'; badgeClass='b-open'; open++; }
       else { statusTxt='Acceptée'; badgeClass='b-taken'; taken++; }
@@ -1908,10 +1976,10 @@ body {
       card.className = 'amc';
       card.innerHTML=`
         <div class="amc-head">
-          <div class="amc-ico">${m.type.split(' ')[0]}</div>
+          <div class="amc-ico">${(m.type||'🚗').split(' ')[0]}</div>
           <div class="amc-main">
             <div class="amc-route">${m.route}</div>
-            <div class="amc-id">${m.id||('M-'+id)} · ${m.sub||m.date||''}</div>
+            <div class="amc-id">${m.id||id} · ${m.sub||m.date||''}</div>
             <div class="amc-convoyeur">${claimedBy?'<strong>'+claimedBy+'</strong>':'Non assignée'}</div>
           </div>
           <div class="badge ${badgeClass}">${statusTxt}</div>
@@ -1921,79 +1989,77 @@ body {
           <div class="amc-fact"><div class="amc-fact-v">${m.price}</div><div class="amc-fact-l">Rémuné.</div></div>
           <div class="amc-fact"><div class="amc-fact-v">${m.duration||'—'}</div><div class="amc-fact-l">Durée</div></div>
         </div>`;
-      card.onclick = () => openAdminDetail(id||m.key, claimedBy);
+      card.onclick = () => openAdminDetail(id, m, claimedBy);
       container.appendChild(card);
     });
     document.getElementById('kpi-open').textContent = open;
     document.getElementById('kpi-taken').textContent = taken;
   }
 
-  function openAdminDetail(id, claimedBy) {
-    const m = MISSIONS[id] || getCreated().find(c=>c.key===id);
+  function openAdminDetail(id, m, claimedBy) {
     if (!m) return;
     currentAdminMission = id;
-    document.getElementById('adm-d-id').textContent = m.id||('M-'+id);
+    document.getElementById('adm-d-id').textContent = m.id||id;
     document.getElementById('adm-d-route').textContent = m.route;
-    document.getElementById('adm-d-type').textContent = m.type;
+    document.getElementById('adm-d-type').textContent = m.type||'🚗 Convoyage';
     document.getElementById('adm-d-km').textContent = m.km;
     document.getElementById('adm-d-price').textContent = m.price;
-    document.getElementById('adm-vehicle').textContent = m.vehicle;
-    document.getElementById('adm-plate').textContent = m.plate;
+    document.getElementById('adm-vehicle').textContent = m.vehicle||'—';
+    document.getElementById('adm-plate').textContent = m.plate||'—';
     document.getElementById('adm-color').textContent = m.color||'—';
     document.getElementById('adm-fuel').textContent = m.fuel||'—';
-    document.getElementById('adm-company').textContent = m.company;
-    document.getElementById('adm-contact').textContent = m.contact;
-    document.getElementById('adm-phone').textContent = m.phone;
-    document.getElementById('adm-from').textContent = m.from||m.addrFrom||'—';
-    document.getElementById('adm-to').textContent = m.to||m.addrTo||'—';
+    document.getElementById('adm-company').textContent = m.company||'—';
+    document.getElementById('adm-contact').textContent = m.contact||'—';
+    document.getElementById('adm-phone').textContent = m.phone||'—';
+    document.getElementById('adm-from').textContent = m.from||m.addr_from||'—';
+    document.getElementById('adm-to').textContent = m.to||m.addr_to||'—';
     document.getElementById('adm-convoyeur').textContent = claimedBy||'Non assigné';
     document.getElementById('adm-conv-status').textContent = claimedBy?'En mission':'En attente';
-    document.getElementById('adm-conv-step').textContent = claimedBy?'Photos / Trajet en cours':'—';
+    document.getElementById('adm-conv-step').textContent = claimedBy?'Trajet en cours':'—';
     document.getElementById('adm-status-pill').textContent = claimedBy?'En cours':'Libre';
-    // BOL
-    document.getElementById('bol-meta').innerHTML = (m.id||'M-'+id)+'<br>'+new Date().toLocaleDateString('fr-FR');
+    document.getElementById('bol-meta').innerHTML = (m.id||id)+'<br>'+new Date().toLocaleDateString('fr-FR');
     document.getElementById('bol-route').textContent = m.route;
     document.getElementById('bol-km').textContent = m.km;
-    document.getElementById('bol-vehicle').textContent = m.vehicle;
-    document.getElementById('bol-plate').textContent = m.plate;
-    document.getElementById('bol-client').textContent = m.company+' — '+m.contact;
+    document.getElementById('bol-vehicle').textContent = m.vehicle||'—';
+    document.getElementById('bol-plate').textContent = m.plate||'—';
+    document.getElementById('bol-client').textContent = (m.company||'—')+' — '+(m.contact||'—');
     document.getElementById('bol-convoyeur').textContent = claimedBy||'Non assigné';
     document.getElementById('bol-price').textContent = m.price;
     go('admin-detail');
   }
 
-  window.cancelMission = function() {
+  window.cancelMission = async function() {
     if (!currentAdminMission) return;
-    const d = getClaimed(); delete d[currentAdminMission]; localStorage.setItem('sct_claimed', JSON.stringify(d));
-    showToast('🗑️ Mission annulée'); go('admin');
+    await sbPatch('missions', 'id=eq.'+currentAdminMission, { claimed_by: null, claimed_at: null });
+    showToast('🗑️ Mission annulée');
+    go('admin');
+    setTimeout(renderAdminMissions, 300);
   };
 
-  window.downloadBOL = function() { showToast('📄 BOL généré — fonctionnalité complète avec backend'); };
+  window.downloadBOL = function() { showToast('📄 BOL — export PDF disponible prochainement'); };
 
   /* ══════════════════════════════
      ADMIN — KANBAN
   ══════════════════════════════ */
-  function renderKanban() {
-    const claimed = getClaimed();
-    const cols = { 'Libres':[], 'Assignées':[], 'En cours':[], 'Terminées':[] };
-    allMissions().forEach(m => {
-      const id = m.key || Object.keys(MISSIONS).find(k=>MISSIONS[k]===m);
-      if (!claimed[id]) cols['Libres'].push({m,id});
-      else cols['Assignées'].push({m,id});
+  async function renderKanban() {
+    const allM = await allMissions();
+    const cols = { 'Libres':[], 'Assignées':[], 'Terminées':[] };
+    allM.forEach(m => {
+      if (!m.claimed_by) cols['Libres'].push(m);
+      else cols['Assignées'].push(m);
     });
-    // Demo done
-    cols['Terminées'].push({m:{route:'Paris → Lyon', km:'465 km', price:'418 €', sub:'Lun. terminé'},id:'done1'});
+    cols['Terminées'].push({route:'Paris → Lyon', km:'465 km', price:'418 €', sub:'Lun. terminé'});
     const board = document.getElementById('kanban-board');
     board.innerHTML = '';
     Object.entries(cols).forEach(([title, items]) => {
       const col = document.createElement('div');
       col.className = 'kanban-col';
       col.innerHTML = `<div class="kanban-col-head"><div class="kanban-col-title">${title}</div><div class="kanban-count">${items.length}</div></div>`;
-      items.forEach(({m,id}) => {
+      items.forEach(m => {
         const card = document.createElement('div');
         card.className = 'kanban-card';
-        card.innerHTML=`<div class="kanban-card-route">${m.route}</div><div class="kanban-card-sub">${m.sub||m.date||''}</div><div class="kanban-card-footer"><span class="kanban-card-km">${m.km}</span><span style="font-family:var(--fh);font-size:.85rem;color:var(--orange)">${m.price}</span></div>`;
-        card.onclick = () => { if(title!=='Terminées') openAdminDetail(id, getClaimed()[id]); };
+        card.innerHTML=`<div class="kanban-card-route">${m.route}</div><div class="kanban-card-sub">${m.sub||m.date||''}</div><div class="kanban-card-footer"><span class="kanban-card-km">${m.km}</span><span style="font-size:.85rem;color:#f5620f;font-weight:700">${m.price}</span></div>`;
+        card.onclick = () => { if(title!=='Terminées') openAdminDetail(m.id||m.key, m, m.claimed_by); };
         col.appendChild(card);
       });
       board.appendChild(col);
@@ -2128,26 +2194,24 @@ body {
     if (item) item.remove();
   };
 
-  window.createMission = function() {
+  window.createMission = async function() {
     const from = document.getElementById('cf-from').value.trim();
     const to   = document.getElementById('cf-to').value.trim();
     const km   = document.getElementById('cf-km').value;
     const type = document.getElementById('cf-type').value;
     if (!from||!to) { showToast('⚠️ Départ et arrivée requis'); return; }
-    const key = 'new_'+Date.now();
+
     const kmNum = parseFloat(km)||0;
     const typeLabel = type==='auto'?'🚗 Convoyage':'🏍️ Transport moto';
-
-    let price = '—', vehicle = '—', plate = '—', color = '—', fuel = '—';
+    let price='—', vehicle='—', plate='—', color='—', fuel='—';
 
     if (type === 'auto') {
-      if (kmNum>0) price = Math.round(kmNum * 0.55)+'€';
+      if (kmNum>0) price = Math.round(kmNum*0.55)+'€';
       vehicle = (document.getElementById('cf-brand').value+' '+document.getElementById('cf-model').value).trim()||'—';
       plate   = document.getElementById('cf-plate').value||'—';
       color   = document.getElementById('cf-color').value||'—';
       fuel    = document.getElementById('cf-fuel').value;
     } else {
-      // Collect motos with full client + delivery info
       const motos = [];
       document.querySelectorAll('[id^="moto-item-"]').forEach(item => {
         const n = item.id.replace('moto-item-','');
@@ -2155,7 +2219,6 @@ body {
           label:    (document.getElementById('moto-brand-'+n)?.value+' '+document.getElementById('moto-model-'+n)?.value).trim()||'Moto '+n,
           plate:    document.getElementById('moto-plate-'+n)?.value||'—',
           cc:       document.getElementById('moto-cc-'+n)?.value||'—',
-          pickup:   document.getElementById('moto-addr-'+n)?.value||'',
           delivery: document.getElementById('moto-delivery-'+n)?.value||'',
           client:   document.getElementById('moto-client-'+n)?.value||'—',
           contact:  document.getElementById('moto-contact-'+n)?.value||'—',
@@ -2164,39 +2227,44 @@ body {
       });
       vehicle = motos.length>0 ? motos.map(m=>m.label+' ('+m.plate+')').join(' · ') : 'Moto';
       plate   = motos.map(m=>m.plate).join(', ');
-      price   = 'Sur devis';
-      fuel    = 'Essence';
+      price   = 'Sur devis'; fuel='Essence';
       color   = motos.length+' moto'+(motos.length>1?'s':'');
     }
 
+    const missionId = 'M-'+Date.now().toString().slice(-6);
     const mission = {
-      key, id:'M-'+Date.now().toString().slice(-6),
-      route: from+' → '+to, type: typeLabel,
-      sub: document.getElementById('cf-date').value||'Date à confirmer',
-      km: km?km+' km':'À calculer',
+      id: missionId,
+      route: from+' → '+to,
+      type: typeLabel,
+      sub: document.getElementById('cf-date').value || 'Date à confirmer',
+      km: km ? km+' km' : 'À calculer',
       price, duration:'—', vehicle, plate, color, fuel,
       company: document.getElementById('cf-company').value||'—',
       contact: document.getElementById('cf-contact').value||'—',
-      phone: document.getElementById('cf-phone').value||'—',
-      from: document.getElementById('cf-addr-from').value||from,
-      to: document.getElementById('cf-addr-to').value||to,
-      delivery: document.getElementById('cf-diff-delivery')?.checked ? document.getElementById('cf-addr-delivery').value : (document.getElementById('cf-addr-to').value||to),
+      phone:   document.getElementById('cf-phone').value||'—',
+      addr_from: document.getElementById('cf-addr-from').value||from,
+      addr_to:   document.getElementById('cf-addr-to').value||to,
+      delivery:  document.getElementById('cf-diff-delivery')?.checked ? document.getElementById('cf-addr-delivery').value : '',
     };
-    const created = getCreated(); created.push(mission); saveCreated(created);
-    renderNewMissionCard(mission);
-    // Clear form
-    ['cf-from','cf-to','cf-km','cf-brand','cf-model','cf-plate','cf-color','cf-company','cf-contact','cf-phone','cf-addr-from','cf-addr-to','cf-addr-delivery','cf-notes'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-    const cbx = document.getElementById('cf-diff-delivery'); if(cbx) cbx.checked=false;
-    document.getElementById('cf-addr-delivery-wrap').style.display='none';
-    document.getElementById('motos-list').innerHTML='';
-    motoCount=0;
-    document.getElementById('cf-price').textContent='— €';
-    document.getElementById('price-detail').textContent='Renseignez la distance';
-    document.getElementById('section-auto').style.display='';
-    document.getElementById('section-moto').style.display='none';
-    document.getElementById('cf-type').value='auto';
-    showToast('✅ Mission publiée — visible par les convoyeurs');
-    setTimeout(()=>{ const tab=document.querySelector('.atab'); adminTab(tab,'tab-missions'); },800);
+
+    showToast('⏳ Publication en cours...');
+    const result = await saveMission(mission);
+    if (result && !result.error) {
+      // Reset form
+      ['cf-from','cf-to','cf-km','cf-brand','cf-model','cf-plate','cf-color','cf-company','cf-contact','cf-phone','cf-addr-from','cf-addr-to','cf-addr-delivery','cf-notes'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+      const cbx = document.getElementById('cf-diff-delivery'); if(cbx) cbx.checked=false;
+      document.getElementById('cf-addr-delivery-wrap').style.display='none';
+      document.getElementById('motos-list').innerHTML=''; motoCount=0;
+      document.getElementById('cf-price').textContent='— €';
+      document.getElementById('price-detail').textContent='Renseignez la distance';
+      document.getElementById('section-auto').style.display='';
+      document.getElementById('section-moto').style.display='none';
+      document.getElementById('cf-type').value='auto';
+      showToast('✅ Mission publiée — visible par les convoyeurs');
+      setTimeout(async()=>{ const tab=document.querySelector('.atab'); await renderAdminMissions(); adminTab(tab,'tab-missions'); },800);
+    } else {
+      showToast('❌ Erreur lors de la publication');
+    }
   };
 
   window.toggleDeliveryAddr = function() {
@@ -2262,18 +2330,30 @@ body {
     { key:'assurance', label:'Attestation assurance',  ico:'🛡️' },
   ];
 
-  function getDocsForUser(email) {
-    try { return JSON.parse(localStorage.getItem('sct_docs_'+email)||'{}'); } catch { return {}; }
+  /* ══════════════════════════════
+     DOCS helpers — Supabase
+  ══════════════════════════════ */
+  async function getDocsForUser(email) {
+    const data = await sbGet('documents', 'user_email=eq.'+encodeURIComponent(email));
+    const map = {};
+    if (Array.isArray(data)) data.forEach(d => { map[d.doc_key] = { status: d.status, filename: d.filename }; });
+    return map;
   }
-  function saveDocsForUser(email, docs) {
-    localStorage.setItem('sct_docs_'+email, JSON.stringify(docs));
+  async function saveDocForUser(email, docKey, filename, status) {
+    // Upsert : insert ou update si déjà existant
+    const existing = await sbGet('documents', 'user_email=eq.'+encodeURIComponent(email)+'&doc_key=eq.'+docKey);
+    if (Array.isArray(existing) && existing.length > 0) {
+      await sbPatch('documents', 'user_email=eq.'+encodeURIComponent(email)+'&doc_key=eq.'+docKey, { filename, status, updated_at: new Date().toISOString() });
+    } else {
+      await sbPost('documents', { user_email: email, doc_key: docKey, filename, status });
+    }
   }
-  function countValidatedDocs(email) {
-    const docs = getDocsForUser(email);
+  async function countValidatedDocs(email) {
+    const docs = await getDocsForUser(email);
     return DOC_TYPES.filter(d => docs[d.key]?.status === 'validated').length;
   }
-  function hasPendingDocs(email) {
-    const docs = getDocsForUser(email);
+  async function hasPendingDocs(email) {
+    const docs = await getDocsForUser(email);
     return DOC_TYPES.some(d => docs[d.key]?.status === 'sent');
   }
 
@@ -2291,30 +2371,28 @@ body {
     if (tabId==='tab-convoyeurs') renderConvoyeurs();
   };
 
-  function renderConvoyeurs() {
-    const claimed = getClaimed();
-    const accounts = getAccounts().filter(u => u.role === 'conv');
+  async function renderConvoyeurs() {
+    const claimed = await getClaimed();
+    const accounts = await getConvAccounts();
     const container = document.getElementById('convoyeurs-list');
     if (!container) return;
-    container.innerHTML = '';
-    if (accounts.length === 0) {
+    container.innerHTML = '<div style="padding:1rem 1.1rem;color:#7a8394;font-size:.83rem">Chargement...</div>';
+    if (!Array.isArray(accounts) || accounts.length === 0) {
       container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:3rem 2rem;gap:.7rem;color:#3d4452;text-align:center"><div style="font-size:2rem;opacity:.3">👤</div><div style="font-size:.83rem">Aucun convoyeur inscrit.<br>Partagez le lien de l\'app pour les inviter.</div></div>';
       return;
     }
     const missionCount = {};
-    Object.values(claimed).forEach(name => { missionCount[name] = (missionCount[name]||0) + 1; });
-
-    accounts.forEach(u => {
+    Object.entries(claimed).forEach(([, name]) => { missionCount[name] = (missionCount[name]||0) + 1; });
+    container.innerHTML = '';
+    for (const u of accounts) {
       const count = missionCount[u.name] || 0;
-      const pending = hasPendingDocs(u.email);
-      const validated = countValidatedDocs(u.email);
+      const pending   = await hasPendingDocs(u.email);
+      const validated = await countValidatedDocs(u.email);
       const item = document.createElement('div');
-      item.className = 'convoyeur-item';
-      item.style.cssText = 'cursor:pointer';
+      item.className = 'convoyeur-item'; item.style.cssText = 'cursor:pointer';
       item.innerHTML = `
-        <div class="c-av" style="position:relative">
-          ${u.initials}
-          ${pending ? '<div style="position:absolute;top:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid #080a0f"></div>' : ''}
+        <div class="c-av" style="position:relative">${u.initials}
+          ${pending?'<div style="position:absolute;top:-3px;right:-3px;width:10px;height:10px;background:#f59e0b;border-radius:50%;border:2px solid #080a0f"></div>':''}
         </div>
         <div class="c-info">
           <div class="c-name">${u.name}</div>
@@ -2325,17 +2403,17 @@ body {
           <div style="font-size:.72rem;font-weight:700;color:${validated===4?'#22c55e':pending?'#f59e0b':'#7a8394'}">${validated}/4 docs</div>
           <div style="font-size:.65rem;color:#3d4452">${count} mission${count>1?'s':''}</div>
         </div>`;
-      item.onclick = () => openConvDetail(u);
+      item.onclick = () => openConvDetailAdmin(u);
       container.appendChild(item);
-    });
+    }
   }
 
   /* ── ADMIN CONV DETAIL ── */
   let currentConvEmail = null;
 
-  function openConvDetail(u) {
+  async function openConvDetailAdmin(u) {
     currentConvEmail = u.email;
-    const claimed = getClaimed();
+    const claimed = await getClaimed();
     const count = Object.values(claimed).filter(n=>n===u.name).length;
     document.getElementById('cd-name').textContent = u.name;
     document.getElementById('cd-av').textContent = u.initials;
@@ -2343,41 +2421,26 @@ body {
     document.getElementById('cd-email').textContent = u.email;
     document.getElementById('cd-phone').textContent = u.phone || 'Téléphone non renseigné';
     document.getElementById('cd-missions').textContent = count;
-
-    renderConvDocs(u.email);
+    await renderConvDocs(u.email);
     go('conv-detail');
   }
 
-  function renderConvDocs(email) {
-    const docs = getDocsForUser(email);
+  async function renderConvDocs(email) {
+    const docs = await getDocsForUser(email);
     const validated = DOC_TYPES.filter(d => docs[d.key]?.status === 'validated').length;
     const pending   = DOC_TYPES.some(d => docs[d.key]?.status === 'sent');
     document.getElementById('cd-docs-count').textContent = validated+'/4';
     document.getElementById('cd-docs-count').style.color = validated===4 ? '#22c55e' : '#f0f2f5';
-    const badge = document.getElementById('cd-docs-badge');
-    badge.style.display = pending ? '' : 'none';
-
+    document.getElementById('cd-docs-badge').style.display = pending ? '' : 'none';
     const container = document.getElementById('cd-docs-list');
     container.innerHTML = '';
-
     DOC_TYPES.forEach(d => {
-      const doc = docs[d.key];
-      const status = doc?.status || 'none';
+      const doc = docs[d.key]; const status = doc?.status || 'none';
       let badgeHtml, badgeStyle;
-      if (status === 'validated') {
-        badgeHtml = '✅ Validé';
-        badgeStyle = 'background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e';
-      } else if (status === 'sent') {
-        badgeHtml = '⏳ En attente';
-        badgeStyle = 'background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#f59e0b';
-      } else if (status === 'refused') {
-        badgeHtml = '❌ Refusé';
-        badgeStyle = 'background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444';
-      } else {
-        badgeHtml = 'Non soumis';
-        badgeStyle = 'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#3d4452';
-      }
-
+      if (status==='validated') { badgeHtml='✅ Validé'; badgeStyle='background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e'; }
+      else if (status==='sent') { badgeHtml='⏳ En attente'; badgeStyle='background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#f59e0b'; }
+      else if (status==='refused') { badgeHtml='❌ Refusé'; badgeStyle='background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#ef4444'; }
+      else { badgeHtml='Non soumis'; badgeStyle='background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#3d4452'; }
       const el = document.createElement('div');
       el.style.cssText = 'background:#16191f;border:1px solid rgba(255,255,255,.1);border-radius:12px;margin-bottom:.6rem;overflow:hidden';
       el.innerHTML = `
@@ -2385,33 +2448,28 @@ body {
           <div style="width:40px;height:40px;border-radius:9px;background:rgba(245,98,15,.12);border:1px solid rgba(245,98,15,.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">${d.ico}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:.88rem;color:#f0f2f5">${d.label}</div>
-            <div style="font-size:.72rem;color:#7a8394;margin-top:.1rem">${doc?.filename || 'Aucun fichier'}</div>
+            <div style="font-size:.72rem;color:#7a8394;margin-top:.1rem">${doc?.filename||'Aucun fichier'}</div>
           </div>
           <div style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;${badgeStyle}">${badgeHtml}</div>
         </div>
-        ${status === 'sent' ? `
-        <div style="display:flex;gap:.6rem;padding:.5rem .85rem .85rem">
+        ${status==='sent'?`<div style="display:flex;gap:.6rem;padding:.5rem .85rem .85rem">
           <button onclick="validateDoc('${email}','${d.key}',true)" style="flex:1;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">✅ Valider</button>
           <button onclick="validateDoc('${email}','${d.key}',false)" style="flex:1;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">❌ Refuser</button>
-        </div>` : ''}`;
+        </div>`:''}`;
       container.appendChild(el);
     });
   }
 
-  window.validateDoc = function(email, docKey, approved) {
-    const docs = getDocsForUser(email);
-    if (!docs[docKey]) docs[docKey] = {};
-    docs[docKey].status = approved ? 'validated' : 'refused';
-    saveDocsForUser(email, docs);
-    renderConvDocs(email);
-    renderConvoyeurs();
+  window.validateDoc = async function(email, docKey, approved) {
+    await saveDocForUser(email, docKey, null, approved ? 'validated' : 'refused');
+    await renderConvDocs(email);
+    await renderConvoyeurs();
     showToast(approved ? '✅ Document validé' : '❌ Document refusé');
   };
 
-  window.deleteConvoyeur = function() {
+  window.deleteConvoyeur = async function() {
     if (!currentConvEmail) return;
-    const accs = getAccounts().filter(a => a.email !== currentConvEmail);
-    saveAccounts(accs);
+    await sbDelete('accounts', 'email=eq.'+encodeURIComponent(currentConvEmail));
     showToast('🗑️ Compte supprimé');
     go('admin');
     setTimeout(renderConvoyeurs, 300);
@@ -2474,17 +2532,11 @@ body {
   /* ══════════════════════════════
      DOCUMENTS
   ══════════════════════════════ */
-  window.docUploaded = function(input, docKey) {
+  window.docUploaded = async function(input, docKey) {
     const file = input.files[0];
     if (!file) return;
-    // Sauvegarde dans le store de l'utilisateur connecté
-    const accounts = getAccounts();
-    const me = accounts.find(u => u.name === userName);
-    if (me) {
-      const docs = getDocsForUser(me.email);
-      docs[docKey] = { status: 'sent', filename: file.name, date: new Date().toLocaleDateString('fr-FR') };
-      saveDocsForUser(me.email, docs);
-    }
+    showToast('⏳ Envoi en cours...');
+    await saveDocForUser(userEmail, docKey, file.name, 'sent');
     const statusEl = document.getElementById('doc-'+docKey+'-status');
     const badgeEl  = document.getElementById('doc-'+docKey+'-badge');
     if (statusEl) statusEl.textContent = '✓ ' + file.name;
@@ -2501,7 +2553,7 @@ body {
      PAIEMENTS
   ══════════════════════════════ */
   window.downloadReleve = function() {
-    showToast('📄 Relevé PDF — disponible avec le backend complet');
+    showToast('📄 Relevé PDF — disponible prochainement');
   };
 
   /* ══════════════════════════════
@@ -2515,12 +2567,14 @@ body {
   };
 
   /* ══════════════════════════════
-     POLL (simule multi-convoyeurs)
+     POLLING Supabase (toutes les 8s)
   ══════════════════════════════ */
-  setInterval(()=>{ if(role==='conv') renderClaimed(); if(role==='admin'){ renderAdminMissions(); renderKanban(); } }, 3000);
+  setInterval(async () => {
+    if (role === 'conv') await refreshClaimed();
+    if (role === 'admin') { await renderAdminMissions(); await renderKanban(); }
+  }, 8000);
 
-  /* INIT */
-  renderClaimed();
+  /* INIT — pas de renderClaimed au démarrage, on attend le login */
 
 })();
 </script>
