@@ -2336,16 +2336,33 @@ body {
   async function getDocsForUser(email) {
     const data = await sbGet('documents', 'user_email=eq.'+encodeURIComponent(email));
     const map = {};
-    if (Array.isArray(data)) data.forEach(d => { map[d.doc_key] = { status: d.status, filename: d.filename }; });
+    if (Array.isArray(data)) data.forEach(d => { map[d.doc_key] = { status: d.status, filename: d.filename, url: d.file_url }; });
     return map;
   }
-  async function saveDocForUser(email, docKey, filename, status) {
-    // Upsert : insert ou update si déjà existant
+
+  async function uploadFileToStorage(email, docKey, file) {
+    // Chemin unique dans le bucket : email/docKey/filename
+    const safeName = email.replace(/[@.]/g,'_');
+    const ext = file.name.split('.').pop();
+    const path = safeName + '/' + docKey + '.' + ext;
+    const res = await fetch(SB_URL+'/storage/v1/object/documents/'+path, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Content-Type': file.type, 'x-upsert': 'true' },
+      body: file
+    });
+    if (!res.ok) return null;
+    // URL publique
+    return SB_URL+'/storage/v1/object/public/documents/'+path;
+  }
+
+  async function saveDocForUser(email, docKey, filename, status, fileUrl) {
     const existing = await sbGet('documents', 'user_email=eq.'+encodeURIComponent(email)+'&doc_key=eq.'+docKey);
+    const payload = { filename, status, updated_at: new Date().toISOString() };
+    if (fileUrl) payload.file_url = fileUrl;
     if (Array.isArray(existing) && existing.length > 0) {
-      await sbPatch('documents', 'user_email=eq.'+encodeURIComponent(email)+'&doc_key=eq.'+docKey, { filename, status, updated_at: new Date().toISOString() });
+      await sbPatch('documents', 'user_email=eq.'+encodeURIComponent(email)+'&doc_key=eq.'+docKey, payload);
     } else {
-      await sbPost('documents', { user_email: email, doc_key: docKey, filename, status });
+      await sbPost('documents', { user_email: email, doc_key: docKey, ...payload });
     }
   }
   async function countValidatedDocs(email) {
@@ -2452,7 +2469,13 @@ body {
           </div>
           <div style="font-size:.68rem;font-weight:700;padding:.25rem .6rem;border-radius:6px;${badgeStyle}">${badgeHtml}</div>
         </div>
-        ${status==='sent'?`<div style="display:flex;gap:.6rem;padding:.5rem .85rem .85rem">
+        ${doc?.url ? `
+        <div style="padding:.3rem .85rem .6rem">
+          <a href="${doc.url}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:.5rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#f0f2f5;font-weight:600;font-size:.8rem;padding:.6rem;border-radius:8px;text-decoration:none">
+            👁️ Ouvrir le document
+          </a>
+        </div>` : ''}
+        ${status==='sent'?`<div style="display:flex;gap:.6rem;padding:.3rem .85rem .85rem">
           <button onclick="validateDoc('${email}','${d.key}',true)" style="flex:1;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">✅ Valider</button>
           <button onclick="validateDoc('${email}','${d.key}',false)" style="flex:1;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:#ef4444;font-weight:700;font-size:.8rem;padding:.6rem;border-radius:8px;cursor:pointer">❌ Refuser</button>
         </div>`:''}`;
@@ -2535,8 +2558,11 @@ body {
   window.docUploaded = async function(input, docKey) {
     const file = input.files[0];
     if (!file) return;
-    showToast('⏳ Envoi en cours...');
-    await saveDocForUser(userEmail, docKey, file.name, 'sent');
+    if (file.size > 10 * 1024 * 1024) { showToast('❌ Fichier trop lourd (max 10 Mo)'); return; }
+    showToast('⏳ Upload en cours...');
+    const fileUrl = await uploadFileToStorage(userEmail, docKey, file);
+    if (!fileUrl) { showToast('❌ Erreur upload — réessayez'); return; }
+    await saveDocForUser(userEmail, docKey, file.name, 'sent', fileUrl);
     const statusEl = document.getElementById('doc-'+docKey+'-status');
     const badgeEl  = document.getElementById('doc-'+docKey+'-badge');
     if (statusEl) statusEl.textContent = '✓ ' + file.name;
