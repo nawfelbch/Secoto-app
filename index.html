@@ -8,8 +8,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#080a0f"/>
   <title>SECOTO · App</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" crossorigin="anonymous"/>
   <style>
+    /* Police de secours si Google Fonts ne charge pas */
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 ```
@@ -33,8 +35,8 @@
   --rbg:      rgba(239,68,68,.08);
   --yellow:   #f59e0b;
   --ybg:      rgba(245,158,11,.08);
-  --fh:       'Bebas Neue', 'Impact', 'Arial Narrow', sans-serif;
-  --fb:       'DM Sans', -apple-system, 'Helvetica Neue', sans-serif;
+  --fh:       'Bebas Neue', 'Arial Narrow', Arial, sans-serif;
+  --fb:       'DM Sans', -apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
   --r:        13px;
   --safe-bot: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -520,56 +522,42 @@ body {
 
 /* Admin header */
 .admin-head {
-  background: var(--bg2); padding: 1rem 1.1rem 1rem;
-  border-bottom: 1px solid var(--line); flex-shrink: 0;
+  background: #0e1117 !important; padding: 1rem 1.1rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,.08) !important; flex-shrink: 0;
 }
-.admin-logo { font-family: var(--fh); font-size: 1.6rem; letter-spacing: .1em; color: var(--txt); }
-.admin-logo .o { color: var(--orange); }
-.admin-role { font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: .7rem; }
+.admin-logo { font-family: var(--fh); font-size: 1.8rem; letter-spacing: .1em; color: #f0f2f5 !important; }
+.admin-logo .o { color: #f5620f !important; }
+.admin-role { font-size: .68rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #f5620f !important; margin-bottom: .8rem; }
 .admin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
-.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .65rem .5rem; text-align: center; }
-.kpi-n { font-family: var(--fh); font-size: 1.5rem; color: var(--txt); line-height: 1; }
-.kpi-n.o { color: var(--orange); } .kpi-n.g { color: var(--green); } .kpi-n.r { color: var(--red); }
-.kpi-l { font-size: .58rem; color: var(--txt3); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: .1rem; }
+.kpi { background: #16191f !important; border: 1px solid rgba(255,255,255,.1) !important; border-radius: 10px; padding: .65rem .5rem; text-align: center; }
+.kpi-n { font-family: var(--fh); font-size: 1.6rem; color: #f0f2f5 !important; line-height: 1; }
+.kpi-n.o { color: #f5620f !important; } .kpi-n.g { color: #22c55e !important; } .kpi-n.r { color: #ef4444 !important; }
+.kpi-l { font-size: .56rem; color: #7a8394 !important; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: .15rem; }
 
-/* Admin mission card (richer than convoyeur) */
-.amc {
-  margin: 0 .9rem .6rem; background: var(--card);
-  border: 1px solid var(--line); border-radius: var(--r);
-  overflow: hidden; cursor: pointer;
-  transition: border-color .2s, transform .15s;
-}
-.amc:active { transform: scale(.985); }
-.amc-head { padding: .9rem 1rem .75rem; display: flex; align-items: flex-start; gap: .85rem; }
-.amc-ico { width: 38px; height: 38px; border-radius: 9px; background: var(--bg3); border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
-.amc-main { flex: 1; min-width: 0; }
-.amc-route { font-family: var(--fh); font-size: 1rem; letter-spacing: .03em; color: var(--txt); margin-bottom: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.amc-id { font-size: .68rem; font-weight: 600; letter-spacing: .1em; color: var(--txt3); text-transform: uppercase; }
-.amc-convoyeur { margin-top: .25rem; font-size: .78rem; color: var(--txt2); }
-.amc-convoyeur strong { color: var(--green); }
-.amc-bot { display: flex; border-top: 1px solid var(--line); background: var(--bg2); }
-.amc-fact { flex: 1; padding: .5rem .8rem; border-right: 1px solid var(--line); }
-.amc-fact:last-child { border-right: none; }
-.amc-fact-v { font-family: var(--fh); font-size: .9rem; color: var(--txt); }
-.amc-fact-l { font-size: .58rem; color: var(--txt3); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; margin-top: .06rem; }
+/* Admin tabs */
+.admin-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,.08) !important; background: #0e1117 !important; flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+.admin-tabs::-webkit-scrollbar { display: none; }
+.atab { flex-shrink: 0; padding: .75rem 1.1rem; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #3d4452 !important; border-bottom: 2px solid transparent; cursor: pointer; transition: color .2s, border-color .2s; white-space: nowrap; }
+.atab.on { color: #f5620f !important; border-bottom-color: #f5620f !important; }
 
-/* Kanban */
+/* Kanban — cards with visible style */
 .kanban-wrap { display: flex; gap: .7rem; padding: .8rem .9rem; overflow-x: auto; align-items: flex-start; scrollbar-width: none; }
 .kanban-wrap::-webkit-scrollbar { display: none; }
-.kanban-col { flex-shrink: 0; width: 220px; }
-.kanban-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .55rem; }
-.kanban-col-title { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--txt2); }
-.kanban-count { font-family: var(--fh); font-size: .9rem; color: var(--txt3); }
+.kanban-col { flex-shrink: 0; width: 200px; }
+.kanban-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; padding: 0 .2rem; }
+.kanban-col-title { font-size: .66rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #7a8394 !important; }
+.kanban-count { font-family: var(--fh); font-size: 1rem; color: #f5620f !important; }
 .kanban-card {
-  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-  padding: .8rem; margin-bottom: .5rem; cursor: pointer;
+  background: #16191f !important;
+  border: 1px solid rgba(255,255,255,.1) !important;
+  border-radius: 10px; padding: .85rem; margin-bottom: .55rem; cursor: pointer;
   transition: border-color .2s, transform .15s;
 }
-.kanban-card:active { transform: scale(.97); }
-.kanban-card-route { font-family: var(--fh); font-size: .95rem; letter-spacing: .03em; color: var(--txt); margin-bottom: .25rem; }
-.kanban-card-sub { font-size: .72rem; color: var(--txt2); margin-bottom: .5rem; }
-.kanban-card-footer { display: flex; justify-content: space-between; align-items: center; }
-.kanban-card-km { font-size: .72rem; color: var(--txt3); }
+.kanban-card:active { transform: scale(.97); border-color: rgba(245,98,15,.4) !important; }
+.kanban-card-route { font-family: var(--fh); font-size: 1rem; letter-spacing: .03em; color: #f0f2f5 !important; margin-bottom: .25rem; }
+.kanban-card-sub { font-size: .72rem; color: #7a8394 !important; margin-bottom: .5rem; }
+.kanban-card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,.07); padding-top: .45rem; margin-top: .2rem; }
+.kanban-card-km { font-size: .72rem; color: #3d4452 !important; }
 
 /* Convoyeur list */
 .convoyeur-item {
