@@ -1,0 +1,1610 @@
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./supabaseClient";
+import "./index.css";
+
+const emptyMissionForm = {
+  type: "convoyage",
+  fromCity: "",
+  toCity: "",
+  pickupAddress: "",
+  deliveryAddress: "",
+  missionDate: "",
+  vehicle: "",
+  plate: "",
+  distanceKm: "",
+  clientName: "",
+  clientContact: "",
+  clientPhone: "",
+  priceMode: "fixed",
+  proposedPrice: "",
+  notes: "",
+};
+
+const emptyRequestForm = { ...emptyMissionForm };
+
+function generatePublicRef(prefix = "SECOTO") {
+  const now = new Date();
+  const year = now.getFullYear();
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${year}-${random}`;
+}
+
+function missionFromDb(row) {
+  return {
+    id: row.id,
+    publicRef: row.public_ref,
+    type: row.type,
+    status: row.status,
+    fromCity: row.from_city,
+    toCity: row.to_city,
+    pickupAddress: row.pickup_address,
+    deliveryAddress: row.delivery_address,
+    missionDate: row.mission_date,
+    vehicle: row.vehicle,
+    plate: row.plate,
+    distanceKm: row.distance_km,
+    clientName: row.client_name,
+    clientContact: row.client_contact,
+    clientPhone: row.client_phone,
+    priceMode: row.price_mode,
+    proposedPrice: row.proposed_price,
+    notes: row.notes,
+    createdByRole: row.created_by_role,
+    assignedTransporterId: row.assigned_transporter_id,
+    assignedTransporterName: row.assigned_transporter_name,
+    sourceRequestId: row.source_request_id,
+    createdAt: row.created_at,
+  };
+}
+
+function publicMissionFromDb(row) {
+  return {
+    id: row.id,
+    publicRef: row.public_ref,
+    type: row.type,
+    status: row.status,
+    fromCity: row.from_city,
+    toCity: row.to_city,
+    pickupAddress: row.pickup_address,
+    deliveryAddress: row.delivery_address,
+    vehicle: row.vehicle,
+    distanceKm: row.distance_km,
+    createdAt: row.created_at,
+  };
+}
+
+function missionToDb(form, extra = {}) {
+  return {
+    public_ref: extra.publicRef || generatePublicRef("MIS"),
+    type: form.type || "convoyage",
+    status: extra.status || "published",
+    from_city: form.fromCity || null,
+    to_city: form.toCity || null,
+    pickup_address: form.pickupAddress || null,
+    delivery_address: form.deliveryAddress || null,
+    mission_date: form.missionDate || null,
+    vehicle: form.vehicle || null,
+    plate: form.plate || null,
+    distance_km: form.distanceKm ? Number(form.distanceKm) : null,
+    client_name: form.clientName || null,
+    client_contact: form.clientContact || null,
+    client_phone: form.clientPhone || null,
+    price_mode: form.priceMode || "fixed",
+    proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
+    notes: form.notes || null,
+    created_by_role: extra.createdByRole || "admin",
+    assigned_transporter_id: extra.assignedTransporterId || null,
+    assigned_transporter_name: extra.assignedTransporterName || null,
+    source_request_id: extra.sourceRequestId || null,
+  };
+}
+
+function requestFromDb(row) {
+  return {
+    id: row.id,
+    publicRef: row.public_ref,
+    status: row.status,
+    requesterId: row.requester_id,
+    requesterName: row.requester_name,
+    requesterCompany: row.requester_company,
+    type: row.type,
+    fromCity: row.from_city,
+    toCity: row.to_city,
+    pickupAddress: row.pickup_address,
+    deliveryAddress: row.delivery_address,
+    missionDate: row.mission_date,
+    vehicle: row.vehicle,
+    plate: row.plate,
+    distanceKm: row.distance_km,
+    clientName: row.client_name,
+    clientContact: row.client_contact,
+    clientPhone: row.client_phone,
+    priceMode: row.price_mode,
+    proposedPrice: row.proposed_price,
+    notes: row.notes,
+    approvedMissionId: row.approved_mission_id,
+    createdAt: row.created_at,
+  };
+}
+
+function requestToDb(form, account) {
+  return {
+    public_ref: generatePublicRef("REQ"),
+    status: "pending",
+    requester_id: account.id,
+    requester_name: account.full_name,
+    requester_company: account.company_name,
+    type: form.type || "convoyage",
+    from_city: form.fromCity || null,
+    to_city: form.toCity || null,
+    pickup_address: form.pickupAddress || null,
+    delivery_address: form.deliveryAddress || null,
+    mission_date: form.missionDate || null,
+    vehicle: form.vehicle || null,
+    plate: form.plate || null,
+    distance_km: form.distanceKm ? Number(form.distanceKm) : null,
+    client_name: form.clientName || null,
+    client_contact: form.clientContact || null,
+    client_phone: form.clientPhone || null,
+    price_mode: form.priceMode || "fixed",
+    proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
+    notes: form.notes || null,
+    approved_mission_id: null,
+  };
+}
+
+function applicationFromDb(row) {
+  return {
+    id: row.id,
+    missionId: row.mission_id,
+    transporterId: row.transporter_id,
+    transporterName: row.transporter_name,
+    transporterCompany: row.transporter_company,
+    transporterStatus: row.transporter_status,
+    message: row.message,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function accountFromDb(row) {
+  return {
+    id: row.id,
+    role: row.role,
+    full_name: row.full_name,
+    company_name: row.company_name,
+    email: row.email,
+    phone: row.phone,
+    city: row.city,
+    status: row.status,
+    docs_count: row.docs_count,
+    is_verified: row.is_verified,
+  };
+}
+
+function PublicMissionInfo({ mission }) {
+  return (
+    <div className="card-section">
+      <p><strong>Départ :</strong> {mission.pickupAddress || mission.fromCity || "Non renseigné"}</p>
+      <p><strong>Arrivée :</strong> {mission.deliveryAddress || mission.toCity || "Non renseigné"}</p>
+      <p><strong>Type de transport :</strong> {mission.type === "plateau" ? "Transport par plateau" : "Convoyage"}</p>
+      <p><strong>Type de véhicule :</strong> {mission.vehicle || "Non renseigné"}</p>
+      <p><strong>Distance :</strong> {mission.distanceKm ? `${mission.distanceKm} km` : "Non renseignée"}</p>
+    </div>
+  );
+}
+
+function PrivateMissionInfo({ mission }) {
+  return (
+    <div className="card-section private-box">
+      <p><strong>Date :</strong> {mission.missionDate || "Non renseignée"}</p>
+      <p><strong>Client :</strong> {mission.clientName || "Non renseigné"}</p>
+      <p><strong>Contact :</strong> {mission.clientContact || "Non renseigné"}</p>
+      <p><strong>Téléphone :</strong> {mission.clientPhone || "Non renseigné"}</p>
+      <p><strong>Immatriculation :</strong> {mission.plate || "Non renseignée"}</p>
+      <p><strong>Prix proposé :</strong> {mission.proposedPrice ? `${mission.proposedPrice} €` : "Non renseigné"}</p>
+      <p><strong>Notes internes :</strong> {mission.notes || "Aucune note"}</p>
+    </div>
+  );
+}
+
+function Field({ label, name, value, onChange, type = "text", placeholder = "" }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input
+        type={type}
+        name={name}
+        value={value ?? ""}
+        placeholder={placeholder}
+        onChange={onChange}
+      />
+    </label>
+  );
+}
+
+function MissionForm({ form, setForm, onSubmit, submitLabel }) {
+  function update(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  return (
+    <form className="form-grid" onSubmit={onSubmit}>
+      <label className="field">
+        <span>Type de transport</span>
+        <select name="type" value={form.type} onChange={update}>
+          <option value="convoyage">Convoyage</option>
+          <option value="plateau">Transport par plateau</option>
+        </select>
+      </label>
+
+      <Field label="Ville de départ" name="fromCity" value={form.fromCity} onChange={update} />
+      <Field label="Ville d’arrivée" name="toCity" value={form.toCity} onChange={update} />
+      <Field label="Adresse de départ" name="pickupAddress" value={form.pickupAddress} onChange={update} />
+      <Field label="Adresse d’arrivée" name="deliveryAddress" value={form.deliveryAddress} onChange={update} />
+      <Field label="Date / heure" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
+      <Field label="Véhicule" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Renault Clio" />
+      <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
+      <Field label="Distance km" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
+
+      <Field label="Nom client" name="clientName" value={form.clientName} onChange={update} />
+      <Field label="Contact client" name="clientContact" value={form.clientContact} onChange={update} />
+      <Field label="Téléphone client" name="clientPhone" value={form.clientPhone} onChange={update} />
+
+      <label className="field">
+        <span>Mode de prix</span>
+        <select name="priceMode" value={form.priceMode} onChange={update}>
+          <option value="fixed">Prix fixe</option>
+          <option value="negotiable">À négocier</option>
+          <option value="hidden">Masqué</option>
+        </select>
+      </label>
+
+      <Field label="Prix proposé €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" />
+
+      <label className="field field-full">
+        <span>Notes internes</span>
+        <textarea name="notes" value={form.notes} onChange={update} />
+      </label>
+
+      <button className="btn primary field-full" type="submit">
+        {submitLabel}
+      </button>
+    </form>
+  );
+}
+
+function Tabs({ items, active, onChange }) {
+  return (
+    <div className="tabs">
+      {items.map((item) => (
+        <button
+          key={item.value}
+          className={active === item.value ? "active" : ""}
+          onClick={() => onChange(item.value)}
+          type="button"
+        >
+          {item.label}
+          {typeof item.count === "number" && <span>{item.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function KpiGrid({ stats }) {
+  return (
+    <div className="kpi-grid">
+      <div className="kpi-card">
+        <strong>{stats.total}</strong>
+        <span>Missions totales</span>
+      </div>
+      <div className="kpi-card">
+        <strong>{stats.published}</strong>
+        <span>Publiées</span>
+      </div>
+      <div className="kpi-card">
+        <strong>{stats.pendingApplications}</strong>
+        <span>Candidatures</span>
+      </div>
+      <div className="kpi-card">
+        <strong>{stats.assigned}</strong>
+        <span>Attribuées</span>
+      </div>
+      <div className="kpi-card">
+        <strong>{stats.pendingRequests}</strong>
+        <span>Demandes</span>
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen() {
+  const [authMode, setAuthMode] = useState("login");
+  const [email, setEmail] = useState("contact.secoto@gmail.com");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [city, setCity] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setNotice("");
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) setError(error.message);
+    setLoading(false);
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setNotice("");
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const user = data.user;
+
+    if (!user) {
+      setNotice("Compte créé. Vérifiez l’email si Supabase demande une confirmation.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: profileError } = await supabase.from("accounts").insert({
+      id: user.id,
+      role: "transporter",
+      full_name: fullName || null,
+      company_name: companyName || null,
+      email,
+      phone: phone || null,
+      city: city || null,
+      status: "pending",
+      docs_count: 0,
+      is_verified: false,
+    });
+
+    if (profileError) {
+      setError(profileError.message);
+    } else {
+      setNotice("Compte transporteur créé. Il devra être vérifié par SECOTO avant candidature.");
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <div>
+          <p className="eyebrow">SECOTO</p>
+          <h1>Connexion plateforme</h1>
+          <p className="subtitle">
+            Accès sécurisé admin et transporteurs via Supabase Auth.
+          </p>
+        </div>
+      </header>
+
+      {error && <div className="alert error">{error}</div>}
+      {notice && <div className="alert success">{notice}</div>}
+
+      <Tabs
+        active={authMode}
+        onChange={setAuthMode}
+        items={[
+          { value: "login", label: "Connexion" },
+          { value: "signup", label: "Inscription transporteur" },
+        ]}
+      />
+
+      <section className="layout">
+        <div className="panel panel-full">
+          {authMode === "login" && (
+            <>
+              <h2>Connexion</h2>
+              <form className="form-grid" onSubmit={handleLogin}>
+                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+                <button className="btn primary field-full" type="submit" disabled={loading}>
+                  {loading ? "Connexion..." : "Se connecter"}
+                </button>
+              </form>
+            </>
+          )}
+
+          {authMode === "signup" && (
+            <>
+              <h2>Inscription transporteur</h2>
+              <form className="form-grid" onSubmit={handleSignup}>
+                <Field label="Nom complet" name="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <Field label="Société" name="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+                <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
+                <button className="btn primary field-full" type="submit" disabled={loading}>
+                  {loading ? "Création..." : "Créer mon compte"}
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [bootLoading, setBootLoading] = useState(true);
+
+  const [mode, setMode] = useState("admin");
+  const [adminTab, setAdminTab] = useState("create");
+  const [transporterTab, setTransporterTab] = useState("available");
+
+  const [missions, setMissions] = useState([]);
+  const [publicMissions, setPublicMissions] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [transporters, setTransporters] = useState([]);
+
+  const [missionForm, setMissionForm] = useState(emptyMissionForm);
+  const [requestForm, setRequestForm] = useState(emptyRequestForm);
+  const [applicationMessages, setApplicationMessages] = useState({});
+
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function boot() {
+      setBootLoading(true);
+      setError("");
+
+      try {
+        console.log("SECOTO boot start");
+
+        const sessionRequest = supabase.auth.getSession();
+        const timeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Timeout Supabase getSession après 5 secondes.")), 5000);
+        });
+
+        const { data, error } = await Promise.race([sessionRequest, timeout]);
+
+        if (error) throw error;
+        if (!mounted) return;
+
+        const currentSession = data?.session || null;
+        console.log("SECOTO session loaded:", currentSession);
+
+        setSession(currentSession);
+        setBootLoading(false);
+
+        if (currentSession?.user?.id) {
+          loadAccount(currentSession.user.id);
+        }
+      } catch (err) {
+        console.error("Erreur boot Supabase:", err);
+
+        if (mounted) {
+          setError(err.message || "Erreur au chargement de la session Supabase.");
+          setSession(null);
+          setAccount(null);
+          setBootLoading(false);
+        }
+      }
+    }
+
+    boot();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log("SECOTO auth event:", event, newSession);
+
+      setSession(newSession || null);
+
+      if (newSession?.user?.id) {
+        setTimeout(() => {
+          loadAccount(newSession.user.id);
+        }, 0);
+      } else {
+        setAccount(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (account) {
+      setMode(account.role === "admin" ? "admin" : "transporter");
+      loadAllData(account);
+    }
+  }, [account]);
+
+  async function loadAccount(userId) {
+    setError("");
+
+    try {
+      console.log("SECOTO loadAccount:", userId);
+
+      const accountRequest = supabase
+        .from("accounts")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      const timeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout chargement profil SECOTO après 5 secondes.")), 5000);
+      });
+
+      const { data, error } = await Promise.race([accountRequest, timeout]);
+
+      if (error) throw error;
+
+      console.log("SECOTO account loaded:", data);
+      setAccount(accountFromDb(data));
+    } catch (err) {
+      console.error("Erreur loadAccount:", err);
+      setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
+      setAccount(null);
+    }
+  }
+
+  const publishedMissions = useMemo(
+    () => missions.filter((mission) => mission.status === "published"),
+    [missions]
+  );
+
+  const assignedMissions = useMemo(
+    () => missions.filter((mission) => mission.status === "assigned"),
+    [missions]
+  );
+
+  const completedMissions = useMemo(
+    () => missions.filter((mission) => mission.status === "completed"),
+    [missions]
+  );
+
+  const pendingRequests = useMemo(
+    () => requests.filter((request) => request.status === "pending"),
+    [requests]
+  );
+
+  const pendingApplications = useMemo(
+    () => applications.filter((application) => application.status === "pending"),
+    [applications]
+  );
+
+  const assignedToCurrentTransporter = useMemo(
+    () =>
+      missions.filter(
+        (mission) =>
+          mission.assignedTransporterId === account?.id &&
+          ["assigned", "completed"].includes(mission.status)
+      ),
+    [missions, account?.id]
+  );
+
+  const currentTransporterApplications = useMemo(
+    () =>
+      applications.filter(
+        (application) => application.transporterId === account?.id
+      ),
+    [applications, account?.id]
+  );
+
+  const currentTransporterRequests = useMemo(
+    () =>
+      requests.filter(
+        (request) => request.requesterId === account?.id
+      ),
+    [requests, account?.id]
+  );
+
+  const adminStats = useMemo(() => {
+    return {
+      published: publishedMissions.length,
+      assigned: assignedMissions.length,
+      completed: completedMissions.length,
+      pendingRequests: pendingRequests.length,
+      pendingApplications: pendingApplications.length,
+      total: missions.length,
+    };
+  }, [
+    publishedMissions.length,
+    assignedMissions.length,
+    completedMissions.length,
+    pendingRequests.length,
+    pendingApplications.length,
+    missions.length,
+  ]);
+
+  async function loadAllData(currentAccount = account) {
+    if (!currentAccount) return;
+
+    setLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      if (currentAccount.role === "admin") {
+        const [missionsResult, requestsResult, applicationsResult, transportersResult] = await Promise.all([
+          supabase.from("missions").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_applications").select("*").order("created_at", { ascending: false }),
+          supabase.from("accounts").select("*").eq("role", "transporter").order("created_at", { ascending: false }),
+        ]);
+
+        if (missionsResult.error) throw missionsResult.error;
+        if (requestsResult.error) throw requestsResult.error;
+        if (applicationsResult.error) throw applicationsResult.error;
+        if (transportersResult.error) throw transportersResult.error;
+
+        setMissions((missionsResult.data || []).map(missionFromDb));
+        setPublicMissions([]);
+        setRequests((requestsResult.data || []).map(requestFromDb));
+        setApplications((applicationsResult.data || []).map(applicationFromDb));
+        setTransporters((transportersResult.data || []).map(accountFromDb));
+      } else {
+        const [publicMissionsResult, privateMissionsResult, requestsResult, applicationsResult] = await Promise.all([
+          supabase.from("public_missions").select("*").order("created_at", { ascending: false }),
+          supabase.from("missions").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_applications").select("*").order("created_at", { ascending: false }),
+        ]);
+
+        if (publicMissionsResult.error) throw publicMissionsResult.error;
+        if (privateMissionsResult.error) throw privateMissionsResult.error;
+        if (requestsResult.error) throw requestsResult.error;
+        if (applicationsResult.error) throw applicationsResult.error;
+
+        setPublicMissions((publicMissionsResult.data || []).map(publicMissionFromDb));
+        setMissions((privateMissionsResult.data || []).map(missionFromDb));
+        setRequests((requestsResult.data || []).map(requestFromDb));
+        setApplications((applicationsResult.data || []).map(applicationFromDb));
+        setTransporters([]);
+      }
+    } catch (err) {
+      setError(err.message || "Erreur lors du chargement Supabase.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createMission(e) {
+    e.preventDefault();
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const payload = missionToDb(missionForm, {
+        status: "published",
+        createdByRole: "admin",
+      });
+
+      const { data, error } = await supabase
+        .from("missions")
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setMissions((prev) => [missionFromDb(data), ...prev]);
+      setMissionForm(emptyMissionForm);
+      setNotice("Mission publiée avec succès.");
+      setAdminTab("published");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la création de mission.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function createMissionRequest(e) {
+    e.preventDefault();
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      if (!account?.is_verified) {
+        throw new Error("Votre compte transporteur doit être vérifié pour proposer une mission.");
+      }
+
+      const payload = requestToDb(requestForm, account);
+
+      const { data, error } = await supabase
+        .from("mission_requests")
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setRequests((prev) => [requestFromDb(data), ...prev]);
+      setRequestForm(emptyRequestForm);
+      setNotice("Demande envoyée à SECOTO pour validation.");
+      setTransporterTab("requests");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la demande de mise en ligne.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function applyToMission(missionId) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      if (!account?.is_verified) {
+        throw new Error("Votre compte transporteur doit être vérifié par SECOTO pour candidater.");
+      }
+
+      const existingApplication = applications.find(
+        (application) =>
+          application.missionId === missionId &&
+          application.transporterId === account.id
+      );
+
+      if (existingApplication) {
+        throw new Error("Vous avez déjà candidaté à cette mission.");
+      }
+
+      const payload = {
+        mission_id: missionId,
+        transporter_id: account.id,
+        transporter_name: account.full_name,
+        transporter_company: account.company_name,
+        transporter_status: account.is_verified ? "verified" : "unverified",
+        message: applicationMessages[missionId] || null,
+        status: "pending",
+      };
+
+      const { data, error } = await supabase
+        .from("mission_applications")
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setApplications((prev) => [applicationFromDb(data), ...prev]);
+      setApplicationMessages((prev) => ({ ...prev, [missionId]: "" }));
+      setNotice("Candidature envoyée.");
+      setTransporterTab("applications");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la candidature.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function assignMission(missionId, application) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { data: updatedMission, error: missionError } = await supabase
+        .from("missions")
+        .update({
+          status: "assigned",
+          assigned_transporter_id: application.transporterId,
+          assigned_transporter_name: application.transporterName,
+        })
+        .eq("id", missionId)
+        .select("*")
+        .single();
+
+      if (missionError) throw missionError;
+
+      const { error: acceptedError } = await supabase
+        .from("mission_applications")
+        .update({ status: "accepted" })
+        .eq("id", application.id);
+
+      if (acceptedError) throw acceptedError;
+
+      const { error: rejectedError } = await supabase
+        .from("mission_applications")
+        .update({ status: "rejected" })
+        .eq("mission_id", missionId)
+        .neq("id", application.id);
+
+      if (rejectedError) throw rejectedError;
+
+      await loadAllData(account);
+
+      setNotice("Mission attribuée au transporteur.");
+      setAdminTab("assigned");
+    } catch (err) {
+      setError(err.message || "Erreur lors de l’attribution.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function markMissionCompleted(missionId) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { data, error } = await supabase
+        .from("missions")
+        .update({ status: "completed" })
+        .eq("id", missionId)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      setMissions((prev) =>
+        prev.map((mission) =>
+          mission.id === missionId ? missionFromDb(data) : mission
+        )
+      );
+
+      setNotice("Mission marquée comme terminée.");
+      setAdminTab("completed");
+    } catch (err) {
+      setError(err.message || "Erreur lors du changement de statut.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function approveRequest(request) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const missionPayload = missionToDb(
+        {
+          type: request.type,
+          fromCity: request.fromCity,
+          toCity: request.toCity,
+          pickupAddress: request.pickupAddress,
+          deliveryAddress: request.deliveryAddress,
+          missionDate: request.missionDate,
+          vehicle: request.vehicle,
+          plate: request.plate,
+          distanceKm: request.distanceKm,
+          clientName: request.clientName,
+          clientContact: request.clientContact,
+          clientPhone: request.clientPhone,
+          priceMode: request.priceMode,
+          proposedPrice: request.proposedPrice,
+          notes: request.notes,
+        },
+        {
+          status: "published",
+          createdByRole: "transporter_request",
+          sourceRequestId: request.id,
+        }
+      );
+
+      const { data: createdMission, error: missionError } = await supabase
+        .from("missions")
+        .insert(missionPayload)
+        .select("*")
+        .single();
+
+      if (missionError) throw missionError;
+
+      const { error: requestError } = await supabase
+        .from("mission_requests")
+        .update({
+          status: "approved",
+          approved_mission_id: createdMission.id,
+        })
+        .eq("id", request.id);
+
+      if (requestError) throw requestError;
+
+      await loadAllData(account);
+
+      setNotice("Demande validée et mission publiée.");
+      setAdminTab("published");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la validation de la demande.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function rejectRequest(requestId) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { error } = await supabase
+        .from("mission_requests")
+        .update({ status: "rejected" })
+        .eq("id", requestId);
+
+      if (error) throw error;
+
+      await loadAllData(account);
+
+      setNotice("Demande refusée.");
+    } catch (err) {
+      setError(err.message || "Erreur lors du refus de la demande.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function updateTransporterStatus(transporterId, updates) {
+    setActionLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const { error } = await supabase
+        .from("accounts")
+        .update(updates)
+        .eq("id", transporterId);
+
+      if (error) throw error;
+
+      await loadAllData(account);
+      setNotice("Statut transporteur mis à jour.");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la mise à jour du transporteur.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setAccount(null);
+    setMissions([]);
+    setPublicMissions([]);
+    setRequests([]);
+    setApplications([]);
+  }
+
+  function getMissionApplications(missionId) {
+    return applications.filter((application) => application.missionId === missionId);
+  }
+
+  function hasCurrentTransporterApplied(missionId) {
+    return applications.some(
+      (application) =>
+        application.missionId === missionId &&
+        application.transporterId === account?.id
+    );
+  }
+
+  function renderMissionCard(mission, options = {}) {
+    const missionApplications = getMissionApplications(mission.id);
+
+    return (
+      <article className="mission-card" key={mission.id}>
+        <div className="card-top">
+          <span className="badge">{mission.publicRef}</span>
+          <span className={`status status-${mission.status}`}>
+            {mission.status}
+          </span>
+        </div>
+
+        <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+
+        <PublicMissionInfo mission={mission} />
+
+        {options.showPrivate && <PrivateMissionInfo mission={mission} />}
+
+        {mission.assignedTransporterName && (
+          <p className="assigned">
+            Transporteur attribué : {mission.assignedTransporterName}
+          </p>
+        )}
+
+        {options.canComplete && mission.status === "assigned" && (
+          <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>
+            Marquer terminée
+          </button>
+        )}
+
+        {options.showApplications && (
+          <div className="applications-box">
+            <h4>Candidatures</h4>
+
+            {missionApplications.length === 0 && (
+              <p className="muted">Aucune candidature.</p>
+            )}
+
+            {missionApplications.map((application) => (
+              <div className="application-row" key={application.id}>
+                <div>
+                  <strong>{application.transporterName}</strong>
+                  <p className="muted">
+                    {application.transporterCompany} — {application.transporterStatus}
+                  </p>
+                  {application.message && <p>{application.message}</p>}
+                  <span className={`status status-${application.status}`}>
+                    {application.status}
+                  </span>
+                </div>
+
+                {mission.status === "published" && application.status === "pending" && (
+                  <button
+                    className="btn primary"
+                    onClick={() => assignMission(mission.id, application)}
+                  >
+                    Attribuer
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+    );
+  }
+
+  if (bootLoading) {
+    return (
+      <main className="app-shell">
+        <div className="alert">Chargement de la session...</div>
+        {error && <div className="alert error">{error}</div>}
+      </main>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
+  }
+
+  if (session && !account) {
+    return (
+      <main className="app-shell">
+        <div className="alert">
+          Connexion détectée. Chargement du profil SECOTO...
+        </div>
+
+        {error && (
+          <div className="alert error">
+            {error}
+          </div>
+        )}
+
+        <div className="actions-row">
+          <button className="btn ghost" onClick={() => loadAccount(session.user.id)}>
+            Réessayer
+          </button>
+
+          <button className="btn danger" onClick={signOut}>
+            Se déconnecter
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const isAdmin = account.role === "admin";
+  const isTransporter = account.role === "transporter";
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <div>
+          <p className="eyebrow">SECOTO</p>
+          <h1>Plateforme missions transport</h1>
+          <p className="subtitle">
+            Connecté : {account.full_name || account.email} — {isAdmin ? "Admin SECOTO" : "Transporteur"}
+          </p>
+        </div>
+
+        <div className="header-actions">
+          {isAdmin && (
+            <button
+              className={mode === "admin" ? "btn primary" : "btn ghost"}
+              onClick={() => setMode("admin")}
+            >
+              Admin SECOTO
+            </button>
+          )}
+
+          {isTransporter && (
+            <button
+              className={mode === "transporter" ? "btn primary" : "btn ghost"}
+              onClick={() => setMode("transporter")}
+            >
+              Transporteur
+            </button>
+          )}
+
+          <button className="btn ghost" onClick={() => loadAllData(account)}>
+            Actualiser
+          </button>
+          <button className="btn danger" onClick={signOut}>
+            Déconnexion
+          </button>
+        </div>
+      </header>
+
+      {loading && <div className="alert">Chargement Supabase...</div>}
+      {actionLoading && <div className="alert">Action en cours...</div>}
+      {error && <div className="alert error">{error}</div>}
+      {notice && <div className="alert success">{notice}</div>}
+
+      {isAdmin && mode === "admin" && (
+        <>
+          <KpiGrid stats={adminStats} />
+
+          <Tabs
+            active={adminTab}
+            onChange={setAdminTab}
+            items={[
+              { value: "create", label: "Créer mission" },
+              { value: "requests", label: "Demandes", count: pendingRequests.length },
+              { value: "published", label: "Publiées", count: publishedMissions.length },
+              { value: "applications", label: "Candidatures", count: pendingApplications.length },
+              { value: "assigned", label: "Attribuées", count: assignedMissions.length },
+              { value: "completed", label: "Terminées", count: completedMissions.length },
+              { value: "transporters", label: "Transporteurs", count: transporters.length },
+            ]}
+          />
+
+          {adminTab === "create" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Créer une mission</h2>
+                <MissionForm
+                  form={missionForm}
+                  setForm={setMissionForm}
+                  onSubmit={createMission}
+                  submitLabel="Publier la mission"
+                />
+              </div>
+            </section>
+          )}
+
+          {adminTab === "requests" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Demandes de mise en ligne</h2>
+
+                {requests.length === 0 && (
+                  <p className="muted">Aucune demande transporteur pour le moment.</p>
+                )}
+
+                <div className="cards">
+                  {requests.map((request) => (
+                    <article className="mission-card" key={request.id}>
+                      <div className="card-top">
+                        <span className="badge">{request.publicRef}</span>
+                        <span className={`status status-${request.status}`}>
+                          {request.status}
+                        </span>
+                      </div>
+
+                      <h3>{request.fromCity || "Départ"} → {request.toCity || "Arrivée"}</h3>
+                      <p className="muted">
+                        Demandée par {request.requesterName} — {request.requesterCompany}
+                      </p>
+
+                      <PublicMissionInfo mission={request} />
+                      <PrivateMissionInfo mission={request} />
+
+                      {request.status === "pending" && (
+                        <div className="actions-row">
+                          <button className="btn primary" onClick={() => approveRequest(request)}>
+                            Valider et publier
+                          </button>
+                          <button className="btn danger" onClick={() => rejectRequest(request.id)}>
+                            Refuser
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {adminTab === "published" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Missions publiées</h2>
+                {publishedMissions.length === 0 && <p className="muted">Aucune mission publiée.</p>}
+                <div className="cards">
+                  {publishedMissions.map((mission) =>
+                    renderMissionCard(mission, {
+                      showPrivate: true,
+                      showApplications: true,
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {adminTab === "applications" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Candidatures reçues</h2>
+                {pendingApplications.length === 0 && <p className="muted">Aucune candidature en attente.</p>}
+                <div className="cards">
+                  {missions
+                    .filter((mission) =>
+                      getMissionApplications(mission.id).some((application) => application.status === "pending")
+                    )
+                    .map((mission) =>
+                      renderMissionCard(mission, {
+                        showPrivate: true,
+                        showApplications: true,
+                      })
+                    )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {adminTab === "assigned" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Missions attribuées</h2>
+                {assignedMissions.length === 0 && <p className="muted">Aucune mission attribuée.</p>}
+                <div className="cards">
+                  {assignedMissions.map((mission) =>
+                    renderMissionCard(mission, {
+                      showPrivate: true,
+                      canComplete: true,
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {adminTab === "completed" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Missions terminées</h2>
+                {completedMissions.length === 0 && <p className="muted">Aucune mission terminée.</p>}
+                <div className="cards">
+                  {completedMissions.map((mission) =>
+                    renderMissionCard(mission, {
+                      showPrivate: true,
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {isAdmin && mode === "admin" && adminTab === "transporters" && (
+        <section className="layout">
+          <div className="panel panel-full">
+            <h2>Transporteurs inscrits</h2>
+
+            {transporters.length === 0 && (
+              <p className="muted">Aucun transporteur inscrit pour le moment.</p>
+            )}
+
+            <div className="cards">
+              {transporters.map((transporter) => (
+                <article className="mission-card" key={transporter.id}>
+                  <div className="card-top">
+                    <span className="badge">
+                      {transporter.is_verified ? "VÉRIFIÉ" : "À VÉRIFIER"}
+                    </span>
+                    <span className={`status status-${transporter.status}`}>
+                      {transporter.status}
+                    </span>
+                  </div>
+
+                  <h3>{transporter.full_name || "Transporteur sans nom"}</h3>
+
+                  <div className="card-section">
+                    <p><strong>Société :</strong> {transporter.company_name || "Non renseignée"}</p>
+                    <p><strong>Email :</strong> {transporter.email || "Non renseigné"}</p>
+                    <p><strong>Téléphone :</strong> {transporter.phone || "Non renseigné"}</p>
+                    <p><strong>Ville :</strong> {transporter.city || "Non renseignée"}</p>
+                    <p><strong>Documents :</strong> {transporter.docs_count || 0}</p>
+                    <p><strong>Vérifié :</strong> {transporter.is_verified ? "Oui" : "Non"}</p>
+                  </div>
+
+                  <div className="actions-row">
+                    <button
+                      className="btn primary"
+                      onClick={() =>
+                        updateTransporterStatus(transporter.id, {
+                          status: "active",
+                          is_verified: true,
+                        })
+                      }
+                    >
+                      Valider
+                    </button>
+
+                    <button
+                      className="btn ghost"
+                      onClick={() =>
+                        updateTransporterStatus(transporter.id, {
+                          status: "pending",
+                          is_verified: false,
+                        })
+                      }
+                    >
+                      Remettre en attente
+                    </button>
+
+                    <button
+                      className="btn danger"
+                      onClick={() =>
+                        updateTransporterStatus(transporter.id, {
+                          status: "suspended",
+                          is_verified: false,
+                        })
+                      }
+                    >
+                      Suspendre
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {isTransporter && mode === "transporter" && (
+        <>
+          <Tabs
+            active={transporterTab}
+            onChange={setTransporterTab}
+            items={[
+              { value: "available", label: "Disponibles", count: publicMissions.length },
+              { value: "applications", label: "Mes candidatures", count: currentTransporterApplications.length },
+              { value: "assigned", label: "Attribuées", count: assignedToCurrentTransporter.length },
+              { value: "request", label: "Proposer" },
+              { value: "requests", label: "Mes demandes", count: currentTransporterRequests.length },
+              { value: "profile", label: "Profil" },
+            ]}
+          />
+
+          {transporterTab === "available" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Missions publiques disponibles</h2>
+
+                {!account.is_verified && (
+                  <div className="alert error">
+                    Compte non vérifié : vous pouvez consulter les missions, mais pas encore candidater.
+                  </div>
+                )}
+
+                {publicMissions.length === 0 && (
+                  <p className="muted">Aucune mission disponible actuellement.</p>
+                )}
+
+                <div className="cards">
+                  {publicMissions.map((mission) => (
+                    <article className="mission-card" key={mission.id}>
+                      <div className="card-top">
+                        <span className="badge">{mission.publicRef}</span>
+                        <span className={`status status-${mission.status}`}>
+                          {mission.status}
+                        </span>
+                      </div>
+
+                      <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+
+                      <PublicMissionInfo mission={mission} />
+
+                      <div className="private-locked">
+                        Les informations privées seront visibles uniquement si SECOTO vous attribue la mission.
+                      </div>
+
+                      <textarea
+                        className="message-box"
+                        placeholder="Message optionnel pour SECOTO..."
+                        value={applicationMessages[mission.id] || ""}
+                        onChange={(e) =>
+                          setApplicationMessages((prev) => ({
+                            ...prev,
+                            [mission.id]: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <button
+                        className="btn primary"
+                        disabled={hasCurrentTransporterApplied(mission.id) || !account.is_verified}
+                        onClick={() => applyToMission(mission.id)}
+                      >
+                        {hasCurrentTransporterApplied(mission.id)
+                          ? "Candidature envoyée"
+                          : "Candidater"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "applications" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Mes candidatures</h2>
+
+                {currentTransporterApplications.length === 0 && (
+                  <p className="muted">Aucune candidature envoyée.</p>
+                )}
+
+                <div className="cards">
+                  {currentTransporterApplications.map((application) => {
+                    const publicMission = publicMissions.find((item) => item.id === application.missionId);
+                    const privateMission = missions.find((item) => item.id === application.missionId);
+                    const mission = privateMission || publicMission;
+
+                    return (
+                      <article className="mission-card" key={application.id}>
+                        <div className="card-top">
+                          <span className="badge">{mission?.publicRef || "Mission"}</span>
+                          <span className={`status status-${application.status}`}>
+                            {application.status}
+                          </span>
+                        </div>
+
+                        {mission ? (
+                          <>
+                            <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+                            <PublicMissionInfo mission={mission} />
+                          </>
+                        ) : (
+                          <p>Mission introuvable.</p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "assigned" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Mes missions attribuées</h2>
+
+                {assignedToCurrentTransporter.length === 0 && (
+                  <p className="muted">Aucune mission attribuée.</p>
+                )}
+
+                <div className="cards">
+                  {assignedToCurrentTransporter.map((mission) => (
+                    <article className="mission-card" key={mission.id}>
+                      <div className="card-top">
+                        <span className="badge">{mission.publicRef}</span>
+                        <span className={`status status-${mission.status}`}>
+                          {mission.status}
+                        </span>
+                      </div>
+
+                      <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+
+                      <PublicMissionInfo mission={mission} />
+                      <PrivateMissionInfo mission={mission} />
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "request" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Proposer une mission à publier</h2>
+
+                {!account.is_verified && (
+                  <div className="alert error">
+                    Compte non vérifié : impossible de proposer une mission.
+                  </div>
+                )}
+
+                <MissionForm
+                  form={requestForm}
+                  setForm={setRequestForm}
+                  onSubmit={createMissionRequest}
+                  submitLabel="Envoyer à SECOTO"
+                />
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "requests" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Mes demandes de publication</h2>
+
+                {currentTransporterRequests.length === 0 && (
+                  <p className="muted">Aucune demande envoyée.</p>
+                )}
+
+                <div className="cards">
+                  {currentTransporterRequests.map((request) => (
+                    <article className="mission-card" key={request.id}>
+                      <div className="card-top">
+                        <span className="badge">{request.publicRef}</span>
+                        <span className={`status status-${request.status}`}>
+                          {request.status}
+                        </span>
+                      </div>
+
+                      <h3>{request.fromCity || "Départ"} → {request.toCity || "Arrivée"}</h3>
+                      <PublicMissionInfo mission={request} />
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "profile" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>Profil transporteur</h2>
+
+                <div className="profile-card">
+                  <p><strong>Nom :</strong> {account.full_name || "Non renseigné"}</p>
+                  <p><strong>Société :</strong> {account.company_name || "Non renseigné"}</p>
+                  <p><strong>Email :</strong> {account.email}</p>
+                  <p><strong>Téléphone :</strong> {account.phone || "Non renseigné"}</p>
+                  <p><strong>Ville :</strong> {account.city || "Non renseignée"}</p>
+                  <p><strong>Statut :</strong> {account.status}</p>
+                  <p><strong>Vérifié :</strong> {account.is_verified ? "Oui" : "Non"}</p>
+                </div>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </main>
+  );
+}
