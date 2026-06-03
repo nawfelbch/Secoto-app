@@ -94,6 +94,8 @@ function applicationFromDb(row) {
     transporterCompany: row.transporter_company,
     transporterStatus: row.transporter_status,
     message: row.message,
+    proposedPrice: row.proposed_price,
+    priceNote: row.price_note,
     status: row.status,
     createdAt: row.created_at,
   };
@@ -389,11 +391,6 @@ function AuthScreen() {
 
     setNotice("Compte transporteur créé. Il devra être validé par SECOTO avant candidature.");
 
-    if (data.session) {
-      setSession(data.session);
-      await loadAccount(data.user.id);
-    }
-
     setLoading(false);
   }
 
@@ -474,6 +471,7 @@ export default function App() {
   const [missionForm, setMissionForm] = useState(emptyMissionForm);
   const [requestForm, setRequestForm] = useState(emptyMissionForm);
   const [applicationMessages, setApplicationMessages] = useState({});
+  const [applicationPrices, setApplicationPrices] = useState({});
   const [documentType, setDocumentType] = useState("assurance_rc_pro");
 
   const [loading, setLoading] = useState(false);
@@ -558,27 +556,6 @@ export default function App() {
   const assignedMissions = useMemo(() => missions.filter((m) => m.status === "assigned"), [missions]);
   const completedMissions = useMemo(() => missions.filter((m) => m.status === "completed"), [missions]);
 
-  const activeAssignedMissions = useMemo(
-    () => assignedMissions.filter((mission) => !isMissionDeliveryValidated(mission)),
-    [assignedMissions, trackingEvents]
-  );
-
-  const completedOrDeliveredMissions = useMemo(() => {
-    const completedMap = new Map();
-
-    completedMissions.forEach((mission) => {
-      completedMap.set(mission.id, mission);
-    });
-
-    assignedMissions
-      .filter((mission) => isMissionDeliveryValidated(mission))
-      .forEach((mission) => {
-        completedMap.set(mission.id, mission);
-      });
-
-    return Array.from(completedMap.values());
-  }, [assignedMissions, completedMissions, trackingEvents]);
-
   const pendingRequests = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
   const pendingApplications = useMemo(() => applications.filter((a) => a.status === "pending"), [applications]);
 
@@ -596,6 +573,20 @@ export default function App() {
     () => requests.filter((r) => r.requesterId === account?.id),
     [requests, account?.id]
   );
+
+  const activeAssignedMissions = useMemo(
+    () => assignedMissions.filter((mission) => !isMissionDeliveryValidated(mission)),
+    [assignedMissions, trackingEvents]
+  );
+
+  const completedOrDeliveredMissions = useMemo(() => {
+    const completedMap = new Map();
+    completedMissions.forEach((mission) => completedMap.set(mission.id, mission));
+    assignedMissions
+      .filter((mission) => isMissionDeliveryValidated(mission))
+      .forEach((mission) => completedMap.set(mission.id, mission));
+    return Array.from(completedMap.values());
+  }, [assignedMissions, completedMissions, trackingEvents]);
 
   const adminStats = useMemo(() => ({
     total: missions.length,
@@ -617,7 +608,7 @@ export default function App() {
         const [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
           supabase.from("missions").select("*").order("created_at", { ascending: false }),
           supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_applications").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_applications").select("*").order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
           supabase.from("accounts").select("*").eq("role", "transporter").order("created_at", { ascending: false }),
           supabase.from("documents").select("*").order("created_at", { ascending: false }),
           supabase.from("mission_tracking_events").select("*").order("created_at", { ascending: false }),
@@ -645,7 +636,7 @@ export default function App() {
           supabase.from("public_missions").select("*").order("created_at", { ascending: false }),
           supabase.from("missions").select("*").order("created_at", { ascending: false }),
           supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_applications").select("*").order("created_at", { ascending: false }),
+          supabase.from("mission_applications").select("*").order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
           supabase.from("documents").select("*").eq("account_id", currentAccount.id).order("created_at", { ascending: false }),
           supabase.from("mission_tracking_events").select("*").order("created_at", { ascending: false }),
           supabase.from("mission_tracking_photos").select("*").order("created_at", { ascending: false }),
@@ -732,20 +723,34 @@ export default function App() {
       const alreadyApplied = applications.some((a) => a.missionId === missionId && a.transporterId === account.id);
       if (alreadyApplied) throw new Error("Vous avez déjà candidaté à cette mission.");
 
-      const { data, error } = await supabase.from("mission_applications").insert({
-        mission_id: missionId,
-        transporter_id: account.id,
-        transporter_name: account.fullName,
-        transporter_company: account.companyName,
-        transporter_status: account.isVerified ? "verified" : "unverified",
-        message: applicationMessages[missionId] || null,
-        status: "pending",
-      }).select("*").single();
+      const rawPrice = applicationPrices[missionId];
+      const proposedPrice = Number(rawPrice);
+
+      if (!rawPrice || Number.isNaN(proposedPrice) || proposedPrice <= 0) {
+        throw new Error("Veuillez indiquer un tarif proposé valide.");
+      }
+
+      const { data, error } = await supabase
+        .from("mission_applications")
+        .insert({
+          mission_id: missionId,
+          transporter_id: account.id,
+          transporter_name: account.fullName,
+          transporter_company: account.companyName,
+          transporter_status: account.isVerified ? "verified" : "unverified",
+          message: applicationMessages[missionId] || null,
+          proposed_price: proposedPrice,
+          price_note: applicationMessages[missionId] || null,
+          status: "pending",
+        })
+        .select("*")
+        .single();
 
       if (error) throw error;
       setApplications((prev) => [applicationFromDb(data), ...prev]);
       setApplicationMessages((prev) => ({ ...prev, [missionId]: "" }));
-      setNotice("Candidature envoyée.");
+      setApplicationPrices((prev) => ({ ...prev, [missionId]: "" }));
+      setNotice("Candidature envoyée avec votre tarif.");
       setTransporterTab("applications");
     } catch (err) {
       setError(err.message || "Erreur lors de la candidature.");
@@ -1094,73 +1099,6 @@ export default function App() {
     );
   }
 
-  function renderCompactDeliveredMissionCard(mission) {
-    return (
-      <details className="mission-card" key={mission.id}>
-        <summary style={{ cursor: "pointer", listStyle: "none" }}>
-          <div className="card-top">
-            <span className="badge">{mission.publicRef}</span>
-            <span className="status status-completed">Livraison validée</span>
-          </div>
-          <h3 style={{ marginTop: 12 }}>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
-          <p className="muted" style={{ marginTop: 8 }}>
-            Carte archivée. Cliquez pour revoir le détail, les photos et les preuves terrain.
-          </p>
-        </summary>
-
-        <div style={{ marginTop: 14 }}>
-          <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} />
-          {renderTrackingTimeline(mission)}
-        </div>
-      </details>
-    );
-  }
-
-  function renderCompactAdminMissionCard(mission, { delivered = false } = {}) {
-    const events = getTrackingEventsForMission(mission.id);
-    const photosCount = events.reduce((total, event) => {
-      return total + getTrackingPhotosForEvent(event.id).length;
-    }, 0);
-
-    return (
-      <details className="mission-card" key={mission.id}>
-        <summary style={{ cursor: "pointer", listStyle: "none" }}>
-          <div className="card-top">
-            <span className="badge">{mission.publicRef}</span>
-            <span className={delivered ? "status status-completed" : `status status-${mission.status}`}>
-              {delivered ? "Livraison validée" : mission.status}
-            </span>
-          </div>
-
-          <h3 style={{ marginTop: 12 }}>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
-
-          <div className="card-section" style={{ marginTop: 12 }}>
-            <p><strong>Transporteur :</strong> {mission.assignedTransporterName || "Non renseigné"}</p>
-            <p><strong>Véhicule :</strong> {mission.vehicle || "Non renseigné"}</p>
-            <p><strong>Photos / preuves :</strong> {photosCount}</p>
-          </div>
-
-          <p className="muted" style={{ marginTop: 10 }}>
-            Cliquez pour développer la mission, les informations privées et les photos d’état des lieux.
-          </p>
-        </summary>
-
-        <div style={{ marginTop: 14 }}>
-          <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} />
-          {renderTrackingTimeline(mission)}
-
-          {!delivered && mission.status === "assigned" && (
-            <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>
-              Marquer terminée
-            </button>
-          )}
-        </div>
-      </details>
-    );
-  }
-
   function renderTrackingTimeline(mission) {
     const events = getTrackingEventsForMission(mission.id);
 
@@ -1334,10 +1272,8 @@ export default function App() {
                 marginTop: "8px",
                 borderRadius: "22px",
                 border: "1px solid rgba(34, 197, 94, 0.65)",
-                background:
-                  "linear-gradient(135deg, rgba(34,197,94,1), rgba(21,128,61,1))",
-                boxShadow:
-                  "0 20px 55px rgba(34,197,94,0.28), inset 0 1px 0 rgba(255,255,255,0.25)",
+                background: "linear-gradient(135deg, rgba(34,197,94,1), rgba(21,128,61,1))",
+                boxShadow: "0 20px 55px rgba(34,197,94,0.28), inset 0 1px 0 rgba(255,255,255,0.25)",
                 color: "#ffffff",
                 fontSize: "1.08rem",
                 letterSpacing: "-0.02em",
@@ -1372,7 +1308,13 @@ export default function App() {
   }
 
   function getMissionApplications(missionId) {
-    return applications.filter((a) => a.missionId === missionId);
+    return applications
+      .filter((application) => application.missionId === missionId)
+      .sort((a, b) => {
+        const priceA = Number(a.proposedPrice || 999999);
+        const priceB = Number(b.proposedPrice || 999999);
+        return priceA - priceB;
+      });
   }
 
   function hasCurrentTransporterApplied(missionId) {
@@ -1410,6 +1352,10 @@ export default function App() {
                 <div>
                   <strong>{application.transporterName}</strong>
                   <p className="muted">{application.transporterCompany} — {application.transporterStatus}</p>
+                  <p className="price-line">
+                    <strong>Tarif proposé :</strong>{" "}
+                    {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}
+                  </p>
                   {application.message && <p>{application.message}</p>}
                   <span className={`status status-${application.status}`}>{application.status}</span>
                 </div>
@@ -1424,6 +1370,73 @@ export default function App() {
 
         {options.showTracking && renderTrackingTimeline(mission)}
       </article>
+    );
+  }
+
+  function renderCompactDeliveredMissionCard(mission) {
+    return (
+      <details className="mission-card" key={mission.id}>
+        <summary style={{ cursor: "pointer", listStyle: "none" }}>
+          <div className="card-top">
+            <span className="badge">{mission.publicRef}</span>
+            <span className="status status-completed">Livraison validée</span>
+          </div>
+          <h3 style={{ marginTop: 12 }}>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+          <p className="muted" style={{ marginTop: 8 }}>
+            Carte archivée. Cliquez pour revoir le détail, les photos et les preuves terrain.
+          </p>
+        </summary>
+
+        <div style={{ marginTop: 14 }}>
+          <PublicMissionInfo mission={mission} />
+          <PrivateMissionInfo mission={mission} />
+          {renderTrackingTimeline(mission)}
+        </div>
+      </details>
+    );
+  }
+
+  function renderCompactAdminMissionCard(mission, { delivered = false } = {}) {
+    const events = getTrackingEventsForMission(mission.id);
+    const photosCount = events.reduce((total, event) => {
+      return total + getTrackingPhotosForEvent(event.id).length;
+    }, 0);
+
+    return (
+      <details className="mission-card" key={mission.id}>
+        <summary style={{ cursor: "pointer", listStyle: "none" }}>
+          <div className="card-top">
+            <span className="badge">{mission.publicRef}</span>
+            <span className={delivered ? "status status-completed" : `status status-${mission.status}`}>
+              {delivered ? "Livraison validée" : mission.status}
+            </span>
+          </div>
+
+          <h3 style={{ marginTop: 12 }}>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+
+          <div className="card-section" style={{ marginTop: 12 }}>
+            <p><strong>Transporteur :</strong> {mission.assignedTransporterName || "Non renseigné"}</p>
+            <p><strong>Véhicule :</strong> {mission.vehicle || "Non renseigné"}</p>
+            <p><strong>Photos / preuves :</strong> {photosCount}</p>
+          </div>
+
+          <p className="muted" style={{ marginTop: 10 }}>
+            Cliquez pour développer la mission, les informations privées et les photos d’état des lieux.
+          </p>
+        </summary>
+
+        <div style={{ marginTop: 14 }}>
+          <PublicMissionInfo mission={mission} />
+          <PrivateMissionInfo mission={mission} />
+          {renderTrackingTimeline(mission)}
+
+          {!delivered && mission.status === "assigned" && (
+            <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>
+              Marquer terminée
+            </button>
+          )}
+        </div>
+      </details>
     );
   }
 
@@ -1574,13 +1587,11 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Missions attribuées</h2>
-
                 {activeAssignedMissions.length === 0 && (
                   <div className="alert success">
                     Aucune mission attribuée en cours. Les missions livrées sont désormais visibles uniquement dans l’onglet Terminées.
                   </div>
                 )}
-
                 {activeAssignedMissions.length > 0 && (
                   <div className="cards">
                     {activeAssignedMissions.map((mission) =>
@@ -1734,6 +1745,15 @@ export default function App() {
 
                       {!isAdmin && (
                         <>
+                          <input
+                            className="message-box"
+                            type="number"
+                            min="1"
+                            step="1"
+                            placeholder="Votre tarif proposé (€) — obligatoire"
+                            value={applicationPrices[mission.id] || ""}
+                            onChange={(e) => setApplicationPrices((prev) => ({ ...prev, [mission.id]: e.target.value }))}
+                          />
                           <textarea
                             className="message-box"
                             placeholder="Message optionnel pour SECOTO..."
@@ -1774,6 +1794,7 @@ export default function App() {
                           <span className="badge">{mission?.publicRef || "Mission"}</span>
                           <span className={`status status-${application.status}`}>{application.status}</span>
                         </div>
+                        <p className="price-line"><strong>Tarif proposé :</strong> {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}</p>
                         {mission ? (
                           <>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
