@@ -164,6 +164,45 @@ function labelFuelLevel(level) {
   return labels[level] || "Non renseigné";
 }
 
+function labelStatus(status) {
+  const labels = {
+    published: "Publiée",
+    pending: "En attente",
+    assigned: "Attribuée",
+    completed: "Terminée",
+    accepted: "Acceptée",
+    approved: "Validée",
+    rejected: "Refusée",
+    cancelled: "Annulée",
+    active: "Actif",
+    verified: "Vérifié",
+    suspended: "Suspendu",
+    uploaded: "Envoyé",
+    validated: "Validé",
+  };
+
+  return labels[status] || status || "Statut";
+}
+
+function labelMissionType(type) {
+  return type === "plateau" ? "Transport par plateau" : "Convoyage";
+}
+
+function formatDateTime(value) {
+  if (!value) return "Non renseignée";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function requestFromDb(row) {
   return {
     id: row.id,
@@ -234,7 +273,7 @@ function Field({ label, name, value, onChange, type = "text", placeholder = "" }
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} />
+      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} aria-label={label} />
     </label>
   );
 }
@@ -243,7 +282,7 @@ function Tabs({ items, active, onChange }) {
   return (
     <div className="tabs">
       {items.map((item) => (
-        <button key={item.value} type="button" className={active === item.value ? "active" : ""} onClick={() => onChange(item.value)}>
+        <button key={item.value} type="button" className={active === item.value ? "active" : ""} aria-pressed={active === item.value} onClick={() => onChange(item.value)}>
           {item.label}
           {typeof item.count === "number" && <span>{item.count}</span>}
         </button>
@@ -313,7 +352,7 @@ function PublicMissionInfo({ mission }) {
     <div className="card-section">
       <p><strong>Départ :</strong> {mission.pickupAddress || mission.fromCity || "Non renseigné"}</p>
       <p><strong>Arrivée :</strong> {mission.deliveryAddress || mission.toCity || "Non renseigné"}</p>
-      <p><strong>Type de transport :</strong> {mission.type === "plateau" ? "Transport par plateau" : "Convoyage"}</p>
+      <p><strong>Type de transport :</strong> {labelMissionType(mission.type)}</p>
       <p><strong>Type de véhicule :</strong> {mission.vehicle || "Non renseigné"}</p>
       <p><strong>Distance :</strong> {mission.distanceKm ? `${mission.distanceKm} km` : "Non renseignée"}</p>
     </div>
@@ -323,7 +362,7 @@ function PublicMissionInfo({ mission }) {
 function PrivateMissionInfo({ mission }) {
   return (
     <div className="card-section private-box">
-      <p><strong>Date :</strong> {mission.missionDate || "Non renseignée"}</p>
+      <p><strong>Date :</strong> {formatDateTime(mission.missionDate)}</p>
       <p><strong>Client :</strong> {mission.clientName || "Non renseigné"}</p>
       <p><strong>Contact :</strong> {mission.clientContact || "Non renseigné"}</p>
       <p><strong>Téléphone :</strong> {mission.clientPhone || "Non renseigné"}</p>
@@ -336,7 +375,7 @@ function PrivateMissionInfo({ mission }) {
 
 function AuthScreen() {
   const [authMode, setAuthMode] = useState("login");
-  const [email, setEmail] = useState("contact.secoto@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -399,8 +438,8 @@ function AuthScreen() {
       <header className="app-header">
         <div>
           <p className="eyebrow">SECOTO</p>
-          <h1>Connexion plateforme</h1>
-          <p className="subtitle">Accès sécurisé admin et transporteurs via Supabase Auth.</p>
+          <h1>Plateforme SECOTO</h1>
+          <p className="subtitle">Accès sécurisé aux missions, candidatures, documents et preuves terrain.</p>
         </div>
       </header>
 
@@ -420,7 +459,7 @@ function AuthScreen() {
         <div className="panel panel-full">
           {authMode === "login" && (
             <>
-              <h2>Connexion</h2>
+              <h2>Connexion sécurisée</h2>
               <form className="form-grid" onSubmit={handleLogin}>
                 <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
                 <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
@@ -431,7 +470,7 @@ function AuthScreen() {
 
           {authMode === "signup" && (
             <>
-              <h2>Inscription transporteur</h2>
+              <h2>Inscription transporteur partenaire</h2>
               <form className="form-grid" onSubmit={handleSignup}>
                 <Field label="Nom complet" name="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
                 <Field label="Société" name="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
@@ -439,7 +478,7 @@ function AuthScreen() {
                 <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
                 <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
-                <button className="btn primary field-full" type="submit" disabled={loading}>{loading ? "Création..." : "Créer mon compte"}</button>
+                <button className="btn primary field-full" type="submit" disabled={loading}>{loading ? "Création..." : "Demander mon accès"}</button>
               </form>
             </>
           )}
@@ -487,9 +526,9 @@ export default function App() {
         setBootLoading(false);
         setSession(null);
         setAccount(null);
-        setError("Chargement trop long. Session réinitialisée côté interface.");
+        setError("Le chargement de session prend trop longtemps. Vérifiez la connexion Supabase ou reconnectez-vous.");
       }
-    }, 3000);
+    }, 8000);
 
     async function boot() {
       try {
@@ -541,7 +580,7 @@ export default function App() {
   async function loadAccount(userId) {
     setError("");
     try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 3000));
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 8000));
       const query = supabase.from("accounts").select("*").eq("id", userId).single();
       const { data, error } = await Promise.race([query, timeout]);
       if (error) throw error;
@@ -1114,7 +1153,7 @@ export default function App() {
             <div className="mission-card" key={event.id}>
               <div className="card-top">
                 <span className="badge">{labelTrackingEventType(event.eventType)}</span>
-                <span className="status">{new Date(event.createdAt).toLocaleString("fr-FR")}</span>
+                <span className="status">{formatDateTime(event.createdAt)}</span>
               </div>
 
               <div className="card-section">
@@ -1280,7 +1319,7 @@ export default function App() {
                 textTransform: "uppercase",
               }}
             >
-              ✅ Valider la livraison
+              Valider la livraison
             </button>
           ) : (
             <button className="btn primary field-full" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
@@ -1353,7 +1392,7 @@ export default function App() {
       <article className="mission-card" key={mission.id}>
         <div className="card-top">
           <span className="badge">{mission.publicRef}</span>
-          <span className={`status status-${mission.status}`}>{mission.status}</span>
+          <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
         </div>
 
         <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
@@ -1382,7 +1421,7 @@ export default function App() {
                     {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}
                   </p>
                   {application.message && <p>{application.message}</p>}
-                  <span className={`status status-${application.status}`}>{application.status}</span>
+                  <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                 </div>
 
                 {mission.status === "published" && application.status === "pending" && (
@@ -1433,7 +1472,7 @@ export default function App() {
           <div className="card-top">
             <span className="badge">{mission.publicRef}</span>
             <span className={delivered ? "status status-completed" : `status status-${mission.status}`}>
-              {delivered ? "Livraison validée" : mission.status}
+              {delivered ? "Livraison validée" : labelStatus(mission.status)}
             </span>
           </div>
 
@@ -1468,7 +1507,7 @@ export default function App() {
   if (bootLoading) {
     return (
       <main className="app-shell">
-        <div className="alert">Chargement de la session...</div>
+        <div className="alert">Chargement de la session SECOTO...</div>
         {error && <div className="alert error">{error}</div>}
       </main>
     );
@@ -1498,9 +1537,9 @@ export default function App() {
       <header className="app-header">
         <div>
           <p className="eyebrow">SECOTO</p>
-          <h1>Plateforme missions transport</h1>
+          <h1>Pilotage missions SECOTO</h1>
           <p className="subtitle">
-            Connecté : {account.fullName || account.email} — {isAdmin ? "Admin SECOTO" : "Transporteur"}
+            Connecté : {account.fullName || account.email} — {isAdmin ? "Direction SECOTO" : "Espace transporteur"}
           </p>
         </div>
 
@@ -1521,8 +1560,8 @@ export default function App() {
         </div>
       </header>
 
-      {loading && <div className="alert">Chargement Supabase...</div>}
-      {actionLoading && <div className="alert">Action en cours...</div>}
+      {loading && <div className="alert">Synchronisation des données SECOTO...</div>}
+      {actionLoading && <div className="alert">Traitement en cours...</div>}
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
 
@@ -1563,7 +1602,7 @@ export default function App() {
                     <article className="mission-card" key={request.id}>
                       <div className="card-top">
                         <span className="badge">{request.publicRef}</span>
-                        <span className={`status status-${request.status}`}>{request.status}</span>
+                        <span className={`status status-${request.status}`}>{labelStatus(request.status)}</span>
                       </div>
                       <h3>{request.fromCity || "Départ"} → {request.toCity || "Arrivée"}</h3>
                       <p className="muted">Demandée par {request.requesterName} — {request.requesterCompany}</p>
@@ -1656,7 +1695,7 @@ export default function App() {
                       <article className="mission-card" key={transporter.id}>
                         <div className="card-top">
                           <span className="badge">{transporter.isVerified ? "VÉRIFIÉ" : "À VÉRIFIER"}</span>
-                          <span className={`status status-${transporter.status}`}>{transporter.status}</span>
+                          <span className={`status status-${transporter.status}`}>{labelStatus(transporter.status)}</span>
                         </div>
 
                         <h3>{transporter.fullName || "Transporteur sans nom"}</h3>
@@ -1679,7 +1718,7 @@ export default function App() {
                               <div>
                                 <strong>{doc.type}</strong>
                                 <p>{doc.fileName}</p>
-                                <span className={`status status-${doc.status}`}>{doc.status}</span>
+                                <span className={`status status-${doc.status}`}>{labelStatus(doc.status)}</span>
                               </div>
 
                               <div className="actions-row">
@@ -1756,7 +1795,7 @@ export default function App() {
           {transporterTab === "available" && (
             <section className="layout">
               <div className="panel panel-full">
-                <h2>Missions publiques disponibles</h2>
+                <h2>Missions disponibles</h2>
                 {isAdmin && <div className="alert">Prévisualisation admin de la vue transporteur.</div>}
                 {!isAdmin && !account.isVerified && (
                   <div className="alert error">Compte non vérifié : vous pouvez consulter les missions, mais pas encore candidater.</div>
@@ -1767,11 +1806,11 @@ export default function App() {
                     <article className="mission-card" key={mission.id}>
                       <div className="card-top">
                         <span className="badge">{mission.publicRef}</span>
-                        <span className={`status status-${mission.status}`}>{mission.status}</span>
+                        <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
                       </div>
                       <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                       <PublicMissionInfo mission={mission} />
-                      <div className="private-locked">Les informations privées seront visibles uniquement si SECOTO vous attribue la mission.</div>
+                      <div className="private-locked">Détails client, immatriculation et consignes visibles uniquement après attribution par SECOTO.</div>
 
                       {!isAdmin && (
                         <>
@@ -1822,7 +1861,7 @@ export default function App() {
                       <article className="mission-card" key={application.id}>
                         <div className="card-top">
                           <span className="badge">{mission?.publicRef || "Mission"}</span>
-                          <span className={`status status-${application.status}`}>{application.status}</span>
+                          <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                         </div>
                         <p className="price-line"><strong>Tarif proposé :</strong> {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}</p>
                         {mission ? (
@@ -1872,7 +1911,7 @@ export default function App() {
                           <article className="mission-card" key={mission.id}>
                             <div className="card-top">
                               <span className="badge">{mission.publicRef}</span>
-                              <span className={`status status-${mission.status}`}>{mission.status}</span>
+                              <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />
@@ -1930,7 +1969,7 @@ export default function App() {
                     <article className="mission-card" key={request.id}>
                       <div className="card-top">
                         <span className="badge">{request.publicRef}</span>
-                        <span className={`status status-${request.status}`}>{request.status}</span>
+                        <span className={`status status-${request.status}`}>{labelStatus(request.status)}</span>
                       </div>
                       <h3>{request.fromCity || "Départ"} → {request.toCity || "Arrivée"}</h3>
                       <PublicMissionInfo mission={request} />
@@ -1991,7 +2030,7 @@ export default function App() {
                           <article className="mission-card" key={doc.id}>
                             <div className="card-top">
                               <span className="badge">{doc.type}</span>
-                              <span className={`status status-${doc.status}`}>{doc.status}</span>
+                              <span className={`status status-${doc.status}`}>{labelStatus(doc.status)}</span>
                             </div>
                             <h3>{doc.fileName}</h3>
                             <button

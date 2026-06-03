@@ -1,13 +1,116 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>secoto-app</title>
+
+    <!-- Responsive / mobile safe area -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- SEO principal -->
+    <title>SECOTO — Plateforme de convoyage automobile & transport moto</title>
+    <meta
+      name="description"
+      content="SECOTO organise le convoyage automobile et le transport moto pour garages, concessions, loueurs, gestionnaires de flotte et professionnels de l’automobile en France et en Europe."
+    />
+    <meta
+      name="keywords"
+      content="SECOTO, convoyage automobile, transport moto, transport véhicule, convoyeur auto, transport moto France, transport véhicule Europe, transport professionnel, garage, concession, loueur, flotte automobile"
+    />
+    <meta name="author" content="SECOTO" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#081A2F" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://app.secoto-transport.fr/" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="application-name" content="SECOTO" />
+    <meta name="apple-mobile-web-app-title" content="SECOTO" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Open Graph -->
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SECOTO" />
+    <meta property="og:title" content="SECOTO — Convoyage automobile & transport moto" />
+    <meta
+      property="og:description"
+      content="Plateforme SECOTO pour organiser, suivre et gérer des missions de convoyage automobile et de transport moto en France et en Europe."
+    />
+    <meta property="og:url" content="https://app.secoto-transport.fr/" />
+    <meta property="og:image" content="https://app.secoto-transport.fr/icon-512.png" />
+    <meta property="og:image:alt" content="SECOTO — Plateforme de convoyage automobile et transport moto professionnel" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SECOTO — Plateforme de transport auto & moto" />
+    <meta
+      name="twitter:description"
+      content="Convoyage automobile et transport moto pour professionnels en France et en Europe."
+    />
+    <meta name="twitter:image" content="https://app.secoto-transport.fr/icon-512.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Données structurées Google -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "SECOTO",
+        "url": "https://secoto-transport.fr/",
+        "logo": "https://app.secoto-transport.fr/icon-512.png",
+        "description": "SECOTO est une entreprise spécialisée dans le convoyage automobile et le transport moto pour professionnels en France et en Europe.",
+        "email": "contact.secoto@gmail.com",
+        "areaServed": ["France", "Europe"],
+        "serviceType": [
+          "Convoyage automobile",
+          "Transport moto",
+          "Transport de véhicule professionnel"
+        ]
+      }
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Convoyage automobile et transport moto SECOTO",
+        "provider": {
+          "@type": "Organization",
+          "name": "SECOTO",
+          "url": "https://secoto-transport.fr/"
+        },
+        "areaServed": ["France", "Europe"],
+        "serviceType": "Convoyage automobile et transport moto",
+        "description": "Service professionnel de convoyage automobile et transport moto pour garages, concessions, loueurs, gestionnaires de flotte et professionnels de l’automobile."
+      }
+    </script>
   </head>
+
   <body>
+    <noscript>
+      SECOTO nécessite JavaScript pour accéder à la plateforme de gestion des missions.
+      Pour demander un devis de convoyage automobile ou transport moto, contactez SECOTO via le site officiel.
+    </noscript>
+
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
