@@ -1994,7 +1994,13 @@ export default function App() {
                               <span className={`status status-${doc.status}`}>{doc.status}</span>
                             </div>
                             <h3>{doc.fileName}</h3>
-                            <a className="btn ghost" href={doc.fileUrl} target="_blank" rel="noreferrer">Ouvrir le document</a>
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={() => openPrivateDocument(doc)}
+                            >
+                              Ouvrir le document
+                            </button>
                           </article>
                         ))}
                       </div>
