@@ -1292,6 +1292,31 @@ export default function App() {
     );
   }
 
+  async function openPrivateDocument(doc) {
+    try {
+      setError("");
+      setNotice("");
+
+      if (!doc?.filePath) {
+        throw new Error("Chemin du document introuvable.");
+      }
+
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(doc.filePath, 120);
+
+      if (error) throw error;
+
+      if (!data?.signedUrl) {
+        throw new Error("Lien sécurisé impossible à générer.");
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err.message || "Impossible d’ouvrir le document sécurisé.");
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setSession(null);
@@ -1658,8 +1683,13 @@ export default function App() {
                               </div>
 
                               <div className="actions-row">
-                                <a className="btn ghost" href={doc.fileUrl} target="_blank" rel="noreferrer">Ouvrir</a>
-
+                                <button
+                                  className="btn ghost"
+                                  type="button"
+                                  onClick={() => openPrivateDocument(doc)}
+                                >
+                                  Ouvrir
+                                </button>
                                 {doc.status !== "validated" && (
                                   <button className="btn primary" onClick={() => updateDocumentStatus(doc.id, "validated")}>
                                     Valider document
