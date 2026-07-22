@@ -74,4 +74,13 @@ L'ancien fichier `src/App.txt` (sauvegarde) et `src/App.css` (non importé) peuv
 - **Client** : bouton « Supprimer ma course » sur ses courses tant qu'elles ne sont pas attribuées.
 - Nécessite les policies `missions_delete` / `applications_delete_by_mission_owner` ajoutées dans `supabase-migration.sql` (réexécuter le fichier si déjà passé une première fois).
 
+## 8. Landing publique & dépôt sans compte
+
+- Un visiteur **non connecté** arrive sur une landing (accroche + formulaire de dépôt). Il remplit ses champs (nom, **téléphone obligatoire**, véhicule, départ, arrivée + détails facultatifs) et dépose sa demande **sans créer de compte**.
+- La demande atterrit dans l'onglet **« Demandes »** de l'admin (statut *pending*), avec un badge **« Client web »** et le numéro à rappeler en un tap. Tu la valides en 1 clic → elle devient une mission visible par les transporteurs.
+- Anti-spam : honeypot invisible + policy RLS `requests_insert_guest` (téléphone requis). L'admin reçoit une **notification temps réel** à chaque nouveau dépôt.
+- Un bouton **« Espace pro / Connexion »** reste accessible pour transporteurs, admin et clients pros.
+
+> ⚠️ Réexécuter `supabase-migration.sql` (nouvelles policies : suppression d'annonces + dépôt anonyme, et `mission_requests.requester_id` rendu nullable).
+
 > Build de production vérifié (`vite build`) : compilation OK.

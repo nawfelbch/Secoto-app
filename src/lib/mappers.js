@@ -175,6 +175,7 @@ export function requestFromDb(row) {
     priceMode: row.price_mode,
     proposedPrice: row.proposed_price,
     notes: row.notes,
+    createdByRole: row.created_by_role,
     approvedMissionId: row.approved_mission_id,
     createdAt: row.created_at,
   };

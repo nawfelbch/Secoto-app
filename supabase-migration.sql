@@ -121,6 +121,25 @@ create policy "applications_delete_by_mission_owner" on public.mission_applicati
     or exists (select 1 from public.missions m where m.id = mission_id and m.client_account_id = auth.uid())
   );
 
+-- 5c) DÉPÔT PUBLIC : un visiteur non connecté peut déposer une demande
+--     (arrive dans la file "Demandes" de l'admin, statut pending).
+alter table public.mission_requests alter column requester_id drop not null;
+
+drop policy if exists "requests_insert_guest" on public.mission_requests;
+create policy "requests_insert_guest" on public.mission_requests
+  for insert to anon
+  with check (
+    status = 'pending'
+    and requester_id is null
+    and client_phone is not null
+    and length(client_phone) >= 6
+  );
+
+-- (les utilisateurs authentifiés gardent leur droit d'insertion existant)
+drop policy if exists "requests_insert_auth" on public.mission_requests;
+create policy "requests_insert_auth" on public.mission_requests
+  for insert to authenticated with check (true);
+
 -- 6) SUIVI : un client peut lire les étapes de SES missions
 drop policy if exists "tracking_select_client" on public.mission_tracking_events;
 create policy "tracking_select_client" on public.mission_tracking_events

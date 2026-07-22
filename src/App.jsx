@@ -14,6 +14,7 @@ import {
   notificationFromDb,
   missionToDb,
   requestToDb,
+  generatePublicRef,
   labelTransporterType,
   labelTrackingEventType,
   labelFuelLevel,
@@ -309,7 +310,7 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
-function AuthScreen() {
+function AuthScreen({ onBack }) {
   const [authMode, setAuthMode] = useState("login");
   const [role, setRole] = useState("client");
   const [transporterType, setTransporterType] = useState("convoyeur");
@@ -380,7 +381,10 @@ function AuthScreen() {
           <h1>Le transport de véhicules, simplifié.</h1>
           <p className="subtitle">Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous.</p>
         </div>
-        <div className="header-actions"><ThemeToggle /></div>
+        <div className="header-actions">
+          {onBack && <button className="btn ghost small" onClick={onBack}>← Retour</button>}
+          <ThemeToggle />
+        </div>
       </header>
 
       {error && <div className="alert error">{error}</div>}
@@ -469,6 +473,181 @@ function AuthScreen() {
       </section>
     </main>
   );
+}
+
+/* ============================================================
+   Landing publique — dépôt sans compte
+============================================================ */
+
+const emptyGuestForm = {
+  type: "convoyage",
+  clientName: "",
+  clientPhone: "",
+  clientContact: "",
+  fromCity: "",
+  toCity: "",
+  pickupAddress: "",
+  deliveryAddress: "",
+  missionDate: "",
+  vehicle: "",
+  plate: "",
+  distanceKm: "",
+  proposedPrice: "",
+  notes: "",
+  website: "", // honeypot anti-bot (doit rester vide)
+};
+
+function PublicLanding({ onShowAuth }) {
+  const [form, setForm] = useState(emptyGuestForm);
+  const [showDetails, setShowDetails] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(null);
+
+  function update(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+
+    if (form.website) return; // bot détecté
+    if (!form.clientName.trim()) return setError("Merci d’indiquer votre nom.");
+    if (!form.clientPhone.trim() || form.clientPhone.replace(/\D/g, "").length < 6) return setError("Un numéro de téléphone valide est obligatoire pour vous recontacter.");
+    if (!form.fromCity.trim() || !form.toCity.trim()) return setError("Indiquez la ville de départ et d’arrivée.");
+    if (!form.vehicle.trim()) return setError("Indiquez le véhicule à transporter.");
+
+    setLoading(true);
+    try {
+      const row = {
+        ...missionToDb(form, { createdByRole: "guest" }),
+        public_ref: generatePublicRef("REQ"),
+        status: "pending",
+        requester_id: null,
+        requester_name: form.clientName.trim(),
+        requester_company: null,
+        approved_mission_id: null,
+      };
+      const { error } = await supabase.from("mission_requests").insert(row);
+      if (error) throw error;
+      setDone({ ref: row.public_ref, phone: form.clientPhone.trim() });
+      setForm(emptyGuestForm);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError(err.message || "Une erreur est survenue. Réessayez ou appelez-nous.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <div className="topbar-title"><p className="eyebrow">SECOTO</p><h1>Demande envoyée</h1></div>
+          <div className="topbar-actions"><ThemeToggle /><button className="btn ghost small" onClick={onShowAuth}>Se connecter</button></div>
+        </header>
+        <section className="layout">
+          <div className="panel panel-full" style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 46, marginBottom: 6 }}>✅</div>
+            <h2 style={{ justifyContent: "center" }}>C’est enregistré, merci !</h2>
+            <p className="muted" style={{ maxWidth: "48ch", margin: "0 auto 16px" }}>
+              Votre demande <strong>{done.ref}</strong> a bien été transmise à SECOTO. Un conseiller vous rappelle rapidement au <strong>{done.phone}</strong> pour organiser votre transport.
+            </p>
+            <div className="actions-row" style={{ justifyContent: "center" }}>
+              <button className="btn primary" onClick={() => setDone(null)}>Déposer une autre demande</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="topbar-title"><p className="eyebrow">SECOTO</p><h1>Transport de véhicules</h1></div>
+        <div className="topbar-actions">
+          <ThemeToggle />
+          <button className="btn ghost small" onClick={onShowAuth}>Espace pro / Connexion</button>
+        </div>
+      </header>
+
+      <section className="hero">
+        <span className="hero-badge">Mise en relation • Auto & Moto • France &amp; Europe</span>
+        <h2 className="hero-title">Faites transporter votre véhicule, sans prise de tête.</h2>
+        <p className="hero-sub">Décrivez votre besoin en 1 minute. Nos transporteurs vérifiés vous recontactent avec leur meilleur tarif. Aucune inscription nécessaire.</p>
+        <div className="hero-points">
+          <span>✓ Convoyage &amp; plateau</span>
+          <span>✓ Transporteurs assurés</span>
+          <span>✓ Suivi à chaque étape</span>
+        </div>
+      </section>
+
+      <section className="layout">
+        <div className="panel panel-full deposit-card">
+          <h2>Déposer votre demande</h2>
+          <p className="muted" style={{ marginBottom: 14 }}>Champs marqués d’un * obligatoires. On vous rappelle, pas besoin de créer de compte.</p>
+
+          {error && <div className="alert error">{error}</div>}
+
+          <form className="form-grid" onSubmit={submit}>
+            <Field label="Votre nom" name="clientName" value={form.clientName} onChange={update} required />
+            <Field label="Téléphone" name="clientPhone" value={form.clientPhone} onChange={update} type="tel" placeholder="Pour vous rappeler" required />
+            <label className="field">
+              <span>Type de transport *</span>
+              <select name="type" value={form.type} onChange={update}>
+                <option value="convoyage">Convoyage (un chauffeur conduit)</option>
+                <option value="plateau">Plateau / camion</option>
+              </select>
+            </label>
+            <Field label="Véhicule à transporter" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Yamaha MT-07, Peugeot 208…" required />
+            <Field label="Ville de départ" name="fromCity" value={form.fromCity} onChange={update} required />
+            <Field label="Ville d’arrivée" name="toCity" value={form.toCity} onChange={update} required />
+
+            {/* Honeypot invisible */}
+            <input type="text" name="website" value={form.website} onChange={update} tabIndex={-1} autoComplete="off" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
+
+            {!showDetails && (
+              <button type="button" className="btn ghost field-full" onClick={() => setShowDetails(true)}>+ Ajouter des détails (facultatif)</button>
+            )}
+
+            {showDetails && (
+              <>
+                <Field label="Email (facultatif)" name="clientContact" value={form.clientContact} onChange={update} type="email" />
+                <Field label="Date / heure souhaitée" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
+                <Field label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} onChange={update} />
+                <Field label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} onChange={update} />
+                <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
+                <Field label="Distance estimée (km)" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
+                <Field label="Budget indicatif €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" />
+                <label className="field field-full">
+                  <span>Précisions</span>
+                  <textarea name="notes" value={form.notes} onChange={update} placeholder="État du véhicule, contraintes horaires, contact sur place…" />
+                </label>
+              </>
+            )}
+
+            <button className="btn primary field-full" type="submit" disabled={loading} style={{ minHeight: 56, fontSize: "1.02rem" }}>
+              {loading ? "Envoi…" : "Déposer ma demande"}
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <p className="muted" style={{ textAlign: "center", marginTop: 18 }}>
+        Vous êtes transporteur ou déjà client SECOTO ? <button className="linklike" onClick={onShowAuth}>Connectez-vous ici</button>.
+      </p>
+    </main>
+  );
+}
+
+function PublicEntry() {
+  const [view, setView] = useState("landing");
+  if (view === "auth") return <AuthScreen onBack={() => setView("landing")} />;
+  return <PublicLanding onShowAuth={() => setView("auth")} />;
 }
 
 /* ============================================================
@@ -646,6 +825,19 @@ export default function App() {
               });
               loadAllData(accountRef.current || currentAccount);
             }
+          })
+        .subscribe();
+    }
+
+    // Nouvelles demandes déposées depuis la landing (pour l'admin)
+    if (currentAccount.role === "admin") {
+      supabase
+        .channel("requests-feed")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "mission_requests" },
+          (payload) => {
+            const r = requestFromDb(payload.new);
+            pushToast("Nouvelle demande client", `${r.fromCity || "Départ"} → ${r.toCity || "Arrivée"}${r.clientPhone ? " · " + r.clientPhone : ""}`);
+            loadAllData(accountRef.current || currentAccount);
           })
         .subscribe();
     }
@@ -1495,7 +1687,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <AuthScreen />;
+  if (!session) return <PublicEntry />;
 
   if (!account) {
     return (
@@ -1662,7 +1854,13 @@ export default function App() {
                         <span className={`status status-${request.status}`}>{labelStatus(request.status)}</span>
                       </div>
                       <h3>{request.fromCity || "Départ"} → {request.toCity || "Arrivée"}</h3>
-                      <p className="muted">Demandée par {request.requesterName} — {request.requesterCompany}</p>
+                      <p className="muted">
+                        Demandée par {request.requesterName}{request.requesterCompany ? ` — ${request.requesterCompany}` : ""}{" "}
+                        {request.createdByRole === "guest" && <span className="type-badge type-vl">Client web</span>}
+                      </p>
+                      {request.clientPhone && (
+                        <p className="assigned"><strong>☎ Rappeler :</strong> <a href={`tel:${request.clientPhone}`} style={{ textDecoration: "underline" }}>{request.clientPhone}</a></p>
+                      )}
                       <PublicMissionInfo mission={request} />
                       <PrivateMissionInfo mission={request} />
                       {request.status === "pending" && (
