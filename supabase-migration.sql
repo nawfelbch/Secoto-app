@@ -103,6 +103,24 @@ create policy "missions_select_client_own" on public.missions
     or exists (select 1 from public.accounts a where a.id = auth.uid() and a.role in ('admin','transporter'))
   );
 
+-- 5b) MISSIONS : suppression d'une annonce
+--     admin : n'importe quelle annonce ; client : ses propres courses non encore attribuées.
+drop policy if exists "missions_delete" on public.missions;
+create policy "missions_delete" on public.missions
+  for delete to authenticated
+  using (
+    exists (select 1 from public.accounts a where a.id = auth.uid() and a.role = 'admin')
+    or (client_account_id = auth.uid() and status = 'published')
+  );
+
+drop policy if exists "applications_delete_by_mission_owner" on public.mission_applications;
+create policy "applications_delete_by_mission_owner" on public.mission_applications
+  for delete to authenticated
+  using (
+    exists (select 1 from public.accounts a where a.id = auth.uid() and a.role = 'admin')
+    or exists (select 1 from public.missions m where m.id = mission_id and m.client_account_id = auth.uid())
+  );
+
 -- 6) SUIVI : un client peut lire les étapes de SES missions
 drop policy if exists "tracking_select_client" on public.mission_tracking_events;
 create policy "tracking_select_client" on public.mission_tracking_events

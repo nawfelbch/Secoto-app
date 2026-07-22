@@ -505,6 +505,7 @@ export default function App() {
 
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [pushState, setPushState] = useState("idle"); // idle | enabled | dismissed
 
@@ -934,6 +935,21 @@ export default function App() {
     finally { setActionLoading(false); }
   }
 
+  async function deleteMission(missionId, { confirmLabel = "Supprimer définitivement cette annonce ?" } = {}) {
+    if (typeof window !== "undefined" && !window.confirm(confirmLabel)) return;
+    setActionLoading(true); setError(""); setNotice("");
+    try {
+      // Nettoyage des dépendances (les policies/FK peuvent l'exiger)
+      await supabase.from("mission_applications").delete().eq("mission_id", missionId);
+      const { error } = await supabase.from("missions").delete().eq("id", missionId);
+      if (error) throw error;
+      setMissions((prev) => prev.filter((m) => m.id !== missionId));
+      setNotice("Annonce supprimée.");
+    } catch (err) {
+      setError(err.message || "Erreur lors de la suppression de l’annonce.");
+    } finally { setActionLoading(false); }
+  }
+
   async function approveRequest(request) {
     setActionLoading(true); setError(""); setNotice("");
     try {
@@ -1265,6 +1281,11 @@ export default function App() {
         {options.canComplete && mission.status === "assigned" && (
           <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>Marquer terminée</button>
         )}
+        {options.canDelete && (
+          <div className="actions-row">
+            <button className="btn danger small" onClick={() => deleteMission(mission.id)}>Supprimer l’annonce</button>
+          </div>
+        )}
         {options.showApplications && (
           <div className="applications-box">
             <h4>Candidatures</h4>
@@ -1340,6 +1361,130 @@ export default function App() {
     );
   }
 
+  /* ---------- Navigation latérale ---------- */
+  function NavIc({ name }) {
+    const p = {
+      plus: "M12 5v14M5 12h14",
+      truck: "M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM18.5 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z",
+      user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+      users: "M17 21v-2a4 4 0 0 0-3-3.87M9 21v-2a4 4 0 0 0-4-4H4M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8a3 3 0 1 1-2 5",
+      megaphone: "M3 11l14-7v16L3 13v-2zM7 12v5a2 2 0 0 0 4 0",
+      check: "M20 6L9 17l-5-5",
+      inbox: "M22 12h-6l-2 3h-4l-2-3H2M5 5h14l3 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l3-7z",
+      hand: "M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8",
+      settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    }[name] || "M12 5v14M5 12h14";
+    return (
+      <svg className="nav-ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d={p} />
+      </svg>
+    );
+  }
+
+  function getNavModel() {
+    if (account.role === "client") {
+      return {
+        active: clientTab, setActive: setClientTab,
+        sections: [
+          { title: "Transport", items: [
+            { key: "post", label: "Nouvelle course", icon: "plus" },
+            { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
+          ] },
+          { title: "Compte", items: [ { key: "profile", label: "Profil", icon: "user" } ] },
+        ],
+      };
+    }
+    if (account.role === "admin" && mode === "admin") {
+      return {
+        active: adminTab, setActive: setAdminTab,
+        sections: [
+          { title: "Missions", items: [
+            { key: "create", label: "Créer une mission", icon: "plus" },
+            { key: "published", label: "Publiées", icon: "megaphone", count: publishedMissions.length },
+            { key: "assigned", label: "Attribuées", icon: "truck", count: activeAssignedMissions.length },
+            { key: "completed", label: "Terminées", icon: "check", count: completedOrDeliveredMissions.length },
+          ] },
+          { title: "Flux entrant", items: [
+            { key: "requests", label: "Demandes", icon: "inbox", count: pendingRequests.length },
+            { key: "applications", label: "Candidatures", icon: "hand", count: pendingApplications.length },
+          ] },
+          { title: "Réseau", items: [
+            { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
+          ] },
+        ],
+      };
+    }
+    return {
+      active: transporterTab, setActive: setTransporterTab,
+      sections: [
+        { title: "Missions", items: [
+          { key: "available", label: "Disponibles", icon: "megaphone", count: (account.role === "admin" ? publishedMissions : publicMissions).length },
+          { key: "assigned", label: "Mes missions", icon: "truck", count: assignedToCurrentTransporter.length },
+        ] },
+        { title: "Mon activité", items: [
+          { key: "applications", label: "Mes candidatures", icon: "hand", count: currentTransporterApplications.length },
+          { key: "request", label: "Proposer une mission", icon: "plus" },
+          { key: "requests", label: "Mes demandes", icon: "inbox", count: currentTransporterRequests.length },
+        ] },
+        { title: "Compte", items: [ { key: "profile", label: "Profil", icon: "user" } ] },
+      ],
+    };
+  }
+
+  function renderSidebar() {
+    const nav = getNavModel();
+    const initials = (account.fullName || account.email || "?").trim().charAt(0).toUpperCase();
+    const roleTxt = account.role === "admin" ? "Direction SECOTO" : account.role === "client" ? (account.clientType === "pro" ? "Client pro" : "Client") : labelTransporterType(account.transporterType);
+
+    return (
+      <>
+        {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} />}
+        <aside className={`sidebar ${navOpen ? "open" : ""}`}>
+          <div className="sidebar-brand">
+            <span className="dot" />
+            <strong>SECOTO</strong>
+          </div>
+
+          {account.role === "admin" && (
+            <div className="sidebar-switch">
+              <button className={mode === "admin" ? "active" : ""} onClick={() => { setMode("admin"); setNavOpen(false); }}>Admin</button>
+              <button className={mode === "transporter" ? "active" : ""} onClick={() => { setMode("transporter"); setNavOpen(false); }}>Transporteur</button>
+            </div>
+          )}
+
+          {nav.sections.map((section) => (
+            <div className="nav-section" key={section.title}>
+              <div className="nav-section-title">{section.title}</div>
+              {section.items.map((item) => (
+                <button
+                  key={item.key}
+                  className={`nav-item ${nav.active === item.key ? "active" : ""}`}
+                  onClick={() => { nav.setActive(item.key); setNavOpen(false); }}
+                >
+                  <NavIc name={item.icon} />
+                  <span className="nav-label">{item.label}</span>
+                  {typeof item.count === "number" && <span className="nav-count">{item.count}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+
+          <div className="sidebar-foot">
+            <div className="sidebar-userline">
+              <span className="avatar">{initials}</span>
+              <span className="who">
+                <strong>{account.fullName || account.email}</strong>
+                <span>{roleTxt}</span>
+              </span>
+            </div>
+            <button className="btn ghost small" onClick={() => { loadAllData(account); loadNotifications(account); setNavOpen(false); }}>Actualiser</button>
+            <button className="btn danger small" onClick={signOut}>Déconnexion</button>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
   /* ---------- Rendu principal ---------- */
   if (bootLoading) {
     return (
@@ -1370,7 +1515,6 @@ export default function App() {
   const isClient = account.role === "client";
   const visiblePublicMissions = isAdmin ? publishedMissions : publicMissions;
 
-  const roleLabel = isAdmin ? "Direction SECOTO" : isClient ? "Espace client" : "Espace transporteur";
 
   return (
     <main className="app-shell">
@@ -1383,24 +1527,17 @@ export default function App() {
         ))}
       </div>
 
-      <header className="app-header">
-        <div>
+      <header className="topbar">
+        <button className="hamburger" aria-label="Ouvrir le menu" onClick={() => setNavOpen(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+        <div className="topbar-title">
           <p className="eyebrow">SECOTO</p>
-          <h1>{isClient ? "Mes transports" : "Pilotage missions"}</h1>
-          <p className="subtitle">
-            {account.fullName || account.email} — {roleLabel}
-            {isTransporter && account.transporterType ? " · " : ""}
-          </p>
-          {isTransporter && <div style={{ marginTop: 8 }}><TransporterTypeBadge type={account.transporterType} /></div>}
+          <h1>{isClient ? "Mes transports" : isAdmin && mode === "admin" ? "Direction SECOTO" : "Espace transporteur"}</h1>
         </div>
-
-        <div className="header-actions">
-          {isAdmin && (
-            <>
-              <button className={mode === "admin" ? "btn primary small" : "btn ghost small"} onClick={() => setMode("admin")}>Admin</button>
-              <button className={mode === "transporter" ? "btn primary small" : "btn ghost small"} onClick={() => setMode("transporter")}>Vue transporteur</button>
-            </>
-          )}
+        <div className="topbar-actions">
           <NotificationBell
             notifications={notifications}
             unreadCount={unreadCount}
@@ -1410,8 +1547,6 @@ export default function App() {
             onOpenItem={openNotification}
           />
           <ThemeToggle />
-          <button className="btn ghost small" onClick={() => { loadAllData(account); loadNotifications(account); }}>Actualiser</button>
-          <button className="btn danger small" onClick={signOut}>Déconnexion</button>
         </div>
       </header>
 
@@ -1425,6 +1560,10 @@ export default function App() {
         </div>
       )}
 
+      <div className="app-layout">
+        {renderSidebar()}
+        <div className="content">
+
       {loading && <div className="alert">Synchronisation des données SECOTO…</div>}
       {actionLoading && <div className="alert">Traitement en cours…</div>}
       {error && <div className="alert error">{error}</div>}
@@ -1433,16 +1572,6 @@ export default function App() {
       {/* ===================== CLIENT ===================== */}
       {isClient && (
         <>
-          <Tabs
-            active={clientTab}
-            onChange={setClientTab}
-            items={[
-              { value: "post", label: "Nouvelle course" },
-              { value: "courses", label: "Mes courses", count: clientMissions.length },
-              { value: "profile", label: "Profil" },
-            ]}
-          />
-
           {clientTab === "post" && (
             <section className="layout">
               <div className="panel panel-full">
@@ -1474,6 +1603,11 @@ export default function App() {
                         {mission.proposedPrice ? <p><strong>Budget indiqué :</strong> {mission.proposedPrice} €</p> : null}
                       </div>
                       <ClientTrackingTimeline mission={mission} events={getTrackingEventsForMission(mission.id)} getPhotos={getTrackingPhotosForEvent} />
+                      {mission.status === "published" && (
+                        <div className="actions-row">
+                          <button className="btn danger small" onClick={() => deleteMission(mission.id, { confirmLabel: "Supprimer cette course ?" })}>Supprimer ma course</button>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -1505,19 +1639,6 @@ export default function App() {
       {isAdmin && mode === "admin" && (
         <>
           <KpiGrid stats={adminStats} />
-          <Tabs
-            active={adminTab}
-            onChange={setAdminTab}
-            items={[
-              { value: "create", label: "Créer mission" },
-              { value: "requests", label: "Demandes", count: pendingRequests.length },
-              { value: "published", label: "Publiées", count: publishedMissions.length },
-              { value: "applications", label: "Candidatures", count: pendingApplications.length },
-              { value: "assigned", label: "Attribuées", count: activeAssignedMissions.length },
-              { value: "completed", label: "Terminées", count: completedOrDeliveredMissions.length },
-              { value: "transporters", label: "Transporteurs", count: transporters.length },
-            ]}
-          />
 
           {adminTab === "create" && (
             <section className="layout">
@@ -1562,7 +1683,7 @@ export default function App() {
               <div className="panel panel-full">
                 <h2>Missions publiées</h2>
                 {publishedMissions.length === 0 && <p className="muted">Aucune mission publiée.</p>}
-                <div className="cards">{publishedMissions.map((mission) => renderMissionCard(mission, { showPrivate: true, showApplications: true }))}</div>
+                <div className="cards">{publishedMissions.map((mission) => renderMissionCard(mission, { showPrivate: true, showApplications: true, canDelete: true }))}</div>
               </div>
             </section>
           )}
@@ -1665,19 +1786,6 @@ export default function App() {
       {/* ===================== TRANSPORTEUR ===================== */}
       {(isTransporter || isAdmin) && mode === "transporter" && (
         <>
-          <Tabs
-            active={transporterTab}
-            onChange={setTransporterTab}
-            items={[
-              { value: "available", label: "Disponibles", count: visiblePublicMissions.length },
-              { value: "applications", label: "Mes candidatures", count: currentTransporterApplications.length },
-              { value: "assigned", label: "Attribuées", count: assignedToCurrentTransporter.length },
-              { value: "request", label: "Proposer" },
-              { value: "requests", label: "Mes demandes", count: currentTransporterRequests.length },
-              { value: "profile", label: "Profil" },
-            ]}
-          />
-
           {transporterTab === "available" && (
             <section className="layout">
               <div className="panel panel-full">
@@ -1876,6 +1984,16 @@ export default function App() {
             </section>
           )}
         </>
+      )}
+
+        </div>
+      </div>
+
+      {isClient && clientTab !== "post" && (
+        <button className="fab" onClick={() => setClientTab("post")} aria-label="Nouvelle course">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          Nouvelle course
+        </button>
       )}
     </main>
   );

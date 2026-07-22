@@ -60,3 +60,18 @@ Sur Netlify, `npm install` s'exécute automatiquement : le build fonctionne sans
 | `supabase-migration.sql`, `handle_new_user.sql` | Schéma + trigger |
 
 L'ancien fichier `src/App.txt` (sauvegarde) et `src/App.css` (non importé) peuvent être supprimés.
+
+## 6. Navigation & ergonomie
+
+- **Menu latéral gauche** : fixe sur desktop, tiroir coulissant (bouton hamburger + fond assombri) sur mobile. Catégories rangées par section selon le rôle. L'ancienne barre d'onglets horizontale est supprimée.
+- **100 % responsive** : le contenu passe en une colonne sur petit écran, cartes empilées, cibles tactiles ≥ 44px.
+- **Bouton flottant (FAB)** « Nouvelle course » pour le client, accessible partout.
+- Profil, actualisation et déconnexion regroupés en bas du menu latéral.
+
+## 7. Suppression d'annonces
+
+- **Admin** : bouton « Supprimer l'annonce » sur chaque mission publiée.
+- **Client** : bouton « Supprimer ma course » sur ses courses tant qu'elles ne sont pas attribuées.
+- Nécessite les policies `missions_delete` / `applications_delete_by_mission_owner` ajoutées dans `supabase-migration.sql` (réexécuter le fichier si déjà passé une première fois).
+
+> Build de production vérifié (`vite build`) : compilation OK.

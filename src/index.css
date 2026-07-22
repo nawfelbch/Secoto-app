@@ -570,3 +570,103 @@ a { color: inherit; text-decoration: none; }
 details.mission-card summary { list-style: none; }
 details.mission-card summary::-webkit-details-marker { display: none; }
 details.mission-card[open] { border-color: var(--border-strong); }
+
+/* ============================================================
+   TOPBAR + LAYOUT À MENU LATÉRAL
+============================================================ */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 18px;
+}
+.topbar-title { min-width: 0; flex: 1; }
+.topbar-title .eyebrow { margin-bottom: 2px; }
+.topbar-title h1 { font-size: clamp(1.15rem, 2.6vw, 1.7rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+.hamburger {
+  display: none; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex: 0 0 auto;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--glass-soft); color: var(--text);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+
+.app-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+.content { min-width: 0; }
+
+/* ----- Sidebar ----- */
+.sidebar {
+  position: sticky; top: 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--glass-hi), transparent 30%), var(--glass);
+  box-shadow: var(--shadow-card), inset 0 1px 0 var(--glass-hi);
+  backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
+  max-height: calc(100vh - 32px); overflow-y: auto;
+}
+.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 12px; }
+.sidebar-brand .dot { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-strong)); box-shadow: var(--shadow-accent); }
+.sidebar-brand strong { font-family: var(--font-display); font-weight: 800; letter-spacing: 0.02em; }
+
+.sidebar-switch { display: flex; gap: 4px; padding: 4px; margin-bottom: 6px; border-radius: var(--radius-md); border: 1px solid var(--border-soft); background: var(--glass-soft); }
+.sidebar-switch button { flex: 1; padding: 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-weight: 600; font-size: 0.82rem; transition: color .15s, background .2s; }
+.sidebar-switch button.active { color: var(--accent-ink); background: linear-gradient(135deg, var(--accent), var(--accent-strong)); box-shadow: var(--shadow-accent); }
+
+.nav-section { margin-top: 8px; }
+.nav-section-title { padding: 6px 10px 4px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+.nav-item {
+  position: relative; display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 11px 12px; border: 0; border-radius: var(--radius-md);
+  background: transparent; color: var(--text-soft); font-weight: 600; font-size: 0.9rem; text-align: left;
+  transition: background .16s, color .16s, transform .12s;
+}
+.nav-item:hover { background: var(--glass-soft); color: var(--text); }
+.nav-item:active { transform: scale(0.985); }
+.nav-item.active { color: var(--text); background: linear-gradient(160deg, var(--accent-soft), transparent), var(--glass-soft); }
+.nav-item.active::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 20px; border-radius: 3px; background: linear-gradient(var(--accent), var(--accent-strong)); }
+.nav-item .nav-ic { flex: 0 0 auto; width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); }
+.nav-item.active .nav-ic { color: var(--accent); }
+.nav-item .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item .nav-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--glass-lo); color: var(--text-soft); text-align: center; }
+.nav-item.active .nav-count { background: var(--accent); color: #fff; }
+
+.sidebar-foot { margin-top: auto; padding-top: 10px; display: grid; gap: 8px; }
+.sidebar-foot .btn { width: 100%; }
+.sidebar-userline { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-md); background: var(--glass-soft); border: 1px solid var(--border-soft); }
+.sidebar-userline .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-strong)); flex: 0 0 auto; }
+.sidebar-userline .who { min-width: 0; }
+.sidebar-userline .who strong { display: block; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-userline .who span { font-size: 0.72rem; color: var(--muted); }
+
+.nav-backdrop { display: none; }
+
+/* ----- FAB mobile ----- */
+.fab {
+  display: none; position: fixed; right: 18px; bottom: 18px; z-index: 60;
+  align-items: center; gap: 8px; padding: 14px 20px; border: 0; border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: #fff; font-weight: 700;
+  box-shadow: 0 18px 44px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.fab:active { transform: scale(0.96); }
+
+/* ----- Responsive : le menu devient un tiroir ----- */
+@media (max-width: 900px) {
+  .hamburger { display: inline-flex; }
+  .app-layout { grid-template-columns: 1fr; gap: 0; }
+  .sidebar {
+    position: fixed; z-index: 80; top: 0; left: 0; bottom: 0;
+    width: 84vw; max-width: 320px; max-height: none; border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    transform: translateX(-104%); transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .sidebar.open { transform: none; }
+  .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); opacity: 0; animation: fade-in .2s forwards; }
+  @keyframes fade-in { to { opacity: 1; } }
+  .fab { display: inline-flex; }
+}
+
+@media (min-width: 901px) {
+  .hamburger { display: none; }
+}
