@@ -233,14 +233,33 @@ export function missionToDb(form, extra = {}) {
   };
 }
 
-export function requestToDb(form, account) {
+// IMPORTANT : mission_requests n'a PAS les colonnes de missions
+// (assigned_transporter_id, carrier_cost, payment_method, client_account_id,
+// source_request_id...). On liste donc EXPLICITEMENT les colonnes valides pour
+// eviter l'erreur "Could not find the '...' column of 'mission_requests'".
+export function requestToDb(form, account = null, extra = {}) {
   return {
-    ...missionToDb(form, {}),
-    public_ref: generatePublicRef("REQ"),
+    public_ref: extra.publicRef || generatePublicRef("REQ"),
+    type: form.type || "convoyage",
     status: "pending",
-    requester_id: account.id,
-    requester_name: account.fullName,
-    requester_company: account.companyName,
+    from_city: form.fromCity || null,
+    to_city: form.toCity || null,
+    pickup_address: form.pickupAddress || null,
+    delivery_address: form.deliveryAddress || null,
+    mission_date: form.missionDate || null,
+    vehicle: form.vehicle || null,
+    plate: form.plate || null,
+    distance_km: form.distanceKm ? Number(form.distanceKm) : null,
+    client_name: form.clientName || null,
+    client_contact: form.clientContact || null,
+    client_phone: form.clientPhone || null,
+    price_mode: form.priceMode || "fixed",
+    proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
+    notes: form.notes || null,
+    created_by_role: extra.createdByRole || (account ? account.role || "transporter" : "guest"),
+    requester_id: account ? account.id : null,
+    requester_name: (account && account.fullName) || form.clientName || null,
+    requester_company: (account && account.companyName) || null,
     approved_mission_id: null,
   };
 }

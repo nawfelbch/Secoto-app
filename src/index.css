@@ -453,6 +453,49 @@ input:focus, select:focus, textarea:focus {
 .push-banner { border: none !important; }
 
 /* ============================================================
+   AUTOCOMPLETION D'ADRESSES (Base Adresse Nationale)
+============================================================ */
+.ac-field { position: relative; }
+.ac-list {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 60;
+  margin-top: 5px; list-style: none; padding: 5px;
+  background: var(--neo-bg, var(--glass-strong));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  max-height: 240px; overflow-y: auto;
+}
+.ac-item {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+}
+.ac-item.active, .ac-item:hover { background: var(--accent-soft); }
+.ac-main { font-size: 0.92rem; color: var(--text); line-height: 1.25; }
+.ac-sub { font-size: 0.74rem; color: var(--muted); }
+
+/* ============================================================
+   CONTACT + PASSE MOBILE (anti-debordement, cibles tactiles)
+============================================================ */
+.contact-btn { width: 100%; justify-content: center; }
+.contact-panel .actions-row .contact-btn { flex: 1 1 100%; }
+
+@media (max-width: 640px) {
+  /* Lignes de pieces / documents : on empile au lieu de deborder a droite */
+  .application-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .application-row .actions-row { flex-wrap: wrap; }
+  .application-row .actions-row .btn { flex: 1 1 auto; justify-content: center; }
+
+  /* Rangees d'actions (Valider / En attente / Suspendre, etc.) : jamais coupees */
+  .actions-row { flex-wrap: wrap; }
+  .actions-row .btn { flex: 1 1 auto; justify-content: center; }
+
+  /* Cibles tactiles confortables */
+  .btn.small { min-height: 42px; }
+  .field input, .field select, .field textarea,
+  input, select, textarea { font-size: 16px; } /* evite le zoom auto iOS */
+}
+
+/* ============================================================
    FORMULAIRES
 ============================================================ */
 .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

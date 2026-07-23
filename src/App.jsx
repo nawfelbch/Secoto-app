@@ -27,6 +27,8 @@ import { enablePush, triggerPush, pushSupported } from "./push";
 import { computeClientPrice, computeCarrierPay, computeMargin, formatAmount } from "./lib/pricing";
 import { renderDevisHtml, renderBonMissionHtml, renderFactureHtml, openDocumentForPrint } from "./lib/documents";
 import FraisPanel from "./FraisPanel";
+import AddressAutocomplete from "./AddressAutocomplete";
+import ContactPanel from "./ContactPanel";
 import "./index.css";
 
 /* ============================================================
@@ -167,10 +169,10 @@ function MissionForm({ form, setForm, onSubmit, submitLabel }) {
           <option value="plateau">Transport par plateau</option>
         </select>
       </label>
-      <Field label="Ville de départ" name="fromCity" value={form.fromCity} onChange={update} />
-      <Field label="Ville d’arrivée" name="toCity" value={form.toCity} onChange={update} />
-      <Field label="Adresse de départ" name="pickupAddress" value={form.pickupAddress} onChange={update} />
-      <Field label="Adresse d’arrivée" name="deliveryAddress" value={form.deliveryAddress} onChange={update} />
+      <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" />
+      <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" />
+      <AddressAutocomplete label="Adresse de départ" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
+      <AddressAutocomplete label="Adresse d’arrivée" name="deliveryAddress" value={form.deliveryAddress} setForm={setForm} kind="address" />
       <Field label="Date / heure" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
       <Field label="Véhicule" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Renault Clio" />
       <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
@@ -243,10 +245,10 @@ function ClientCourseForm({ form, setForm, onSubmit, submitLabel, disabled }) {
           <option value="plateau">Transport par plateau / camion</option>
         </select>
       </label>
-      <Field label="Ville de départ" name="fromCity" value={form.fromCity} onChange={update} required />
-      <Field label="Ville d’arrivée" name="toCity" value={form.toCity} onChange={update} required />
-      <Field label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} onChange={update} />
-      <Field label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} onChange={update} />
+      <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" required />
+      <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" required />
+      <AddressAutocomplete label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
+      <AddressAutocomplete label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} setForm={setForm} kind="address" />
       <Field label="Date / heure souhaitée" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
       <Field label="Véhicule à transporter" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Yamaha MT-07 / Peugeot 208" required />
       <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
@@ -598,15 +600,7 @@ function PublicLanding({ onShowAuth }) {
 
     setLoading(true);
     try {
-      const row = {
-        ...missionToDb(form, { createdByRole: "guest" }),
-        public_ref: generatePublicRef("REQ"),
-        status: "pending",
-        requester_id: null,
-        requester_name: form.clientName.trim(),
-        requester_company: null,
-        approved_mission_id: null,
-      };
+      const row = requestToDb(form, null, { createdByRole: "guest" });
       const { error } = await supabase.from("mission_requests").insert(row);
       if (error) throw error;
       setDone({ ref: row.public_ref, phone: form.clientPhone.trim() });
@@ -681,8 +675,8 @@ function PublicLanding({ onShowAuth }) {
               </select>
             </label>
             <Field label="Véhicule à transporter" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Yamaha MT-07, Peugeot 208…" required />
-            <Field label="Ville de départ" name="fromCity" value={form.fromCity} onChange={update} required />
-            <Field label="Ville d’arrivée" name="toCity" value={form.toCity} onChange={update} required />
+            <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" required />
+            <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" required />
 
             {/* Honeypot invisible */}
             <input type="text" name="website" value={form.website} onChange={update} tabIndex={-1} autoComplete="off" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
@@ -695,8 +689,8 @@ function PublicLanding({ onShowAuth }) {
               <>
                 <Field label="Email (facultatif)" name="clientContact" value={form.clientContact} onChange={update} type="email" />
                 <Field label="Date / heure souhaitée" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
-                <Field label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} onChange={update} />
-                <Field label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} onChange={update} />
+                <AddressAutocomplete label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
+                <AddressAutocomplete label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} setForm={setForm} kind="address" />
                 <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
                 <Field label="Distance estimée (km)" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
                 <Field label="Budget indicatif €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" />
@@ -1676,6 +1670,7 @@ export default function App() {
       inbox: "M22 12h-6l-2 3h-4l-2-3H2M5 5h14l3 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l3-7z",
       hand: "M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8",
       settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+      phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z",
     }[name] || "M12 5v14M5 12h14";
     return (
       <svg className="nav-ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -1693,7 +1688,10 @@ export default function App() {
             { key: "post", label: "Nouvelle course", icon: "plus" },
             { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
           ] },
-          { title: "Compte", items: [ { key: "profile", label: "Profil", icon: "user" } ] },
+          { title: "Compte", items: [
+            { key: "contact", label: "Contact SECOTO", icon: "phone" },
+            { key: "profile", label: "Profil", icon: "user" },
+          ] },
         ],
       };
     }
@@ -1731,7 +1729,10 @@ export default function App() {
           { key: "requests", label: "Mes demandes", icon: "inbox", count: currentTransporterRequests.length },
           { key: "frais", label: "Mes frais", icon: "settings" },
         ] },
-        { title: "Compte", items: [ { key: "profile", label: "Profil", icon: "user" } ] },
+        { title: "Compte", items: [
+          { key: "contact", label: "Contact SECOTO", icon: "phone" },
+          { key: "profile", label: "Profil", icon: "user" },
+        ] },
       ],
     };
   }
@@ -1917,6 +1918,12 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </section>
+          )}
+
+          {clientTab === "contact" && (
+            <section className="layout">
+              <div className="panel-full"><ContactPanel /></div>
             </section>
           )}
 
@@ -2249,6 +2256,12 @@ export default function App() {
               <div className="panel-full">
                 <FraisPanel account={account} isAdmin={false} missions={assignedToCurrentTransporter} />
               </div>
+            </section>
+          )}
+
+          {transporterTab === "contact" && (
+            <section className="layout">
+              <div className="panel-full"><ContactPanel /></div>
             </section>
           )}
 
