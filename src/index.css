@@ -375,6 +375,84 @@ a { color: inherit; text-decoration: none; }
 .incident-block .track-form { padding: 0 14px 14px; margin-top: 12px; }
 
 /* ============================================================
+   NEOMORPHISME — couche cosmetique (aucun impact fonctionnel)
+   Principe : surfaces OPAQUES de meme teinte + double ombre
+   (sombre + claire) pour un effet "extrude". Textes conserves
+   en fort contraste, CTA orange conserve pour la lisibilite.
+============================================================ */
+:root {
+  --neo-bg: #101c30;
+  --neo-dark: #05090f;
+  --neo-light: #182741;
+}
+@media (prefers-color-scheme: light) {
+  :root { --neo-bg: #e8edf5; --neo-dark: #c3cedd; --neo-light: #ffffff; }
+}
+html[data-theme="dark"]  { --neo-bg: #101c30; --neo-dark: #05090f; --neo-light: #182741; }
+html[data-theme="light"] { --neo-bg: #e8edf5; --neo-dark: #c3cedd; --neo-light: #ffffff; }
+
+:root {
+  --neo-raised:    6px 6px 14px var(--neo-dark), -6px -6px 14px var(--neo-light);
+  --neo-raised-sm: 4px 4px 9px  var(--neo-dark), -4px -4px 9px  var(--neo-light);
+  --neo-inset:     inset 4px 4px 8px var(--neo-dark), inset -4px -4px 8px var(--neo-light);
+}
+
+/* Le conteneur principal devient une surface pleine : indispensable pour que
+   les cartes "sortent" de la meme teinte. */
+.app-shell {
+  background: var(--neo-bg);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: var(--neo-raised);
+}
+.app-shell::before { display: none; }
+
+/* Cartes / panneaux en relief */
+.kpi-card, .mission-card, .track-card, .panel, .sidebar, .bareme-box,
+.incident-block, .profile-card, .push-banner, .applications-box {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  box-shadow: var(--neo-raised);
+}
+.kpi-grid { gap: 16px; }
+
+/* Zones internes "enfoncees" (infos, lignes de detail) */
+.card-section, .private-box, .application-row, .reglement, .bareme-lines {
+  background: var(--neo-bg);
+  border: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--neo-inset);
+  padding: 12px 14px;
+}
+
+/* Champs de saisie : enfonces */
+input, select, textarea {
+  background: var(--neo-bg) !important;
+  border: none !important;
+  box-shadow: var(--neo-inset);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: var(--neo-inset), 0 0 0 2px var(--accent-soft);
+}
+
+/* Boutons en relief ; enfonces au clic (retour tactile) */
+.btn {
+  border: none !important;
+  box-shadow: var(--neo-raised-sm);
+}
+.btn:active { box-shadow: var(--neo-inset); transform: translateY(1px); }
+.btn.ghost, .hamburger { background: var(--neo-bg) !important; }
+.btn.primary { box-shadow: var(--neo-raised-sm), var(--shadow-accent); }
+
+/* Navigation laterale */
+.nav-item.active { box-shadow: var(--neo-inset); background: var(--neo-bg); }
+.sidebar-userline, .sidebar-switch { background: var(--neo-bg); box-shadow: var(--neo-inset); border: none; }
+
+/* Bandeau notifications : relief doux plutot que bordure */
+.push-banner { border: none !important; }
+
+/* ============================================================
    FORMULAIRES
 ============================================================ */
 .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
