@@ -729,6 +729,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [account, setAccount] = useState(null);
   const [bootLoading, setBootLoading] = useState(true);
+  const [accountChecked, setAccountChecked] = useState(false);
 
   const [mode, setMode] = useState("admin");
   const [adminTab, setAdminTab] = useState("create");
@@ -827,6 +828,7 @@ export default function App() {
 
   async function loadAccount(userId) {
     setError("");
+    setAccountChecked(false); // on repasse en "chargement" tant que le profil n'est pas verifie
     try {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 8000));
       const query = supabase.from("accounts").select("*").eq("id", userId).single();
@@ -836,6 +838,8 @@ export default function App() {
     } catch (err) {
       setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
       setAccount(null);
+    } finally {
+      setAccountChecked(true);
     }
   }
 
@@ -1556,9 +1560,13 @@ export default function App() {
   function AccountDangerZone() {
     return (
       <div className="danger-zone">
-        <a className="privacy-link" href="/politique-confidentialite.html" target="_blank" rel="noopener noreferrer">
+        <button
+          className="privacy-link"
+          type="button"
+          onClick={() => window.open("https://app.secoto-transport.fr/politique-confidentialite.html", "_system")}
+        >
           Politique de confidentialité
-        </a>
+        </button>
         <button className="btn danger small" type="button" onClick={deleteAccount}>
           Supprimer mon compte
         </button>
@@ -1841,6 +1849,15 @@ export default function App() {
   if (!session) return <PublicEntry />;
 
   if (!account) {
+    // Tant que le profil n'a pas fini d'etre verifie, on montre un chargement
+    // (evite le flash de l'erreur au demarrage).
+    if (!accountChecked) {
+      return (
+        <main className="app-shell">
+          <div className="alert">Chargement de votre profil SECOTO…</div>
+        </main>
+      );
+    }
     return (
       <main className="app-shell">
         <div className="alert error">Session connectée, mais aucun profil SECOTO valide n’est relié à ce compte.</div>

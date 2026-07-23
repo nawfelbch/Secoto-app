@@ -43,15 +43,14 @@ export default function ContactPanel() {
       </a>
 
       <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-        <a
+        <button
+          type="button"
           className="btn field-full contact-btn"
-          href={`https://wa.me/${c.whatsapp}?text=${encodeURIComponent("Bonjour SECOTO, ")}`}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={() => window.open(`https://wa.me/${c.whatsapp}?text=${encodeURIComponent("Bonjour SECOTO, ")}`, "_system")}
           style={{ background: "#25D366", color: "#fff" }}
         >
           WhatsApp
-        </a>
+        </button>
         <a className="btn ghost field-full contact-btn" href={`mailto:${c.email}`}>
           {c.email}
         </a>

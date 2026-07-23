@@ -1,0 +1,54 @@
+# ============================================================================
+# SECOTO - Build iOS via Codemagic (sans Mac).
+# Compile l'app Capacitor sur un Mac cloud avec Xcode recent (SDK iOS 26),
+# puis l'envoie sur TestFlight / App Store Connect.
+#
+# AVANT le premier build, dans Codemagic :
+#  1. Teams/Personal -> Integrations -> App Store Connect : ajouter une cle API
+#     (.p8 genere depuis App Store Connect > Users and Access > Integrations),
+#     et la nommer exactement "SECOTO_ASC".
+#  2. Enregistrer le Bundle ID "fr.secototransport.app" dans le compte Apple
+#     Developer, et creer l'app dans App Store Connect.
+#  (Ces etapes necessitent un compte Apple Developer actif.)
+# ============================================================================
+workflows:
+  ios-secoto:
+    name: SECOTO iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: SECOTO_ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: fr.secototransport.app
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Installer les dependances JS
+        script: npm ci
+      - name: Build web (Vite)
+        script: npm run build
+      - name: Synchroniser Capacitor iOS
+        script: npx cap sync ios
+      - name: Installer les CocoaPods
+        script: |
+          cd ios/App && pod install
+      - name: Configurer la signature (profils gERES par Codemagic)
+        script: xcode-project use-profiles
+      - name: Compiler l'IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
