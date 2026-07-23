@@ -763,7 +763,14 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [pushState, setPushState] = useState("idle"); // idle | enabled | dismissed
+  const [pushState, setPushState] = useState(() => {
+    // Mémorise le choix ("enabled" / "dismissed") pour ne PAS re-afficher le
+    // bandeau notifications à chaque rafraîchissement de page.
+    try { return localStorage.getItem("secoto-push-state") || "idle"; } catch { return "idle"; }
+  }); // idle | enabled | dismissed
+  useEffect(() => {
+    try { localStorage.setItem("secoto-push-state", pushState); } catch { /* ignore */ }
+  }, [pushState]);
 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
