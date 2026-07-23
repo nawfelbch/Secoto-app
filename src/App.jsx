@@ -188,6 +188,13 @@ function MissionForm({ form, setForm, onSubmit, submitLabel }) {
       <Field label="Nom client" name="clientName" value={form.clientName} onChange={update} />
       <Field label="Contact client" name="clientContact" value={form.clientContact} onChange={update} />
       <Field label="Téléphone client" name="clientPhone" value={form.clientPhone} onChange={update} />
+      <label className="field">
+        <span>Mode de règlement</span>
+        <select name="paymentMethod" value={form.paymentMethod} onChange={update}>
+          <option value="virement">Virement bancaire</option>
+          <option value="especes">Espèces à la livraison</option>
+        </select>
+      </label>
       <BaremeBox form={form} />
       <label className="field field-full">
         <span>Notes internes</span>
@@ -245,6 +252,13 @@ function ClientCourseForm({ form, setForm, onSubmit, submitLabel, disabled }) {
       <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
       <Field label="Distance estimée (km)" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
       <Field label="Votre budget indicatif €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" placeholder="Optionnel" />
+      <label className="field">
+        <span>Mode de règlement *</span>
+        <select name="paymentMethod" value={form.paymentMethod} onChange={update}>
+          <option value="virement">Virement bancaire</option>
+          <option value="especes">Espèces à la livraison</option>
+        </select>
+      </label>
       <label className="field field-full">
         <span>Détails / consignes</span>
         <textarea name="notes" value={form.notes} onChange={update} placeholder="État du véhicule, contraintes horaires, contact sur place…" />
@@ -1411,85 +1425,89 @@ export default function App() {
     const form = getTrackingForm(mission.id, eventType);
     const isIncident = eventType === "road_incident";
     const isDelivery = eventType === "delivery_inspection";
+    const body = (
+      <div className="form-grid track-form" style={{ marginTop: 12 }}>
+        <Field label="Kilométrage" name="odometerKm" type="number" value={form.odometerKm} onChange={(e) => updateTrackingForm(mission.id, eventType, { odometerKm: e.target.value })} />
+        <label className="field">
+          <span>Niveau carburant</span>
+          <select value={form.fuelLevel} onChange={(e) => updateTrackingForm(mission.id, eventType, { fuelLevel: e.target.value })}>
+            <option value="unknown">Non renseigné</option>
+            <option value="reserve">Réserve</option>
+            <option value="1/4">1/4</option>
+            <option value="1/2">1/2</option>
+            <option value="3/4">3/4</option>
+            <option value="full">Plein</option>
+          </select>
+        </label>
+        {isIncident && (
+          <>
+            <label className="field">
+              <span>Type de problème</span>
+              <select value={form.issueType} onChange={(e) => updateTrackingForm(mission.id, eventType, { issueType: e.target.value })}>
+                <option value="panne">Panne</option>
+                <option value="accident">Accident</option>
+                <option value="retard">Retard</option>
+                <option value="client_absent">Client absent</option>
+                <option value="document_manquant">Document manquant</option>
+                <option value="dommage_constate">Dommage constaté</option>
+                <option value="probleme_mecanique">Problème mécanique</option>
+                <option value="autre">Autre</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Gravité</span>
+              <select value={form.issueSeverity} onChange={(e) => updateTrackingForm(mission.id, eventType, { issueSeverity: e.target.value })}>
+                <option value="faible">Faible</option>
+                <option value="moyen">Moyen</option>
+                <option value="important">Important</option>
+                <option value="critique">Critique</option>
+              </select>
+            </label>
+          </>
+        )}
+        <label className="field field-full">
+          <span>Photos{isDelivery ? " de livraison" : ""}</span>
+          <input type="file" accept="image/*,.pdf" multiple onChange={(e) => updateTrackingForm(mission.id, eventType, { files: Array.from(e.target.files || []) })} />
+        </label>
+        <label className="field field-full">
+          <span>Commentaire</span>
+          <textarea value={form.comment} onChange={(e) => updateTrackingForm(mission.id, eventType, { comment: e.target.value })} placeholder="État du véhicule, réserves ou problème constaté." />
+        </label>
+        {isDelivery ? (
+          <button className="btn primary field-full track-submit deliver" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
+            Valider la livraison
+          </button>
+        ) : (
+          <button className="btn primary field-full track-submit" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
+            Transmettre {labelTrackingEventType(eventType)}
+          </button>
+        )}
+      </div>
+    );
+
+    // Incident : occasionnel -> replie derriere un triangle rouge, deplie au clic.
+    if (isIncident) {
+      return (
+        <details className="incident-block">
+          <summary className="incident-summary">
+            <svg className="tri" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M12 3.4 22.3 21H1.7z" />
+              <path d="M12 10.2v4.4" stroke="#fff" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <circle cx="12" cy="17.6" r="1.05" fill="#fff" stroke="none" />
+            </svg>
+            <span className="incident-label">Signaler un incident</span>
+            <span className="incident-hint">occasionnel</span>
+            <span className="incident-caret" aria-hidden="true">+</span>
+          </summary>
+          {body}
+        </details>
+      );
+    }
+
     return (
-      <div className="mission-card">
-        <div className="card-top">
-          <h3>{labelTrackingEventType(eventType)}</h3>
-          <span className="badge">Photos terrain</span>
-        </div>
-        <div className="form-grid" style={{ marginTop: 14 }}>
-          <Field label="Kilométrage" name="odometerKm" type="number" value={form.odometerKm} onChange={(e) => updateTrackingForm(mission.id, eventType, { odometerKm: e.target.value })} />
-          <label className="field">
-            <span>Niveau carburant</span>
-            <select value={form.fuelLevel} onChange={(e) => updateTrackingForm(mission.id, eventType, { fuelLevel: e.target.value })}>
-              <option value="unknown">Non renseigné</option>
-              <option value="reserve">Réserve</option>
-              <option value="1/4">1/4</option>
-              <option value="1/2">1/2</option>
-              <option value="3/4">3/4</option>
-              <option value="full">Plein</option>
-            </select>
-          </label>
-          {isIncident && (
-            <>
-              <label className="field">
-                <span>Type de problème</span>
-                <select value={form.issueType} onChange={(e) => updateTrackingForm(mission.id, eventType, { issueType: e.target.value })}>
-                  <option value="panne">Panne</option>
-                  <option value="accident">Accident</option>
-                  <option value="retard">Retard</option>
-                  <option value="client_absent">Client absent</option>
-                  <option value="document_manquant">Document manquant</option>
-                  <option value="dommage_constate">Dommage constaté</option>
-                  <option value="probleme_mecanique">Problème mécanique</option>
-                  <option value="autre">Autre</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Gravité</span>
-                <select value={form.issueSeverity} onChange={(e) => updateTrackingForm(mission.id, eventType, { issueSeverity: e.target.value })}>
-                  <option value="faible">Faible</option>
-                  <option value="moyen">Moyen</option>
-                  <option value="important">Important</option>
-                  <option value="critique">Critique</option>
-                </select>
-              </label>
-            </>
-          )}
-          <label className="field">
-            <span>Type de photo</span>
-            <select value={form.photoType} onChange={(e) => updateTrackingForm(mission.id, eventType, { photoType: e.target.value })}>
-              <option value="general">Général</option>
-              <option value="avant_gauche">Avant gauche</option>
-              <option value="avant_droit">Avant droit</option>
-              <option value="arriere_gauche">Arrière gauche</option>
-              <option value="arriere_droit">Arrière droit</option>
-              <option value="interieur">Intérieur</option>
-              <option value="compteur">Compteur / kilométrage</option>
-              <option value="carburant">Carburant</option>
-              <option value="dommage">Dommage visible</option>
-              <option value="document">Document véhicule</option>
-              <option value="livraison">Preuve livraison</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Photos</span>
-            <input type="file" accept="image/*,.pdf" multiple onChange={(e) => updateTrackingForm(mission.id, eventType, { files: Array.from(e.target.files || []) })} />
-          </label>
-          <label className="field field-full">
-            <span>Commentaire</span>
-            <textarea value={form.comment} onChange={(e) => updateTrackingForm(mission.id, eventType, { comment: e.target.value })} placeholder="Décrivez l’état du véhicule, les réserves ou le problème constaté." />
-          </label>
-          {isDelivery ? (
-            <button className="btn primary field-full" type="button" onClick={() => submitTrackingEvent(mission, eventType)} style={{ background: "linear-gradient(135deg, var(--success), #15803d)", minHeight: 60, textTransform: "uppercase", letterSpacing: "0.02em" }}>
-              Valider la livraison
-            </button>
-          ) : (
-            <button className="btn primary field-full" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
-              Transmettre {labelTrackingEventType(eventType)}
-            </button>
-          )}
-        </div>
+      <div className="track-card">
+        <div className="track-head"><h3>{labelTrackingEventType(eventType)}</h3></div>
+        {body}
       </div>
     );
   }

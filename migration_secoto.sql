@@ -163,8 +163,10 @@ as $$
 $$;
 
 -- 1.4 Colonnes tarifaires sur missions (distance_km existe deja cote app)
-alter table public.missions add column if not exists distance_km  numeric(10,2);
-alter table public.missions add column if not exists carrier_cost numeric(12,2);
+alter table public.missions add column if not exists distance_km    numeric(10,2);
+alter table public.missions add column if not exists carrier_cost   numeric(12,2);
+-- Mode de reglement choisi a la creation ('virement' | 'especes').
+alter table public.missions add column if not exists payment_method text not null default 'virement';
 
 -- 1.5 Colonnes GENEREES a partir de missions.type : impossibles a ecrire
 --     depuis le front (calcul garanti par la base).
@@ -318,7 +320,11 @@ create table if not exists public.app_settings (
 
 -- Valeur par defaut (a completer dans l'interface admin)
 insert into public.app_settings (key, value)
-values ('bank_details', jsonb_build_object('titulaire','SECOTO','iban','','bic',''))
+values ('bank_details', jsonb_build_object(
+  'titulaire','Nawfal Benchiha',
+  'iban','FR76 2823 3000 0143 6341 8597 296',
+  'bic','REVOFRP2',
+  'banque','Revolut Bank UAB, 10 avenue Kleber, 75116 Paris'))
 on conflict (key) do nothing;
 
 -- ============================================================================
@@ -343,25 +349,16 @@ alter table public.documents     enable row level security;
 alter table public.doc_counters  enable row level security;
 alter table public.app_settings  enable row level security;
 
--- 5.1 Cloisonnement COLONNAIRE sur missions (le point crucial marge-cout).
---     On NE casse PAS l'app : authenticated garde le SELECT sur TOUTES les
---     colonnes existantes SAUF les 4 colonnes financieres, jamais lisibles
---     directement. Chacun lit ses montants via les vues de la section 5.5.
---     (insert, update, delete restent geres par les policies existantes.)
-do $$
-declare
-  v_cols text;
-begin
-  select string_agg(quote_ident(column_name), ', ')
-    into v_cols
-  from information_schema.columns
-  where table_schema = 'public' and table_name = 'missions'
-    and column_name not in ('client_price', 'margin', 'carrier_cost', 'carrier_pay');
-
-  execute 'revoke select on public.missions from authenticated';
-  execute format('grant select (%s) on public.missions to authenticated', v_cols);
-end
-$$;
+-- 5.1 Acces en lecture a missions.
+--     IMPORTANT : l'app lit la table avec SELECT * (PostgREST). Un cloisonnement
+--     COLONNAIRE par GRANT casse ces requetes ("permission denied"). On accorde
+--     donc le SELECT complet ; le filtrage des LIGNES reste assure par les
+--     policies RLS existantes + celles ci-dessous.
+--     Cloisonnement des MONTANTS : assure (a) cote app (affichage reserve admin),
+--     (b) a la generation des documents (garde-fou anti-fuite). Pour un
+--     cloisonnement colonnaire STRICT cote base, deplacer les colonnes
+--     financieres dans une table dediee 'mission_pricing' (evolution possible).
+grant select on public.missions to authenticated;
 
 -- 5.2 Policy admin (acces total, en plus des policies existantes de l'app)
 drop policy if exists missions_write_admin on public.missions;

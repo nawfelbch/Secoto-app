@@ -16,6 +16,7 @@ export const emptyMissionForm = {
   clientPhone: "",
   priceMode: "fixed",
   proposedPrice: "",
+  paymentMethod: "virement",
   notes: "",
 };
 
@@ -72,6 +73,7 @@ export function missionFromDb(row) {
     clientPhone: row.client_phone,
     priceMode: row.price_mode,
     proposedPrice: row.proposed_price,
+    paymentMethod: row.payment_method || "virement",
     notes: row.notes,
     createdByRole: row.created_by_role,
     clientAccountId: row.client_account_id || null,
@@ -221,6 +223,7 @@ export function missionToDb(form, extra = {}) {
     client_phone: form.clientPhone || null,
     price_mode: form.priceMode || "fixed",
     proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
+    payment_method: form.paymentMethod || "virement",
     notes: form.notes || null,
     created_by_role: extra.createdByRole || "admin",
     client_account_id: extra.clientAccountId || null,

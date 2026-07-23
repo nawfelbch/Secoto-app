@@ -18,6 +18,22 @@ import { supabase } from '../supabaseClient';
 const DESIGNATION = 'Prestation de mise en relation'; // obligatoire cote client
 const MENTION_TVA = 'TVA non applicable, art. 293 B du CGI';
 
+// Coordonnees bancaires par defaut (utilisees si non fournies via app_settings).
+// A terme, configurables depuis les reglages admin (table app_settings.bank_details).
+export const BANK_DEFAULTS = {
+  titulaire: 'Nawfal Benchiha',
+  iban: 'FR76 2823 3000 0143 6341 8597 296',
+  bic: 'REVOFRP2',
+  banque: 'Revolut Bank UAB, 10 avenue Kleber, 75116 Paris',
+};
+
+function isEspeces(mission) {
+  return mission && mission.paymentMethod === 'especes';
+}
+function reglementLabel(mission) {
+  return isEspeces(mission) ? 'Reglement en especes a la livraison' : 'Reglement par virement bancaire';
+}
+
 function frDate(value) {
   if (!value) return '';
   const d = new Date(value);
@@ -59,7 +75,7 @@ export function renderDevisHtml(mission, opts = {}) {
     LIGNE_DISTANCE: distanceLabel(mission),
     LIGNE_MONTANT: formatAmount(client),
     TOTAL: formatAmount(client),
-    CONDITION_DATES: opts.conditionDates || 'Dates indicatives, a confirmer selon disponibilite.',
+    CONDITION_DATES: `${reglementLabel(mission)}. ${opts.conditionDates || 'Dates indicatives, a confirmer selon disponibilite.'}`,
   };
   return renderTemplate(devisTpl, data, { kind: 'devis' });
 }
@@ -103,7 +119,8 @@ export function renderBonMissionHtml(mission, transporter = {}, opts = {}) {
 export function renderFactureHtml(mission, settings = {}, opts = {}) {
   const client = computeClientPrice(mission);
   const numero = opts.numero || 'FAC-AAAAMM-000';
-  const bank = settings.bank_details || settings || {};
+  const bank = settings.bank_details || (settings.iban ? settings : BANK_DEFAULTS);
+  const especes = isEspeces(mission);
   const data = {
     NUMERO_DOC: numero,
     DATE_DOC: opts.dateDoc || frDate(new Date()),
@@ -121,9 +138,9 @@ export function renderFactureHtml(mission, settings = {}, opts = {}) {
     LIGNE_DISTANCE: distanceLabel(mission),
     LIGNE_MONTANT: formatAmount(client),
     TOTAL: formatAmount(client),
-    TITULAIRE_COMPTE: bank.titulaire || 'SECOTO',
-    IBAN: bank.iban || '',
-    BIC: bank.bic || '',
+    TITULAIRE_COMPTE: especes ? 'Especes a la livraison' : (bank.titulaire || BANK_DEFAULTS.titulaire),
+    IBAN: especes ? 'Non applicable (reglement en especes)' : (bank.iban || BANK_DEFAULTS.iban),
+    BIC: especes ? 'Non applicable' : (bank.bic || BANK_DEFAULTS.bic),
   };
   return renderTemplate(factureTpl, data, { kind: 'facture' });
 }
