@@ -39,7 +39,7 @@ export default function ContactPanel() {
       </p>
 
       <a className="btn primary field-full contact-btn" href={`tel:${c.phone_e164}`}>
-        📞 Appeler SECOTO — {c.phone}
+        Appeler SECOTO — {c.phone}
       </a>
 
       <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
@@ -50,10 +50,10 @@ export default function ContactPanel() {
           rel="noopener noreferrer"
           style={{ background: "#25D366", color: "#fff" }}
         >
-          💬 WhatsApp
+          WhatsApp
         </a>
         <a className="btn ghost field-full contact-btn" href={`mailto:${c.email}`}>
-          ✉️ {c.email}
+          {c.email}
         </a>
       </div>
 
