@@ -1533,6 +1533,43 @@ export default function App() {
     setTrackingForms({}); setNotifications([]);
   }
 
+  // Suppression de compte en un clic (exigence Apple). Supprime les donnees
+  // et le compte d'authentification via la fonction SQL secoto_delete_account,
+  // puis deconnecte.
+  async function deleteAccount() {
+    const ok = window.confirm(
+      "Supprimer définitivement votre compte et vos données ? Cette action est irréversible."
+    );
+    if (!ok) return;
+    setError("");
+    try {
+      const { error } = await supabase.rpc("secoto_delete_account");
+      if (error) throw error;
+      await signOut();
+      window.alert("Votre compte et vos données ont été supprimés.");
+    } catch (e) {
+      setError(e.message || "Suppression du compte impossible. Réessayez ou contactez le support.");
+    }
+  }
+
+  // Bloc "zone sensible" reutilisable : lien confidentialite + suppression compte.
+  function AccountDangerZone() {
+    return (
+      <div className="danger-zone">
+        <a className="privacy-link" href="/politique-confidentialite.html" target="_blank" rel="noopener noreferrer">
+          Politique de confidentialité
+        </a>
+        <button className="btn danger small" type="button" onClick={deleteAccount}>
+          Supprimer mon compte
+        </button>
+        <p className="muted danger-note">
+          La suppression efface votre compte et vos données personnelles. Les documents comptables
+          légalement obligatoires (factures) peuvent être conservés le temps prévu par la loi.
+        </p>
+      </div>
+    );
+  }
+
   function getMissionApplications(missionId) {
     return applications.filter((a) => a.missionId === missionId).sort((a, b) => Number(a.proposedPrice || 999999) - Number(b.proposedPrice || 999999));
   }
@@ -1941,6 +1978,7 @@ export default function App() {
                     <p><strong>Ville :</strong> {account.city || "Non renseignée"}</p>
                   </div>
                 </div>
+                <AccountDangerZone />
               </div>
             </section>
           )}
@@ -2318,6 +2356,7 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                    <AccountDangerZone />
                   </>
                 )}
               </div>

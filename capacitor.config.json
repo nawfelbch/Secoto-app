@@ -1,0 +1,21 @@
+{
+  "appId": "fr.secototransport.app",
+  "appName": "SECOTO",
+  "webDir": "dist",
+  "backgroundColor": "#070b14",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#070b14"
+  },
+  "android": {
+    "backgroundColor": "#070b14"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "Keyboard": {
+      "resize": "native"
+    }
+  }
+}

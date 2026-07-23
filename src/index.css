@@ -495,6 +495,16 @@ input:focus, select:focus, textarea:focus {
   input, select, textarea { font-size: 16px; } /* evite le zoom auto iOS */
 }
 
+/* Zone sensible : confidentialite + suppression de compte (conformite Apple) */
+.danger-zone {
+  margin-top: 20px; padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+}
+.privacy-link { color: var(--muted); text-decoration: underline; font-size: 0.88rem; }
+.privacy-link:hover { color: var(--text); }
+.danger-note { font-size: 0.78rem; max-width: 540px; line-height: 1.5; }
+
 /* ============================================================
    FORMULAIRES
 ============================================================ */
