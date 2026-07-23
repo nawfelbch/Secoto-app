@@ -47,5 +47,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>SECOTO utilise l'appareil photo pour vos états des lieux et justificatifs.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SECOTO accède à vos photos pour joindre états des lieux et justificatifs.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SECOTO enregistre des photos liées à vos missions.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SECOTO utilise votre position pour le suivi de mission en temps réel.</string>
 </dict>
 </plist>
