@@ -298,8 +298,9 @@ a { color: inherit; text-decoration: none; }
 /* ============================================================
    LAYOUT / PANELS
 ============================================================ */
-.layout { display: grid; gap: 18px; }
+.layout { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
 .panel {
+  min-width: 0;
   padding: clamp(16px, 2.4vw, 24px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -414,7 +415,7 @@ html[data-theme="light"] { --neo-bg: #e8edf5; --neo-dark: #c3cedd; --neo-light: 
   backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   box-shadow: var(--neo-raised);
 }
-.kpi-grid { gap: 16px; }
+.kpi-grid { gap: 16px; margin: 6px 0 28px; }
 
 /* Zones internes "enfoncees" (infos, lignes de detail) */
 .card-section, .private-box, .application-row, .reglement, .bareme-lines {
@@ -535,7 +536,7 @@ input:focus, select:focus, textarea:focus {
 /* ============================================================
    CARTES MISSION
 ============================================================ */
-.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); align-items: start; }
 
 .mission-card, .profile-card {
   padding: 18px;
@@ -698,6 +699,13 @@ input:focus, select:focus, textarea:focus {
     max-height: 70vh;
   }
 }
+/* On retire le piege de z-index : la regle ".app-shell > * { z-index: 1 }"
+   enfermait chaque bloc dans son propre calque, si bien que les cartes (bloc
+   suivant) recouvraient le panneau de la cloche (bloc header). Le reflet
+   ::before qui justifiait ce z-index etant desactive, on repasse en auto :
+   le panneau notifications (z-index 200) et le menu lateral (z-index 80)
+   se superposent alors correctement au contenu. */
+.app-shell > * { z-index: auto; }
 .notif-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 10px; }
 .notif-panel-head strong { font-family: var(--font-display); font-size: 0.98rem; }
 .notif-panel-head button { border: 0; background: transparent; color: var(--accent); font-weight: 600; font-size: 0.8rem; }
@@ -752,7 +760,12 @@ input:focus, select:focus, textarea:focus {
   .app-header { flex-direction: column; }
   .header-actions { width: 100%; }
   .header-actions .btn { flex: 1 1 auto; }
-  .cards { grid-template-columns: 1fr; }
+  /* minmax(0,1fr) : la carte peut retrecir sous la largeur de son contenu
+     -> plus de debordement a droite sur petits ecrans. */
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  .mission-card, .card-section { min-width: 0; }
+  /* Les longues chaines (emails, references) reviennent a la ligne */
+  .mission-card p, .card-section p, .card-section { overflow-wrap: anywhere; word-break: break-word; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -860,7 +873,7 @@ details.mission-card[open] { border-color: var(--border-strong); }
 /* ----- Responsive : le menu devient un tiroir ----- */
 @media (max-width: 900px) {
   .hamburger { display: inline-flex; }
-  .app-layout { grid-template-columns: 1fr; gap: 0; }
+  .app-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .sidebar {
     position: fixed; z-index: 80; top: 0; left: 0; bottom: 0;
     width: 84vw; max-width: 320px; max-height: none; border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
