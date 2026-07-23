@@ -24,6 +24,9 @@ import {
   formatDateTime,
 } from "./lib/mappers";
 import { enablePush, triggerPush, pushSupported } from "./push";
+import { computeClientPrice, computeCarrierPay, computeMargin, formatAmount } from "./lib/pricing";
+import { renderDevisHtml, renderBonMissionHtml, renderFactureHtml, openDocumentForPrint } from "./lib/documents";
+import FraisPanel from "./FraisPanel";
 import "./index.css";
 
 /* ============================================================
@@ -92,12 +95,13 @@ function ThemeToggle() {
   return (
     <button
       type="button"
-      className="btn ghost small"
+      className="btn ghost small theme-toggle"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Changer de thème"
       title={isDark ? "Passer en clair" : "Passer en sombre"}
     >
-      {isDark ? "☀︎ Clair" : "☾ Sombre"}
+      <span aria-hidden="true">{isDark ? "☀︎" : "☾"}</span>
+      <span className="tt-label">{isDark ? " Clair" : " Sombre"}</span>
     </button>
   );
 }
@@ -171,24 +175,50 @@ function MissionForm({ form, setForm, onSubmit, submitLabel }) {
       <Field label="Véhicule" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Renault Clio" />
       <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
       <Field label="Distance km" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
+      {form.type === "plateau" && (
+        <Field
+          label="Coût transporteur €"
+          name="carrierCost"
+          value={form.carrierCost}
+          onChange={update}
+          type="number"
+          placeholder="Ce que SECOTO paie au transporteur"
+        />
+      )}
       <Field label="Nom client" name="clientName" value={form.clientName} onChange={update} />
       <Field label="Contact client" name="clientContact" value={form.clientContact} onChange={update} />
       <Field label="Téléphone client" name="clientPhone" value={form.clientPhone} onChange={update} />
-      <label className="field">
-        <span>Mode de prix</span>
-        <select name="priceMode" value={form.priceMode} onChange={update}>
-          <option value="fixed">Prix fixe</option>
-          <option value="negotiable">À négocier</option>
-          <option value="hidden">Masqué</option>
-        </select>
-      </label>
-      <Field label="Prix proposé €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" />
+      <BaremeBox form={form} />
       <label className="field field-full">
         <span>Notes internes</span>
         <textarea name="notes" value={form.notes} onChange={update} />
       </label>
       <button className="btn primary field-full" type="submit">{submitLabel}</button>
     </form>
+  );
+}
+
+/* Tarification automatique (barème SECOTO). Vue admin : affiche prix client,
+   rémunération transporteur et marge. Le calcul fait foi côté base (colonnes
+   générées) ; ceci n'est qu'un aperçu. */
+function BaremeBox({ form }) {
+  const client = computeClientPrice(form);
+  const carrier = computeCarrierPay(form);
+  const margin = computeMargin(form);
+  const hint =
+    form.type === "plateau"
+      ? "Plateau : prix client = coût transporteur × 1,20 (marge 20 %, péages inclus)."
+      : "Convoyage : 1,00 €/km facturé client · 0,55 €/km au transporteur · frais réels remboursés au réel.";
+  return (
+    <div className="field field-full bareme-box">
+      <span>Tarification automatique — barème SECOTO</span>
+      <div className="bareme-lines">
+        <div><strong>Prix client</strong><b>{formatAmount(client)}</b></div>
+        <div><strong>Rémunération transporteur</strong><b>{formatAmount(carrier)}</b></div>
+        <div className="margin"><strong>Marge SECOTO</strong><b>{formatAmount(margin)}</b></div>
+      </div>
+      <small>{hint}</small>
+    </div>
   );
 }
 
@@ -236,7 +266,7 @@ function PublicMissionInfo({ mission }) {
   );
 }
 
-function PrivateMissionInfo({ mission }) {
+function PrivateMissionInfo({ mission, showPricing = false }) {
   return (
     <div className="card-section private-box">
       <p><strong>Date :</strong> {formatDateTime(mission.missionDate)}</p>
@@ -244,7 +274,14 @@ function PrivateMissionInfo({ mission }) {
       <p><strong>Contact :</strong> {mission.clientContact || "Non renseigné"}</p>
       <p><strong>Téléphone :</strong> {mission.clientPhone || "Non renseigné"}</p>
       <p><strong>Immatriculation :</strong> {mission.plate || "Non renseignée"}</p>
-      <p><strong>Prix proposé :</strong> {mission.proposedPrice ? `${mission.proposedPrice} €` : "Non renseigné"}</p>
+      {/* Montants visibles uniquement par l'admin (cloisonnement marge/coût). */}
+      {showPricing && (
+        <>
+          <p><strong>Prix client :</strong> {formatAmount(computeClientPrice(mission))}</p>
+          <p><strong>Rémunération transporteur :</strong> {formatAmount(computeCarrierPay(mission))}</p>
+          <p><strong>Marge SECOTO :</strong> {formatAmount(computeMargin(mission))}</p>
+        </>
+      )}
       <p><strong>Notes internes :</strong> {mission.notes || "Aucune note"}</p>
     </div>
   );
@@ -503,6 +540,32 @@ function PublicLanding({ onShowAuth }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
+
+  // Pré-remplissage depuis l'URL (redirection depuis le site vitrine)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    if (![...q.keys()].length) return;
+    const svc = (q.get("service") || q.get("type") || "").toLowerCase();
+    const patch = {
+      clientName: q.get("name") || q.get("nom") || "",
+      clientPhone: q.get("phone") || q.get("tel") || q.get("telephone") || "",
+      clientContact: q.get("email") || "",
+      fromCity: q.get("from") || q.get("depart") || "",
+      toCity: q.get("to") || q.get("arrivee") || "",
+      vehicle: q.get("vehicle") || q.get("vehicule") || "",
+      distanceKm: q.get("km") || q.get("distance") || "",
+      missionDate: q.get("date") || "",
+      notes: q.get("notes") || q.get("infos") || "",
+      type: svc.includes("moto") || svc === "plateau" ? "plateau" : "convoyage",
+    };
+    setForm((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")) , type: patch.type }));
+    if (patch.clientContact || patch.distanceKm || patch.missionDate || patch.notes) setShowDetails(true);
+    setTimeout(() => {
+      const el = document.querySelector(".deposit-card");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+  }, []);
 
   function update(e) {
     const { name, value } = e.target;
@@ -1468,7 +1531,7 @@ export default function App() {
         </div>
         <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
         <PublicMissionInfo mission={mission} />
-        {options.showPrivate && <PrivateMissionInfo mission={mission} />}
+        {options.showPrivate && <PrivateMissionInfo mission={mission} showPricing={isAdmin && !!options.showPricing} />}
         {mission.assignedTransporterName && <p className="assigned">Transporteur attribué : {mission.assignedTransporterName}</p>}
         {options.canComplete && mission.status === "assigned" && (
           <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>Marquer terminée</button>
@@ -1503,6 +1566,21 @@ export default function App() {
     );
   }
 
+  // Génère un document (aperçu imprimable A4) depuis une mission. Réservé admin.
+  // Numéros provisoires en aperçu ; l'émission définitive (numéro atomique +
+  // signature + archivage PDF) se fait via le flux dédié.
+  function openMissionDoc(kind, mission) {
+    try {
+      let html;
+      if (kind === "devis") html = renderDevisHtml(mission);
+      else if (kind === "bon") html = renderBonMissionHtml(mission, { name: mission.assignedTransporterName });
+      else html = renderFactureHtml(mission, {});
+      openDocumentForPrint(html);
+    } catch (e) {
+      setError(e.message || "Génération du document impossible.");
+    }
+  }
+
   function renderCompactDeliveredMissionCard(mission) {
     return (
       <details className="mission-card" key={mission.id}>
@@ -1516,7 +1594,7 @@ export default function App() {
         </summary>
         <div style={{ marginTop: 14 }}>
           <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} />
+          <PrivateMissionInfo mission={mission} showPricing={isAdmin} />
           {renderTrackingTimeline(mission)}
         </div>
       </details>
@@ -1543,8 +1621,16 @@ export default function App() {
         </summary>
         <div style={{ marginTop: 14 }}>
           <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} />
+          <PrivateMissionInfo mission={mission} showPricing={isAdmin} />
           {renderTrackingTimeline(mission)}
+          {isAdmin && (
+            <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Documents (aperçu imprimable) :</span>
+              <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
+              <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
+              <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
+            </div>
+          )}
           {!delivered && mission.status === "assigned" && (
             <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>Marquer terminée</button>
           )}
@@ -1599,6 +1685,7 @@ export default function App() {
           { title: "Flux entrant", items: [
             { key: "requests", label: "Demandes", icon: "inbox", count: pendingRequests.length },
             { key: "applications", label: "Candidatures", icon: "hand", count: pendingApplications.length },
+            { key: "frais", label: "Frais réels", icon: "settings" },
           ] },
           { title: "Réseau", items: [
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
@@ -1617,6 +1704,7 @@ export default function App() {
           { key: "applications", label: "Mes candidatures", icon: "hand", count: currentTransporterApplications.length },
           { key: "request", label: "Proposer une mission", icon: "plus" },
           { key: "requests", label: "Mes demandes", icon: "inbox", count: currentTransporterRequests.length },
+          { key: "frais", label: "Mes frais", icon: "settings" },
         ] },
         { title: "Compte", items: [ { key: "profile", label: "Profil", icon: "user" } ] },
       ],
@@ -1978,6 +2066,14 @@ export default function App() {
               </div>
             </section>
           )}
+
+          {adminTab === "frais" && (
+            <section className="layout">
+              <div className="panel-full">
+                <FraisPanel account={account} isAdmin />
+              </div>
+            </section>
+          )}
         </>
       )}
 
@@ -2063,7 +2159,7 @@ export default function App() {
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />
-                            <PrivateMissionInfo mission={mission} />
+                            <PrivateMissionInfo mission={mission} showPricing={isAdmin} />
                             {renderTrackingTimeline(mission)}
                             <div className="applications-box">
                               <h4>Actions terrain</h4>
@@ -2119,6 +2215,14 @@ export default function App() {
                     </article>
                   ))}
                 </div>
+              </div>
+            </section>
+          )}
+
+          {transporterTab === "frais" && (
+            <section className="layout">
+              <div className="panel-full">
+                <FraisPanel account={account} isAdmin={false} missions={assignedToCurrentTransporter} />
               </div>
             </section>
           )}

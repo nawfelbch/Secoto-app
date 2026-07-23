@@ -127,7 +127,7 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; }
 
-html, body, #root { min-width: 320px; min-height: 100vh; margin: 0; }
+html, body, #root { min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; }
 html { scroll-behavior: smooth; }
 
 body {
@@ -163,10 +163,17 @@ a { color: inherit; text-decoration: none; }
 ============================================================ */
 .app-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(1220px, calc(100% - 32px));
   min-height: calc(100vh - 32px);
+  min-height: calc(100dvh - 32px);
   margin: 16px auto;
   padding: clamp(16px, 3vw, 30px);
+  /* Safe area iOS : evite que la Dynamic Island / barre de statut recouvre le
+     logo, et laisse de l'air sous le home indicator. */
+  padding-top: max(clamp(16px, 3vw, 30px), calc(env(safe-area-inset-top) + 6px));
+  padding-bottom: max(clamp(16px, 3vw, 30px), calc(env(safe-area-inset-bottom) + 6px));
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: linear-gradient(160deg, var(--glass-hi), transparent 32%), var(--glass);
@@ -175,6 +182,9 @@ a { color: inherit; text-decoration: none; }
   -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
   overflow: hidden;
 }
+/* Le contenu principal s'etire pour remplir la hauteur (evite le vide en bas). */
+.app-shell > .app-layout,
+.app-shell > .layout { flex: 1 1 auto; }
 .app-shell::before {
   /* Reflet spéculaire mobile */
   content: "";
@@ -319,6 +329,18 @@ a { color: inherit; text-decoration: none; }
 }
 .kpi-card strong { font-family: var(--font-display); font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; }
 .kpi-card span { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
+
+/* Encadre tarification automatique (barème SECOTO) */
+.bareme-box {
+  border: 1px solid var(--border-soft); border-radius: var(--radius-md);
+  padding: 12px 14px; background: var(--glass-soft); gap: 8px;
+}
+.bareme-box > span { font-weight: 700; font-size: 0.82rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.bareme-lines { display: grid; gap: 6px; margin: 4px 0; }
+.bareme-lines > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bareme-lines > div > b { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; }
+.bareme-lines > div.margin { border-top: 1px dashed var(--border-soft); padding-top: 6px; color: var(--accent); }
+.bareme-box small { color: var(--muted); font-size: 0.76rem; }
 
 /* ============================================================
    FORMULAIRES
@@ -582,6 +604,18 @@ details.mission-card[open] { border-color: var(--border-strong); }
 .topbar-title .eyebrow { margin-bottom: 2px; }
 .topbar-title h1 { font-size: clamp(1.15rem, 2.6vw, 1.7rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Mobile : header sur 2 lignes (burger + actions, puis titre pleine largeur)
+   pour eviter le titre tronque ("Direction S...") et le chevauchement. */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .topbar .hamburger { order: 1; }
+  .topbar-actions { order: 2; margin-left: auto; }
+  .topbar-title { order: 3; flex: 1 1 100%; }
+  .topbar-title h1 { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; }
+  /* Bouton theme en icone seule sur mobile */
+  .theme-toggle .tt-label { display: none; }
+}
 
 .hamburger {
   display: none; align-items: center; justify-content: center;

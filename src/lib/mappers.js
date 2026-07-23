@@ -10,6 +10,7 @@ export const emptyMissionForm = {
   vehicle: "",
   plate: "",
   distanceKm: "",
+  carrierCost: "",
   clientName: "",
   clientContact: "",
   clientPhone: "",
@@ -60,6 +61,12 @@ export function missionFromDb(row) {
     vehicle: row.vehicle,
     plate: row.plate,
     distanceKm: row.distance_km,
+    carrierCost: row.carrier_cost,
+    // Montants calcules par la base (colonnes generees). Peuvent etre absents
+    // selon les droits de lecture (cloisonnement RLS/colonnaire).
+    clientPrice: row.client_price,
+    carrierPay: row.carrier_pay,
+    margin: row.margin,
     clientName: row.client_name,
     clientContact: row.client_contact,
     clientPhone: row.client_phone,
@@ -208,6 +215,7 @@ export function missionToDb(form, extra = {}) {
     vehicle: form.vehicle || null,
     plate: form.plate || null,
     distance_km: form.distanceKm ? Number(form.distanceKm) : null,
+    carrier_cost: form.carrierCost ? Number(form.carrierCost) : null,
     client_name: form.clientName || null,
     client_contact: form.clientContact || null,
     client_phone: form.clientPhone || null,
