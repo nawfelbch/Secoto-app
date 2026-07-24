@@ -20,12 +20,19 @@ export default function AddressAutocomplete({
   const timer = useRef(null);
   const controller = useRef(null);
 
+  const inputId = `ac-${name}`;
+
   useEffect(() => {
     function onDocClick(e) {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
     }
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    // Sur mobile aucun "mousedown" fiable n'est emis : on ecoute aussi le tactile.
+    document.addEventListener("touchstart", onDocClick, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("touchstart", onDocClick);
+    };
   }, []);
 
   function setValue(v) {
@@ -83,18 +90,25 @@ export default function AddressAutocomplete({
     else if (e.key === "Escape") setOpen(false);
   }
 
+  // IMPORTANT : on n'englobe PAS la liste dans un <label>. Sur mobile, taper
+  // une suggestion a l'interieur d'un label redonne le focus au champ et la
+  // selection etait perdue : les propositions semblaient ne pas fonctionner.
   return (
-    <label className="field ac-field" ref={boxRef}>
-      <span>{label}{required ? " *" : ""}</span>
+    <div className="field ac-field" ref={boxRef}>
+      <label htmlFor={inputId}>{label}{required ? " *" : ""}</label>
       <input
+        id={inputId}
         type="text"
         name={name}
         value={value ?? ""}
         placeholder={placeholder}
         onChange={onInput}
         onKeyDown={onKeyDown}
-        onFocus={() => suggestions.length && setOpen(true)}
+        onFocus={() => { if (suggestions.length) setOpen(true); else query(value); }}
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
         aria-label={label}
         aria-autocomplete="list"
         aria-expanded={open}
@@ -107,6 +121,9 @@ export default function AddressAutocomplete({
               role="option"
               aria-selected={i === active}
               className={`ac-item ${i === active ? "active" : ""}`}
+              // Tactile ET souris : la selection est prise en compte avant que
+              // le champ ne perde le focus.
+              onTouchStart={() => { setActive(i); choose(s); }}
               onMouseDown={(e) => { e.preventDefault(); choose(s); }}
               onMouseEnter={() => setActive(i)}
             >
@@ -116,6 +133,6 @@ export default function AddressAutocomplete({
           ))}
         </ul>
       )}
-    </label>
+    </div>
   );
 }

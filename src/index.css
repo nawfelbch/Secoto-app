@@ -523,7 +523,10 @@ input:focus, select:focus, textarea:focus {
 .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field-full { grid-column: 1 / -1; }
-.field > span { font-size: 0.82rem; font-weight: 600; color: var(--text-soft); letter-spacing: -0.01em; }
+/* Intitulé du champ : <span> dans un <label>, ou <label> dans un <div>
+   (cas de l'autocomplétion d'adresses). */
+.field > span,
+.field > label { font-size: 0.82rem; font-weight: 600; color: var(--text-soft); letter-spacing: -0.01em; }
 
 .field input, .field select, .field textarea, .message-box {
   width: 100%; padding: 12px 14px;
@@ -1034,3 +1037,63 @@ details.mission-card[open] { border-color: var(--border-strong); }
 .doc-inline-preview iframe {
   display: block; width: 100%; height: 60vh; min-height: 340px; border: 0;
 }
+
+/* ============================================================
+   CHAMPS DATE / HEURE + REMPLISSAGE AUTOMATIQUE (iOS / Android)
+   Sans cela, <input type="datetime-local"> s'affiche sans cadre
+   sur iPhone et le remplissage auto peinturlure le champ en jaune.
+============================================================ */
+.field input[type="date"],
+.field input[type="time"],
+.field input[type="datetime-local"],
+.field input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 48px;
+  line-height: 1.2;
+  /* Le cadre et le fond viennent de .field input, mais Safari les ignore
+     tant que l'apparence native n'est pas neutralisee. */
+  background: var(--glass-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-align: left;
+}
+/* Safari : la valeur est un composant interne qu'il faut aligner et colorer. */
+.field input[type="date"]::-webkit-date-and-time-value,
+.field input[type="time"]::-webkit-date-and-time-value,
+.field input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  color: var(--text);
+  min-height: 22px;
+}
+.field input[type="datetime-local"]::-webkit-datetime-edit,
+.field input[type="date"]::-webkit-datetime-edit { color: var(--text); }
+.field input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+/* Icone du calendrier lisible sur fond sombre. */
+.field input::-webkit-calendar-picker-indicator {
+  opacity: 0.75;
+  cursor: pointer;
+}
+html:not([data-theme="light"]) .field input::-webkit-calendar-picker-indicator { filter: invert(1); }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .field input::-webkit-calendar-picker-indicator { filter: invert(1); }
+}
+html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filter: none; }
+
+/* Remplissage automatique : on garde le style SECOTO (plus de fond jaune). */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus,
+.field textarea:-webkit-autofill,
+.field select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--glass-strong) inset;
+  box-shadow: 0 0 0 1000px var(--glass-strong) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* Suggestions d'adresses : reponse tactile immediate. */
+.ac-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.ac-item:active { background: var(--accent-soft); }
