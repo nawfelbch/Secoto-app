@@ -106,6 +106,9 @@ export default function MyDocumentsPanel({ account, focusMissionId = null }) {
             const isSigning = signingId === doc.id;
             const label = DOC_LABEL[doc.docType] || "Document";
             const mustSign = doc.needsSignature && doc.statut === "envoye";
+            // La facture n'exige pas de signature, mais on laisse la
+            // possibilité de la signer pour accord (« bon pour accord »).
+            const canSign = doc.statut === "envoye";
 
             return (
               <article className={`mission-card ${mustSign ? "is-focused" : ""}`} key={doc.id}>
@@ -121,6 +124,7 @@ export default function MyDocumentsPanel({ account, focusMissionId = null }) {
                   <p><strong>Reçu le :</strong> {formatDateTime(doc.emittedAt || doc.createdAt)}</p>
                   {doc.signedAt && <p><strong>Signé le :</strong> {formatDateTime(doc.signedAt)}</p>}
                   {mustSign && <p className="assigned">Signature requise pour poursuivre la mission.</p>}
+                  {canSign && !mustSign && <p className="muted">Signature facultative — vous pouvez signer pour accord.</p>}
                 </div>
 
                 <div className="actions-row" style={{ flexWrap: "wrap" }}>
@@ -130,9 +134,13 @@ export default function MyDocumentsPanel({ account, focusMissionId = null }) {
                   <button className="btn ghost small" type="button" onClick={() => onDownload(doc)}>
                     Télécharger
                   </button>
-                  {mustSign && !isSigning && (
-                    <button className="btn primary small" type="button" onClick={() => { setOpenId(doc.id); setSigningId(doc.id); }}>
-                      Signer
+                  {canSign && !isSigning && (
+                    <button
+                      className={`btn ${mustSign ? "primary" : "ghost"} small`}
+                      type="button"
+                      onClick={() => { setOpenId(doc.id); setSigningId(doc.id); }}
+                    >
+                      {mustSign ? "Signer" : "Signer (facultatif)"}
                     </button>
                   )}
                 </div>

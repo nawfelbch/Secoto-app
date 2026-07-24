@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bon de mission {{NUMERO_DOC}} — SECOTO</title>
 <style>
   /* ================================================================
@@ -17,6 +18,10 @@
     --lgrey:#F6F8FA;
     --green:#2EA043;
   }
+  /* iOS/Android : empeche le navigateur de grossir tout seul certains
+     paragraphes (« text autosizing »), ce qui cassait les tailles de police
+     du document a l'ecran et a l'impression. */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
   *{margin:0;padding:0;box-sizing:border-box;}
   body{
     font-family:Helvetica,Arial,sans-serif;
@@ -194,7 +199,7 @@
     <tr><td class="label">Adresse :</td><td>{{ADRESSE_ARRIVEE}}</td></tr>
     <tr><td class="label">Date :</td><td>{{DATE_LIVRAISON}}</td></tr>
     <tr><td class="label">Contact sur place :</td><td>{{CONTACT_ARRIVEE}}</td></tr>
-    <tr><td class="label">Distance :</td><td>{{DISTANCE}} km environ</td></tr>
+    <tr><td class="label">Distance :</td><td>{{DISTANCE}}</td></tr>
   </table>
 
   <!-- ============ RÉMUNÉRATION ============ -->
@@ -216,8 +221,8 @@
           Transport plateau — {{LIGNE_VEHICULE}}
           <span class="sous-designation">{{LIGNE_TRAJET}} — Péages inclus</span>
         </td>
-        <td>{{LIGNE_DISTANCE}} km</td>
-        <td>{{LIGNE_MONTANT}} €</td>
+        <td>{{LIGNE_DISTANCE}}</td>
+        <td>{{LIGNE_MONTANT}}</td>
       </tr>
       <!-- {{/LIGNES_MISSION}} -->
     </tbody>
@@ -225,7 +230,7 @@
 
   <div class="total-box">
     <span class="total-label">TOTAL NET TRANSPORTEUR</span>
-    <span class="total-montant">{{TOTAL_TRANSPORTEUR}} €</span>
+    <span class="total-montant">{{TOTAL_TRANSPORTEUR}}</span>
   </div>
 
   <!-- ============ INSTRUCTIONS ============ -->

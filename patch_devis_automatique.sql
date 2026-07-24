@@ -16,6 +16,42 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
+-- 0) CONTRAINTES HERITEES SUR public.documents
+-- ----------------------------------------------------------------------------
+-- La table documents servait a l'origine UNIQUEMENT aux pieces justificatives
+-- des transporteurs. Elle porte donc des regles (« status » limite a
+-- uploaded/validated/rejected, « type » limite a assurance_rc_pro...) qui n'ont
+-- aucun sens pour un devis genere et qui bloquaient son enregistrement :
+--   new row for relation "documents" violates check constraint
+--   "documents_status_check"
+-- Le veritable cycle de vie des documents generes est porte par la colonne
+-- « statut » (brouillon / envoye / signe). On retire donc les anciennes regles.
+do $$
+declare
+  cn text;
+begin
+  for cn in
+    select con.conname
+    from pg_constraint con
+    join pg_class rel      on rel.oid = con.conrelid
+    join pg_namespace ns   on ns.oid = rel.relnamespace
+    where ns.nspname = 'public'
+      and rel.relname = 'documents'
+      and con.contype = 'c'
+      and (
+        pg_get_constraintdef(con.oid) ~ '\mstatus\M'
+        or pg_get_constraintdef(con.oid) ~ '\mtype\M'
+        or pg_get_constraintdef(con.oid) ~ '\mdocument_type\M'
+      )
+      -- On ne touche PAS aux regles portant sur les nouvelles colonnes.
+      and pg_get_constraintdef(con.oid) !~ '\mstatut\M'
+      and pg_get_constraintdef(con.oid) !~ '\mdoc_type\M'
+  loop
+    execute format('alter table public.documents drop constraint %I', cn);
+  end loop;
+end $$;
+
+-- ----------------------------------------------------------------------------
 -- 1) MODELES DE DOCUMENTS stockes en base
 -- ----------------------------------------------------------------------------
 create table if not exists public.doc_templates (
@@ -260,10 +296,10 @@ begin
 
       insert into public.documents (
         account_id, recipient_id, mission_id, doc_type, numero, statut,
-        html_snapshot, needs_signature, emitted_at, file_name
+        html_snapshot, needs_signature, emitted_at, file_name, status
       ) values (
-        m.client_account_id, m.client_account_id, p_mission, 'devis', v_num, 'envoye',
-        v_html, true, now(), v_num || '.html'
+        m.client_account_id, m.client_account_id, p_mission, 'devis'::secoto_doc_type, v_num, 'envoye'::secoto_doc_statut,
+        v_html, true, now(), v_num || '.html', 'uploaded'
       );
       v_report := v_report || 'Devis ' || v_num || ' envoye au client. ';
     end if;
@@ -284,14 +320,14 @@ begin
 
     insert into public.documents (
       account_id, recipient_id, mission_id, doc_type, numero, statut,
-      html_snapshot, needs_signature, emitted_at, file_name
+      html_snapshot, needs_signature, emitted_at, file_name, status
     ) values (
-      m.assigned_transporter_id, m.assigned_transporter_id, p_mission, 'bon_de_mission', v_num,
+      m.assigned_transporter_id, m.assigned_transporter_id, p_mission, 'bon_de_mission'::secoto_doc_type, v_num,
       -- Sans compte client, personne ne signera le devis : le bon part tout de suite.
-      case when m.client_account_id is null then 'envoye' else 'brouillon' end,
+      (case when m.client_account_id is null then 'envoye' else 'brouillon' end)::secoto_doc_statut,
       v_html, true,
       case when m.client_account_id is null then now() else null end,
-      v_num || '.html'
+      v_num || '.html', 'uploaded'
     );
     v_report := v_report || case when m.client_account_id is null
                                  then 'Bon de mission ' || v_num || ' envoye au transporteur.'
@@ -354,10 +390,10 @@ begin
 
   insert into public.documents (
     account_id, recipient_id, mission_id, doc_type, numero, statut,
-    html_snapshot, needs_signature, ref_devis, emitted_at, file_name
+    html_snapshot, needs_signature, ref_devis, emitted_at, file_name, status
   ) values (
-    m.client_account_id, m.client_account_id, p_mission, 'facture', v_num, 'envoye',
-    v_html, false, v_ref, now(), v_num || '.html'
+    m.client_account_id, m.client_account_id, p_mission, 'facture'::secoto_doc_type, v_num, 'envoye'::secoto_doc_statut,
+    v_html, false, v_ref, now(), v_num || '.html', 'uploaded'
   );
 
   return 'Facture ' || v_num || ' envoyee au client.';

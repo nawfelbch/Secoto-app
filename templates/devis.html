@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Devis {{NUMERO_DOC}} — SECOTO</title>
 <style>
   /* ================================================================
@@ -15,6 +16,10 @@
     --lgrey:#F6F8FA;
     --green:#2EA043;
   }
+  /* iOS/Android : empeche le navigateur de grossir tout seul certains
+     paragraphes (« text autosizing »), ce qui cassait les tailles de police
+     du document a l'ecran et a l'impression. */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
   *{margin:0;padding:0;box-sizing:border-box;}
   body{
     font-family:Helvetica,Arial,sans-serif;
@@ -220,7 +225,7 @@
     </tr>
     <tr>
       <td class="label">Distance :</td>
-      <td colspan="3">{{DISTANCE}} km environ</td>
+      <td colspan="3">{{DISTANCE}}</td>
     </tr>
   </table>
 
@@ -244,9 +249,9 @@
           <span class="designation">Prestation de mise en relation</span>
           <span class="sous-designation">{{LIGNE_DETAIL}}</span>
         </td>
-        <td>{{LIGNE_DISTANCE}} km</td>
+        <td>{{LIGNE_DISTANCE}}</td>
         <td>Forfait</td>
-        <td>{{LIGNE_MONTANT}} €</td>
+        <td>{{LIGNE_MONTANT}}</td>
       </tr>
       <!-- {{/LIGNES_PRESTATION}} -->
     </tbody>
@@ -257,7 +262,7 @@
     <div class="mention-tva"><em>TVA non applicable — article 293 B du CGI</em></div>
     <div class="total-box">
       <span class="total-label">TOTAL NET À PAYER</span>
-      <span class="total-montant">{{TOTAL}} €</span>
+      <span class="total-montant">{{TOTAL}}</span>
     </div>
   </div>
 
