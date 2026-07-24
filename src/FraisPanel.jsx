@@ -12,6 +12,7 @@ import {
 } from "./lib/frais";
 import { formatAmount } from "./lib/pricing";
 import { labelStatus } from "./lib/mappers";
+import { supabase } from "./supabaseClient";
 
 const STATUT_LABEL = { en_attente: "En attente", valide: "Validé", refuse: "Refusé" };
 
@@ -46,6 +47,13 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
 
   useEffect(() => {
     reload();
+    // Temps réel : un frais déposé par un transporteur apparaît immédiatement
+    // côté admin, et le changement de statut remonte aussitôt au transporteur.
+    const channel = supabase
+      .channel(`frais-${isAdmin ? "admin" : account.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "frais" }, () => { reload(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, account.id]);
 

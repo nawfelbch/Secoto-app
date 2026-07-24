@@ -128,12 +128,23 @@ html[data-theme="light"] {
 * { box-sizing: border-box; }
 
 html, body, #root { min-width: 320px; min-height: 100vh; min-height: 100dvh; margin: 0; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Couleur de fond du "canvas" : c'est elle qui s'affiche quand on tire la
+     page vers le bas (effet elastique iOS / Android). Sans elle, la zone
+     d'overscroll apparait NOIRE au-dessus du contenu. */
+  background-color: var(--bg-0);
+  /* Empeche le rebond vertical de decoller tout le document dans l'app native. */
+  overscroll-behavior-y: none;
+}
 
 body {
   color: var(--text);
   overflow-x: hidden;
-  background:
+  overscroll-behavior-y: none;
+  /* Meme fond que <html> : evite tout aplat noir en haut et en bas. */
+  background-color: var(--bg-0);
+  background-image:
     radial-gradient(closest-side at 8% 2%, var(--ambient-1), transparent),
     radial-gradient(closest-side at 92% 6%, var(--ambient-2), transparent),
     radial-gradient(closest-side at 50% 100%, var(--ambient-3), transparent),
@@ -910,3 +921,89 @@ details.mission-card[open] { border-color: var(--border-strong); }
 .deposit-card { border-color: var(--accent); box-shadow: var(--shadow-card), 0 0 0 1px var(--accent-soft), inset 0 1px 0 var(--glass-hi); }
 
 .linklike { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* ============================================================
+   FENETRE DOCUMENTS (devis / bon de mission / facture)
+   Remplace l'ouverture d'un nouvel onglet : dans l'app native on
+   restait bloque sur le document sans pouvoir revenir en arriere.
+============================================================ */
+.doc-modal-backdrop {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.doc-modal {
+  display: flex; flex-direction: column;
+  width: min(1080px, 100%); max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--glass-hi), transparent 30%), var(--glass-strong);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+.doc-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border-soft); flex: 0 0 auto;
+}
+.doc-modal-close {
+  border: 1px solid var(--border); background: var(--glass-soft); color: var(--text);
+  width: 40px; height: 40px; min-width: 40px; border-radius: 50%;
+  font-size: 1.4rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.doc-modal-close:hover { border-color: var(--border-strong); }
+
+.doc-modal-body {
+  flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 0;
+}
+.doc-modal-form {
+  padding: 14px 16px; overflow-y: auto; min-height: 0;
+  border-right: 1px solid var(--border-soft);
+  -webkit-overflow-scrolling: touch;
+}
+.doc-modal-form h4 { margin: 6px 0 10px; font-family: var(--font-display); font-size: 0.95rem; }
+.doc-modal-form .form-grid { grid-template-columns: 1fr; gap: 10px; }
+.doc-modal-form textarea { min-height: 72px; }
+
+.doc-modal-preview { padding: 12px; overflow: auto; min-height: 0; background: rgba(0, 0, 0, 0.18); }
+.doc-modal-preview iframe {
+  display: block; width: 100%; height: 100%; min-height: 420px;
+  border: 0; border-radius: var(--radius-sm); background: #fff;
+}
+
+.doc-modal-foot {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  padding: 12px 16px; border-top: 1px solid var(--border-soft);
+}
+
+@media (max-width: 900px) {
+  /* Sur mobile : formulaire au-dessus, apercu en dessous, tout defile. */
+  .doc-modal-body { grid-template-columns: 1fr; grid-template-rows: auto auto; overflow-y: auto; }
+  .doc-modal-form { border-right: 0; border-bottom: 1px solid var(--border-soft); overflow: visible; }
+  .doc-modal-preview { overflow: visible; }
+  .doc-modal-preview iframe { height: 62vh; }
+  .doc-modal-foot { position: sticky; bottom: 0; background: var(--glass-strong); }
+}
+
+/* Mise en avant de la mission ciblee par une notification. */
+.mission-card.is-focused {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card), 0 0 0 2px var(--accent-soft);
+  animation: secoto-focus-pulse 1.6s ease-out 1;
+}
+@keyframes secoto-focus-pulse {
+  0%   { box-shadow: var(--shadow-card), 0 0 0 0 var(--accent-glow); }
+  100% { box-shadow: var(--shadow-card), 0 0 0 14px transparent; }
+}
+
+/* Badge "meilleur prix" sur la candidature la moins chere. */
+.best-price-badge {
+  display: inline-block; margin-left: 8px; padding: 3px 9px;
+  border-radius: 999px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em;
+  background: var(--success-soft); color: var(--success);
+  border: 1px solid var(--success);
+}
+.application-row.is-best { border-color: var(--success); }

@@ -109,7 +109,14 @@ export function renderBonMissionHtml(mission, transporter = {}, opts = {}) {
   };
   const html = renderTemplate(bonMissionTpl, data, { kind: 'bon-de-mission' });
   // Garde-fou : le prix client ne doit jamais apparaitre dans ce document.
-  assertNoValueLeak(html, [formatAmount(computeClientPrice(mission))]);
+  // On ne verifie QUE si les deux montants different reellement : quand la
+  // distance (ou le cout) n'est pas encore renseignee, client et transporteur
+  // valent tous les deux 0,00 EUR et le garde-fou bloquait a tort la
+  // generation du bon de mission.
+  const clientAmount = computeClientPrice(mission);
+  if (clientAmount > 0 && formatAmount(clientAmount) !== formatAmount(carrier)) {
+    assertNoValueLeak(html, [formatAmount(clientAmount)]);
+  }
   return html;
 }
 

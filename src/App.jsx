@@ -25,11 +25,11 @@ import {
 } from "./lib/mappers";
 import { enablePush, triggerPush, pushSupported } from "./push";
 import { computeClientPrice, computeCarrierPay, computeMargin, formatAmount } from "./lib/pricing";
-import { renderDevisHtml, renderBonMissionHtml, renderFactureHtml, openDocumentForPrint } from "./lib/documents";
 import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
+import DocumentModal from "./DocumentModal";
 import "./index.css";
 
 /* ============================================================
@@ -755,6 +755,11 @@ export default function App() {
   const [applicationPrices, setApplicationPrices] = useState({});
   const [documentType, setDocumentType] = useState("assurance_rc_pro");
 
+  // Fenêtre documents (devis / bon de mission / facture) : { kind, mission, transporter }
+  const [docModal, setDocModal] = useState(null);
+  // Mission mise en avant après clic sur une notification.
+  const [focusMissionId, setFocusMissionId] = useState(null);
+
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -775,6 +780,8 @@ export default function App() {
 
   const accountRef = useRef(null);
   useEffect(() => { accountRef.current = account; }, [account]);
+  // Minuteur de regroupement des rafraîchissements temps réel.
+  const refreshTimer = useRef(null);
 
   /* ---------- Boot / session ---------- */
   useEffect(() => {
@@ -823,7 +830,12 @@ export default function App() {
       loadNotifications(account);
       subscribeRealtime(account);
     }
-    return () => { supabase.removeAllChannels(); };
+    return () => {
+      for (const c of supabase.getChannels()) {
+        if (c.topic.includes("notif-") || c.topic.includes("secoto-data-")) supabase.removeChannel(c);
+      }
+      if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null; }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id]);
 
@@ -877,10 +889,25 @@ export default function App() {
     } catch { /* migration non exécutée : ignoré */ }
   }
 
-  function subscribeRealtime(currentAccount) {
-    supabase.removeAllChannels();
+  // Rafraîchissement groupé : plusieurs événements rapprochés ne déclenchent
+  // qu'un seul appel réseau (évite de saturer la connexion mobile).
+  function scheduleRefresh(delay = 250) {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      const acc = accountRef.current;
+      if (acc) loadAllData(acc);
+    }, delay);
+  }
 
-    // Mes notifications en temps réel
+  function subscribeRealtime(currentAccount) {
+    // On ne retire QUE nos deux canaux (removeAllChannels casserait aussi
+    // l'abonnement temps réel du panneau Frais).
+    for (const c of supabase.getChannels()) {
+      if (c.topic.includes("notif-") || c.topic.includes("secoto-data-")) supabase.removeChannel(c);
+    }
+
+    // ---- 1) Mes notifications (instantané, sans rechargement) ----
     supabase
       .channel(`notif-${currentAccount.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `account_id=eq.${currentAccount.id}` },
@@ -891,47 +918,80 @@ export default function App() {
         })
       .subscribe();
 
-    // Nouvelles courses publiées (pour les transporteurs)
-    if (currentAccount.role === "transporter") {
-      supabase
-        .channel("missions-feed")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "missions" },
-          (payload) => {
-            const m = missionFromDb(payload.new);
-            if (m.status === "published") {
-              pushToast("Nouvelle course disponible", `${m.fromCity || "Départ"} → ${m.toCity || "Arrivée"}`);
-              notifyAccount(currentAccount.id, {
-                type: "new_course",
-                title: "Nouvelle course disponible",
-                body: `${m.fromCity || "Départ"} → ${m.toCity || "Arrivée"} · ${labelMissionType(m.type)}`,
-                missionId: m.id,
-              });
-              loadAllData(accountRef.current || currentAccount);
-            }
-          })
-        .subscribe();
-    }
+    // ---- 2) Flux de données : un seul canal pour toutes les tables ----
+    // On écoute TOUS les événements (INSERT / UPDATE / DELETE) afin qu'une
+    // course supprimée, un frais déposé ou une candidature arrivent aussitôt
+    // chez tout le monde.
+    const data = supabase.channel(`secoto-data-${currentAccount.id}`);
 
-    // Nouvelles demandes déposées depuis la landing (pour l'admin)
-    if (currentAccount.role === "admin") {
-      supabase
-        .channel("requests-feed")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "mission_requests" },
-          (payload) => {
-            const r = requestFromDb(payload.new);
-            pushToast("Nouvelle demande client", `${r.fromCity || "Départ"} → ${r.toCity || "Arrivée"}${r.clientPhone ? " · " + r.clientPhone : ""}`);
-            loadAllData(accountRef.current || currentAccount);
-          })
-        .subscribe();
-    }
+    data.on("postgres_changes", { event: "*", schema: "public", table: "missions" }, (payload) => {
+      if (payload.eventType === "DELETE") {
+        const goneId = payload.old?.id;
+        if (goneId) {
+          // Retrait immédiat de l'écran, sans attendre le rechargement.
+          setMissions((prev) => prev.filter((m) => m.id !== goneId));
+          setPublicMissions((prev) => prev.filter((m) => m.id !== goneId));
+        }
+        scheduleRefresh();
+        return;
+      }
+      if (payload.eventType === "INSERT" && currentAccount.role === "transporter") {
+        const m = missionFromDb(payload.new);
+        if (m.status === "published") {
+          pushToast("Nouvelle course disponible", `${m.fromCity || "Départ"} → ${m.toCity || "Arrivée"} · ${labelMissionType(m.type)}`);
+        }
+      }
+      scheduleRefresh();
+    });
 
-    // Suivi d'étapes (pour l'admin et pour rafraîchir)
-    supabase
-      .channel("tracking-feed")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "mission_tracking_events" },
-        () => { loadAllData(accountRef.current || currentAccount); })
-      .subscribe();
+    data.on("postgres_changes", { event: "*", schema: "public", table: "mission_applications" }, (payload) => {
+      if (payload.eventType === "INSERT" && currentAccount.role === "admin") {
+        const a = applicationFromDb(payload.new);
+        pushToast("Nouvelle candidature", `${a.transporterName || "Transporteur"} — ${a.proposedPrice ? `${Number(a.proposedPrice).toFixed(0)} €` : "tarif non renseigné"}`);
+      }
+      scheduleRefresh();
+    });
+
+    data.on("postgres_changes", { event: "*", schema: "public", table: "mission_requests" }, (payload) => {
+      if (payload.eventType === "INSERT" && currentAccount.role === "admin") {
+        const r = requestFromDb(payload.new);
+        pushToast("Nouvelle demande client", `${r.fromCity || "Départ"} → ${r.toCity || "Arrivée"}${r.clientPhone ? " · " + r.clientPhone : ""}`);
+      }
+      scheduleRefresh();
+    });
+
+    data.on("postgres_changes", { event: "*", schema: "public", table: "frais" }, () => {
+      // Le détail est affiché par FraisPanel (qui écoute aussi) ; ici on
+      // rafraîchit les compteurs et l'état global.
+      scheduleRefresh();
+    });
+
+    data.on("postgres_changes", { event: "*", schema: "public", table: "mission_tracking_events" }, () => {
+      scheduleRefresh();
+    });
+
+    data.subscribe();
   }
+
+  // Filet de sécurité : au retour de veille / réouverture de l'app, on
+  // resynchronise (les WebSockets mobiles sont coupés en arrière-plan).
+  useEffect(() => {
+    if (!account?.id) return undefined;
+    function onWake() {
+      if (document.visibilityState !== "visible") return;
+      scheduleRefresh(80);
+      loadNotifications(accountRef.current || account);
+    }
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("online", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("online", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.id]);
 
   async function markAllNotificationsRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -940,17 +1000,49 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
+  // Ouvre la notification ET emmène l'utilisateur directement sur la mission
+  // concernée : bon onglet + carte dépliée + défilement + surbrillance.
   async function openNotification(n) {
     if (!n.isRead) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
       try { await supabase.from("notifications").update({ is_read: true }).eq("id", n.id); } catch { /* ignore */ }
     }
     setNotifOpen(false);
-    // Route vers l'onglet pertinent
-    if (account.role === "transporter") setTransporterTab("available");
-    if (account.role === "client") setClientTab("courses");
-    if (account.role === "admin") setMode("admin");
+    setNavOpen(false);
+
+    const target = n.missionId
+      ? missions.find((m) => m.id === n.missionId) || publicMissions.find((m) => m.id === n.missionId)
+      : null;
+
+    if (account.role === "admin") {
+      setMode("admin");
+      if (n.type === "frais") setAdminTab("frais");
+      else if (n.type === "new_request") setAdminTab("requests");
+      else if (n.type === "new_application") setAdminTab("applications");
+      else if (target?.status === "assigned") setAdminTab("assigned");
+      else if (target?.status === "completed") setAdminTab("completed");
+      else if (target) setAdminTab("published");
+    } else if (account.role === "transporter") {
+      if (n.type === "frais_status") setTransporterTab("frais");
+      else if (target?.assignedTransporterId === account.id) setTransporterTab("assigned");
+      else setTransporterTab("available");
+    } else {
+      setClientTab("courses");
+    }
+
+    if (n.missionId) setFocusMissionId(n.missionId);
   }
+
+  // Défilement + surbrillance temporaire de la mission ciblée.
+  useEffect(() => {
+    if (!focusMissionId) return undefined;
+    const scroll = setTimeout(() => {
+      const el = document.getElementById(`mission-${focusMissionId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 220);
+    const clear = setTimeout(() => setFocusMissionId(null), 6000);
+    return () => { clearTimeout(scroll); clearTimeout(clear); };
+  }, [focusMissionId]);
 
   async function handleEnablePush() {
     const res = await enablePush(account);
@@ -1588,8 +1680,15 @@ export default function App() {
 
   function renderMissionCard(mission, options = {}) {
     const missionApplications = getMissionApplications(mission.id);
+    // La liste est déjà triée du moins cher au plus cher : la 1re ligne avec un
+    // tarif renseigné est donc la meilleure offre.
+    const bestApplicationId = missionApplications.find((a) => Number(a.proposedPrice) > 0)?.id || null;
     return (
-      <article className="mission-card" key={mission.id}>
+      <article
+        className={`mission-card ${focusMissionId === mission.id ? "is-focused" : ""}`}
+        key={mission.id}
+        id={`mission-${mission.id}`}
+      >
         <div className="card-top">
           <span className="badge">{mission.publicRef}</span>
           <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
@@ -1608,12 +1707,13 @@ export default function App() {
         )}
         {options.showApplications && (
           <div className="applications-box">
-            <h4>Candidatures</h4>
+            <h4>Candidatures {missionApplications.length > 1 && <span className="muted" style={{ fontWeight: 500 }}>· triées du moins cher au plus cher</span>}</h4>
             {missionApplications.length === 0 && <p className="muted">Aucune candidature.</p>}
             {missionApplications.map((application) => (
-              <div className="application-row" key={application.id}>
+              <div className={`application-row ${application.id === bestApplicationId ? "is-best" : ""}`} key={application.id}>
                 <div>
                   <strong>{application.transporterName}</strong>
+                  {application.id === bestApplicationId && <span className="best-price-badge">Meilleur prix</span>}
                   <p className="muted">{application.transporterCompany} — {application.transporterStatus}</p>
                   <p className="price-line"><strong>Tarif proposé :</strong> {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}</p>
                   {application.message && <p>{application.message}</p>}
@@ -1627,28 +1727,42 @@ export default function App() {
           </div>
         )}
         {options.showTracking && renderTrackingTimeline(mission)}
+        {isAdmin && options.showPrivate && (
+          <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
+            <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Documents :</span>
+            <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
+            <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
+            <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
+          </div>
+        )}
       </article>
     );
   }
 
-  // Génère un document (aperçu imprimable A4) depuis une mission. Réservé admin.
-  // Numéros provisoires en aperçu ; l'émission définitive (numéro atomique +
-  // signature + archivage PDF) se fait via le flux dédié.
+  // Ouvre la fenêtre "Documents" : champs remplissables, aperçu A4, impression
+  // PDF et téléchargement — le tout DANS l'app (bouton Fermer toujours visible).
   function openMissionDoc(kind, mission) {
-    try {
-      let html;
-      if (kind === "devis") html = renderDevisHtml(mission);
-      else if (kind === "bon") html = renderBonMissionHtml(mission, { name: mission.assignedTransporterName });
-      else html = renderFactureHtml(mission, {});
-      openDocumentForPrint(html);
-    } catch (e) {
-      setError(e.message || "Génération du document impossible.");
-    }
+    const t = transporters.find((x) => x.id === mission.assignedTransporterId);
+    setDocModal({
+      kind,
+      mission,
+      transporter: {
+        name: t?.fullName || mission.assignedTransporterName || "",
+        address: t?.city || "",
+        siret: "",
+        phone: t?.phone || "",
+      },
+    });
   }
 
   function renderCompactDeliveredMissionCard(mission) {
     return (
-      <details className="mission-card" key={mission.id}>
+      <details
+        className={`mission-card ${focusMissionId === mission.id ? "is-focused" : ""}`}
+        key={mission.id}
+        id={`mission-${mission.id}`}
+        open={focusMissionId === mission.id}
+      >
         <summary style={{ cursor: "pointer" }}>
           <div className="card-top">
             <span className="badge">{mission.publicRef}</span>
@@ -1670,7 +1784,12 @@ export default function App() {
     const events = getTrackingEventsForMission(mission.id);
     const photosCount = events.reduce((total, event) => total + getTrackingPhotosForEvent(event.id).length, 0);
     return (
-      <details className="mission-card" key={mission.id}>
+      <details
+        className={`mission-card ${focusMissionId === mission.id ? "is-focused" : ""}`}
+        key={mission.id}
+        id={`mission-${mission.id}`}
+        open={focusMissionId === mission.id}
+      >
         <summary style={{ cursor: "pointer" }}>
           <div className="card-top">
             <span className="badge">{mission.publicRef}</span>
@@ -2392,6 +2511,15 @@ export default function App() {
 
         </div>
       </div>
+
+      {docModal && (
+        <DocumentModal
+          kind={docModal.kind}
+          mission={docModal.mission}
+          transporter={docModal.transporter}
+          onClose={() => setDocModal(null)}
+        />
+      )}
 
       {isClient && clientTab !== "post" && (
         <button className="fab" onClick={() => setClientTab("post")} aria-label="Nouvelle course">
