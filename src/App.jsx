@@ -1818,6 +1818,23 @@ export default function App() {
     });
   }
 
+  // Envoi (ou renvoi) du devis au client + préparation du bon de mission.
+  // Rejouable à tout moment depuis la fiche mission : si l'envoi automatique
+  // au moment de l'attribution a échoué, un clic suffit à le relancer.
+  async function sendMissionDocs(mission) {
+    setActionLoading(true); setError(""); setNotice("");
+    try {
+      const transporter = transporters.find((t) => t.id === mission.assignedTransporterId) || {};
+      const { done, skipped } = await emitOnAssignment(mission, transporter);
+      if (done.length) setNotice(`${done.join(". ")}.`);
+      if (skipped.length) setError(skipped.join(" "));
+      if (!done.length && !skipped.length) setError("Aucun document n’a pu être émis.");
+      await loadAllData(account);
+    } catch (e) {
+      setError(e.message || "Envoi des documents impossible.");
+    } finally { setActionLoading(false); }
+  }
+
   // Envoi manuel de la facture au client : elle apparaît aussitôt dans son
   // espace « Mes documents » avec une notification.
   async function sendFacture(mission) {
@@ -1905,7 +1922,12 @@ export default function App() {
               <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
               <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
               <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
-              <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Envoi au client :</span>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Envoi dans l’application :</span>
+              <button className="btn primary small" disabled={actionLoading} onClick={() => sendMissionDocs(mission)}>
+                {getGeneratedDocs(mission.id).some((d) => d.docType === "devis")
+                  ? "Renvoyer le devis au client"
+                  : "Envoyer le devis au client"}
+              </button>
               <button className="btn primary small" disabled={actionLoading} onClick={() => sendFacture(mission)}>
                 Envoyer la facture au client
               </button>

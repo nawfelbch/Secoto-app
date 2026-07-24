@@ -71,8 +71,26 @@ async function emit({ missionId, type, html, recipientId, statut = 'envoye', nee
     p_needs_signature: needsSignature,
     p_ref_devis: refDevis,
   });
-  if (error) throw error;
+  if (error) throw new Error(explain(error));
+  if (!data) throw new Error("La base n'a rien renvoye : document non emis.");
   return docFromDb(Array.isArray(data) ? data[0] : data);
+}
+
+/** Traduit les erreurs techniques Supabase en message actionnable. */
+function explain(error) {
+  const msg = error?.message || String(error);
+  if (/could not find the function|does not exist/i.test(msg) && /secoto_(emit|sign)_document/i.test(msg)) {
+    return "Le patch SQL des documents n'a pas encore ete applique dans Supabase. "
+      + "Lancez patch_documents_signature.sql dans le SQL Editor, puis reessayez.";
+  }
+  if (/schema cache/i.test(msg)) {
+    return "Supabase n'a pas encore recharge son schema. Relancez « notify pgrst, 'reload schema'; » "
+      + "dans le SQL Editor, puis reessayez.";
+  }
+  if (/reservee a l'administrateur|reservee a l''administrateur/i.test(msg)) {
+    return "Seul un compte administrateur SECOTO peut emettre un document.";
+  }
+  return msg;
 }
 
 /**
@@ -153,7 +171,7 @@ export async function signDocument(docId, signature) {
     p_doc: docId,
     p_signature: signature,
   });
-  if (error) throw error;
+  if (error) throw new Error(explain(error));
   return docFromDb(Array.isArray(data) ? data[0] : data);
 }
 
