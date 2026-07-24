@@ -773,14 +773,22 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
-  const [pushState, setPushState] = useState(() => {
-    // Mémorise le choix ("enabled" / "dismissed") pour ne PAS re-afficher le
-    // bandeau notifications à chaque rafraîchissement de page.
-    try { return localStorage.getItem("secoto-push-state") || "idle"; } catch { return "idle"; }
-  }); // idle | enabled | dismissed
+  // Le choix « notifications » est mémorisé PAR COMPTE : sur un téléphone
+  // partagé entre plusieurs comptes SECOTO, chacun doit pouvoir les activer.
+  const [pushState, setPushState] = useState("idle"); // idle | enabled | dismissed
+
+  // Relecture du choix à chaque changement de compte (clé propre au compte).
   useEffect(() => {
-    try { localStorage.setItem("secoto-push-state", pushState); } catch { /* ignore */ }
-  }, [pushState]);
+    if (!account?.id) return;
+    let v = "idle";
+    try { v = localStorage.getItem(`secoto-push-${account.id}`) || "idle"; } catch { /* ignore */ }
+    queueMicrotask(() => setPushState(v));
+  }, [account?.id]);
+
+  useEffect(() => {
+    if (!account?.id) return;
+    try { localStorage.setItem(`secoto-push-${account.id}`, pushState); } catch { /* ignore */ }
+  }, [pushState, account?.id]);
 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -2099,6 +2107,16 @@ export default function App() {
               </span>
             </div>
             <button className="btn ghost small" onClick={() => { loadAllData(account); loadNotifications(account); setNavOpen(false); }}>Actualiser</button>
+            {/* Toujours accessible : indispensable quand plusieurs comptes se
+                partagent le même téléphone. */}
+            {pushSupported() && (
+              <button
+                className={`btn ${pushState === "enabled" ? "ghost" : "primary"} small`}
+                onClick={() => { handleEnablePush(); setNavOpen(false); }}
+              >
+                {pushState === "enabled" ? "Notifications activées ✓" : "Activer les notifications"}
+              </button>
+            )}
             <button className="btn danger small" onClick={signOut}>Déconnexion</button>
           </div>
         </aside>
