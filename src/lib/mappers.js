@@ -44,6 +44,7 @@ export function accountFromDb(row) {
     isVerified: row.is_verified,
     transporterType: row.transporter_type || null,
     clientType: row.client_type || null,
+    createdAt: row.created_at || null,
   };
 }
 

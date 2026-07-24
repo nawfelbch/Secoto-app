@@ -29,6 +29,7 @@ import { renderDevisHtml, renderBonMissionHtml, renderFactureHtml, openDocumentF
 import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
+import ClientsPanel from "./ClientsPanel";
 import "./index.css";
 
 /* ============================================================
@@ -1757,6 +1758,7 @@ export default function App() {
           ] },
           { title: "Réseau", items: [
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
+            { key: "clients", label: "Clients", icon: "user" },
           ] },
         ],
       };
@@ -2159,6 +2161,12 @@ export default function App() {
               <div className="panel-full">
                 <FraisPanel account={account} isAdmin />
               </div>
+            </section>
+          )}
+
+          {adminTab === "clients" && (
+            <section className="layout">
+              <ClientsPanel />
             </section>
           )}
         </>
