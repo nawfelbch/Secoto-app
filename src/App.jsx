@@ -30,11 +30,20 @@ import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
 import DocumentModal from "./DocumentModal";
+import MyDocumentsPanel from "./MyDocumentsPanel";
+import { emitOnAssignment, emitFacture } from "./lib/docFlow";
 import "./index.css";
 
 /* ============================================================
    Petits composants UI
 ============================================================ */
+
+// Libellés des documents générés (suivi côté admin).
+const DOC_LABEL_FR = {
+  devis: "Devis",
+  bon_de_mission: "Bon de mission",
+  facture: "Facture",
+};
 
 function Field({ label, name, value, onChange, type = "text", placeholder = "", required = false }) {
   return (
@@ -1014,6 +1023,14 @@ export default function App() {
       ? missions.find((m) => m.id === n.missionId) || publicMissions.find((m) => m.id === n.missionId)
       : null;
 
+    // Une notification de document mène droit à l'écran « Mes documents ».
+    if (n.type === "document" && account.role !== "admin") {
+      if (account.role === "client") setClientTab("documents");
+      else setTransporterTab("documents");
+      if (n.missionId) setFocusMissionId(n.missionId);
+      return;
+    }
+
     if (account.role === "admin") {
       setMode("admin");
       if (n.type === "frais") setAdminTab("frais");
@@ -1032,6 +1049,31 @@ export default function App() {
 
     if (n.missionId) setFocusMissionId(n.missionId);
   }
+
+  // Nombre de documents en attente de ma signature (pastille du menu).
+  const [docsToSignCount, setDocsToSignCount] = useState(0);
+  useEffect(() => {
+    if (!account?.id) return undefined;
+    let alive = true;
+    async function count() {
+      if (account.role === "admin") { if (alive) setDocsToSignCount(0); return; }
+      try {
+        const { count: n } = await supabase
+          .from("documents")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", account.id)
+          .eq("needs_signature", true)
+          .eq("statut", "envoye");
+        if (alive) setDocsToSignCount(n || 0);
+      } catch { /* patch documents non encore appliqué : ignoré */ }
+    }
+    count();
+    const channel = supabase
+      .channel(`docs-count-${account.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, () => { count(); })
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(channel); };
+  }, [account?.id, account?.role]);
 
   // Défilement + surbrillance temporaire de la mission ciblée.
   useEffect(() => {
@@ -1283,8 +1325,22 @@ export default function App() {
         notifyAccount(mission.clientAccountId, { type: "course_assigned", title: "Un transporteur a été attribué", body: `${application.transporterName} prend en charge votre course.`, missionId });
         triggerPush({ accountId: mission.clientAccountId, title: "Transporteur attribué", body: `${application.transporterName} prend en charge votre course.`, url: "/", missionId });
       }
+
+      // Circuit documentaire : devis au client (à signer) + bon de mission
+      // préparé, qui partira automatiquement dès la signature du client.
+      let docNotice = "";
+      if (mission) {
+        const transporter = transporters.find((t) => t.id === application.transporterId) || {};
+        const { done, skipped } = await emitOnAssignment(
+          { ...mission, assignedTransporterId: application.transporterId, assignedTransporterName: application.transporterName },
+          transporter
+        );
+        if (done.length) docNotice = ` ${done.join(". ")}.`;
+        if (skipped.length) setError(skipped.join(" "));
+      }
+
       await loadAllData(account);
-      setNotice("Mission attribuée au transporteur.");
+      setNotice(`Mission attribuée au transporteur.${docNotice}`);
       setAdminTab("assigned");
     } catch (err) { setError(err.message || "Erreur lors de l’attribution."); }
     finally { setActionLoading(false); }
@@ -1391,7 +1447,14 @@ export default function App() {
     finally { setActionLoading(false); }
   }
 
-  function getDocumentsForAccount(accountId) { return documents.filter((doc) => doc.accountId === accountId); }
+  // Pièces justificatives déposées par un compte (jamais les documents générés).
+  function getDocumentsForAccount(accountId) {
+    return documents.filter((doc) => doc.accountId === accountId && !doc.docType);
+  }
+  // Documents générés pour une mission (devis / bon de mission / facture).
+  function getGeneratedDocs(missionId) {
+    return documents.filter((doc) => doc.missionId === missionId && doc.docType);
+  }
   function getTrackingEventsForMission(missionId) { return trackingEvents.filter((event) => event.missionId === missionId); }
   function getTrackingPhotosForEvent(eventId) { return trackingPhotos.filter((photo) => photo.trackingEventId === eventId); }
   function trackingKey(missionId, eventType) { return `${missionId}-${eventType}`; }
@@ -1755,6 +1818,21 @@ export default function App() {
     });
   }
 
+  // Envoi manuel de la facture au client : elle apparaît aussitôt dans son
+  // espace « Mes documents » avec une notification.
+  async function sendFacture(mission) {
+    setActionLoading(true); setError(""); setNotice("");
+    try {
+      if (!mission.clientAccountId) {
+        throw new Error("Cette course n’est reliée à aucun compte client : utilisez le bouton Facture pour l’imprimer ou l’envoyer vous-même.");
+      }
+      const doc = await emitFacture(mission);
+      setNotice(`Facture ${doc.numero} envoyée au client.`);
+    } catch (e) {
+      setError(e.message || "Envoi de la facture impossible.");
+    } finally { setActionLoading(false); }
+  }
+
   function renderCompactDeliveredMissionCard(mission) {
     return (
       <details
@@ -1809,10 +1887,28 @@ export default function App() {
           {renderTrackingTimeline(mission)}
           {isAdmin && (
             <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Circuit de signature :</span>
+              <div style={{ width: "100%", marginBottom: 6 }}>
+                {getGeneratedDocs(mission.id).length === 0 && (
+                  <p className="muted" style={{ margin: 0 }}>Aucun document émis pour cette mission.</p>
+                )}
+                {getGeneratedDocs(mission.id).map((d) => (
+                  <p key={d.id} style={{ margin: "2px 0" }}>
+                    <strong>{DOC_LABEL_FR[d.docType] || "Document"} {d.numero} :</strong>{" "}
+                    <span className={`status status-${d.statut === "signe" ? "validated" : "pending"}`}>
+                      {d.statut === "signe" ? "signé" : d.statut === "brouillon" ? "en attente de la signature du devis" : "envoyé, en attente de signature"}
+                    </span>
+                  </p>
+                ))}
+              </div>
               <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Documents (aperçu imprimable) :</span>
               <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
               <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
               <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Envoi au client :</span>
+              <button className="btn primary small" disabled={actionLoading} onClick={() => sendFacture(mission)}>
+                Envoyer la facture au client
+              </button>
             </div>
           )}
           {!delivered && mission.status === "assigned" && (
@@ -1852,6 +1948,7 @@ export default function App() {
           { title: "Transport", items: [
             { key: "post", label: "Nouvelle course", icon: "plus" },
             { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
+            { key: "documents", label: "Mes documents", icon: "inbox", count: docsToSignCount || undefined },
           ] },
           { title: "Compte", items: [
             { key: "contact", label: "Contact SECOTO", icon: "phone" },
@@ -1894,6 +1991,7 @@ export default function App() {
           { key: "request", label: "Proposer une mission", icon: "plus" },
           { key: "requests", label: "Mes demandes", icon: "inbox", count: currentTransporterRequests.length },
           { key: "frais", label: "Mes frais", icon: "settings" },
+          { key: "documents", label: "Mes documents", icon: "check", count: docsToSignCount || undefined },
         ] },
         { title: "Compte", items: [
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
@@ -2093,6 +2191,12 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </section>
+          )}
+
+          {clientTab === "documents" && (
+            <section className="layout">
+              <MyDocumentsPanel account={account} focusMissionId={focusMissionId} />
             </section>
           )}
 
@@ -2438,6 +2542,12 @@ export default function App() {
               <div className="panel-full">
                 <FraisPanel account={account} isAdmin={false} missions={assignedToCurrentTransporter} />
               </div>
+            </section>
+          )}
+
+          {transporterTab === "documents" && (
+            <section className="layout">
+              <MyDocumentsPanel account={account} focusMissionId={focusMissionId} />
             </section>
           )}
 

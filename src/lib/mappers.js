@@ -123,11 +123,20 @@ export function documentFromDb(row) {
     id: row.id,
     missionId: row.mission_id,
     accountId: row.account_id,
+    recipientId: row.recipient_id || null,
     type: row.type,
     fileName: row.file_name,
     filePath: row.file_path,
     fileUrl: row.file_url,
     status: row.status,
+    // Documents generes (devis / bon de mission / facture). Restent nuls pour
+    // les pieces justificatives deposees par les transporteurs.
+    docType: row.doc_type || null,
+    numero: row.numero || null,
+    statut: row.statut || null,
+    needsSignature: row.needs_signature ?? null,
+    signedAt: row.signed_at || null,
+    emittedAt: row.emitted_at || null,
     createdAt: row.created_at,
   };
 }

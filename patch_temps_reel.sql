@@ -85,6 +85,50 @@ alter table public.notifications add column if not exists audience   text;
 alter table public.notifications add column if not exists is_read    boolean not null default false;
 alter table public.notifications add column if not exists created_at timestamptz not null default now();
 
+-- Colonnes HERITEES d'une ancienne version (ex. « message ») encore declarees
+-- NOT NULL : elles bloquaient toute insertion. On les rend facultatives.
+do $$
+declare
+  c record;
+begin
+  for c in
+    select column_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'notifications'
+      and is_nullable  = 'NO'
+      and column_default is null
+      and column_name not in ('id', 'account_id', 'title', 'type', 'is_read', 'created_at')
+  loop
+    execute format('alter table public.notifications alter column %I drop not null', c.column_name);
+  end loop;
+end $$;
+
+-- Si la colonne heritee « message » existe, on la remplit automatiquement a
+-- partir du corps (ou du titre) : les anciens ecrans continuent de fonctionner.
+create or replace function public.secoto_notifications_fill_legacy()
+returns trigger
+language plpgsql
+as $$
+begin
+  -- Ce corps n'est compile qu'a l'execution : le declencheur n'est installe
+  -- que si la colonne « message » existe reellement (voir bloc ci-dessous).
+  new.message := coalesce(new.message, new.body, new.title, '');
+  return new;
+end $$;
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'notifications'
+               and column_name = 'message') then
+    drop trigger if exists trg_secoto_notifications_legacy on public.notifications;
+    create trigger trg_secoto_notifications_legacy
+      before insert on public.notifications
+      for each row execute function public.secoto_notifications_fill_legacy();
+  end if;
+end $$;
+
 create index if not exists notifications_account_idx
   on public.notifications (account_id, created_at desc);
 
