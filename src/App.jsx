@@ -1061,6 +1061,32 @@ export default function App() {
     return () => { alive = false; };
   }, [account?.role]);
 
+  // Clic sur une notification du téléphone : le service worker ouvre l'app sur
+  // /?ecran=documents&mission=… — on route ici vers le bon écran.
+  useEffect(() => {
+    if (!account?.id) return;
+    const params = new URLSearchParams(window.location.search);
+    const ecran = params.get("ecran");
+    const mission = params.get("mission");
+    if (!ecran && !mission) return;
+
+    // Différé d'un tick : on route APRÈS le rendu courant.
+    queueMicrotask(() => {
+    if (ecran === "documents") {
+      if (account.role === "client") setClientTab("documents");
+      else if (account.role === "transporter") setTransporterTab("documents");
+      else setMode("admin");
+    } else if (ecran === "frais") {
+      if (account.role === "admin") { setMode("admin"); setAdminTab("frais"); }
+      else setTransporterTab("frais");
+    }
+    if (mission) setFocusMissionId(mission);
+
+    // On nettoie l'adresse pour ne pas rejouer la redirection au rafraîchissement.
+    window.history.replaceState({}, "", window.location.pathname);
+    });
+  }, [account?.id, account?.role]);
+
   // Nombre de documents en attente de ma signature (pastille du menu).
   const [docsToSignCount, setDocsToSignCount] = useState(0);
   useEffect(() => {

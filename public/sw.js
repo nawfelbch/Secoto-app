@@ -41,8 +41,10 @@ self.addEventListener("notificationclick", (event) => {
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ("focus" in client) {
-          client.navigate(targetUrl).catch(() => {});
-          return client.focus();
+          // On force la navigation vers l'ecran cible AVANT de remettre
+          // l'application au premier plan, sinon l'onglet deja ouvert reste
+          // sur la page precedente et la notification ne menait nulle part.
+          return client.focus().then((c) => (c || client).navigate(targetUrl).catch(() => {}));
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(targetUrl);

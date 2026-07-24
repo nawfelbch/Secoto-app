@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=794">
 <title>Bon de mission {{NUMERO_DOC}} — SECOTO</title>
 <style>
   /* ================================================================
@@ -22,6 +22,12 @@
      paragraphes (« text autosizing »), ce qui cassait les tailles de police
      du document a l'ecran et a l'impression. */
   html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  /* A l'ecran : pas de marge parasite autour de la feuille, pour que la
+     largeur declaree au navigateur corresponde exactement au document. */
+  @media screen{
+    body{background:#fff;}
+    .page{margin:0 auto;box-shadow:none;}
+  }
   *{margin:0;padding:0;box-sizing:border-box;}
   body{
     font-family:Helvetica,Arial,sans-serif;
