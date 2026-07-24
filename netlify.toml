@@ -2,6 +2,13 @@
   command = "npm run build"
   publish = "dist"
 
+# Ces variables sont PUBLIQUES par conception (URL Supabase + cle anon protegee
+# par les RLS + cle VAPID publique) : elles doivent apparaitre dans le bundle
+# client. On les exclut du scanner de secrets Netlify. Ne JAMAIS ajouter ici une
+# vraie cle secrete (SUPABASE_SERVICE_ROLE_KEY, VAPID_PRIVATE_KEY).
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,SUPABASE_URL"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
