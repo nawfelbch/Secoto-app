@@ -31,7 +31,7 @@ import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
-import { emitOnAssignment, emitFacture } from "./lib/docFlow";
+import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
 import "./index.css";
 
 /* ============================================================
@@ -1050,6 +1050,17 @@ export default function App() {
     if (n.missionId) setFocusMissionId(n.missionId);
   }
 
+  // Synchronise les maquettes de documents vers la base : c'est ce qui permet
+  // à Supabase de générer et d'envoyer le devis TOUT SEUL à l'attribution,
+  // sans dépendre de l'application. Une fois par session admin.
+  useEffect(() => {
+    if (account?.role !== "admin") return;
+    let alive = true;
+    syncDocTemplates()
+      .catch((e) => { if (alive) setError(e.message || "Maquettes de documents non synchronisées."); });
+    return () => { alive = false; };
+  }, [account?.role]);
+
   // Nombre de documents en attente de ma signature (pastille du menu).
   const [docsToSignCount, setDocsToSignCount] = useState(0);
   useEffect(() => {
@@ -1326,21 +1337,10 @@ export default function App() {
         triggerPush({ accountId: mission.clientAccountId, title: "Transporteur attribué", body: `${application.transporterName} prend en charge votre course.`, url: "/", missionId });
       }
 
-      // Circuit documentaire : devis au client (à signer) + bon de mission
-      // préparé, qui partira automatiquement dès la signature du client.
-      let docNotice = "";
-      if (mission) {
-        const transporter = transporters.find((t) => t.id === application.transporterId) || {};
-        const { done, skipped } = await emitOnAssignment(
-          { ...mission, assignedTransporterId: application.transporterId, assignedTransporterName: application.transporterName },
-          transporter
-        );
-        if (done.length) docNotice = ` ${done.join(". ")}.`;
-        if (skipped.length) setError(skipped.join(" "));
-      }
-
+      // Le devis et le bon de mission sont émis AUTOMATIQUEMENT par la base
+      // dès que la mission passe en « attribuée » : rien à faire ici.
       await loadAllData(account);
-      setNotice(`Mission attribuée au transporteur.${docNotice}`);
+      setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
       setAdminTab("assigned");
     } catch (err) { setError(err.message || "Erreur lors de l’attribution."); }
     finally { setActionLoading(false); }
@@ -1824,11 +1824,7 @@ export default function App() {
   async function sendMissionDocs(mission) {
     setActionLoading(true); setError(""); setNotice("");
     try {
-      const transporter = transporters.find((t) => t.id === mission.assignedTransporterId) || {};
-      const { done, skipped } = await emitOnAssignment(mission, transporter);
-      if (done.length) setNotice(`${done.join(". ")}.`);
-      if (skipped.length) setError(skipped.join(" "));
-      if (!done.length && !skipped.length) setError("Aucun document n’a pu être émis.");
+      setNotice(await emitMissionDocuments(mission.id));
       await loadAllData(account);
     } catch (e) {
       setError(e.message || "Envoi des documents impossible.");
@@ -1840,11 +1836,8 @@ export default function App() {
   async function sendFacture(mission) {
     setActionLoading(true); setError(""); setNotice("");
     try {
-      if (!mission.clientAccountId) {
-        throw new Error("Cette course n’est reliée à aucun compte client : utilisez le bouton Facture pour l’imprimer ou l’envoyer vous-même.");
-      }
-      const doc = await emitFacture(mission);
-      setNotice(`Facture ${doc.numero} envoyée au client.`);
+      setNotice(await emitFacture(mission.id));
+      await loadAllData(account);
     } catch (e) {
       setError(e.message || "Envoi de la facture impossible.");
     } finally { setActionLoading(false); }

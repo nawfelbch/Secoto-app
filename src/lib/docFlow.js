@@ -14,7 +14,9 @@
 // ============================================================================
 
 import { supabase } from '../supabaseClient';
-import { renderDevisHtml, renderBonMissionHtml, renderFactureHtml } from './documents';
+import devisTpl from '../../templates/devis.html?raw';
+import bonMissionTpl from '../../templates/bon-de-mission.html?raw';
+import factureTpl from '../../templates/facture.html?raw';
 
 export const DOC_LABEL = {
   devis: 'Devis',
@@ -53,35 +55,36 @@ export async function listMyDocuments() {
   return (data || []).map(docFromDb);
 }
 
-/** Appel generique de la fonction d'emission (reservee a l'admin cote base). */
-async function emit({ missionId, type, html, recipientId, statut = 'envoye', needsSignature = true, refDevis = null }) {
-  if (!recipientId) {
-    throw new Error(
-      type === 'devis' || type === 'facture'
-        ? "Cette course n'est reliee a aucun compte client : le document ne peut pas etre envoye dans l'application."
-        : "Aucun transporteur attribue : le bon de mission ne peut pas etre prepare."
-    );
+/**
+ * Synchronise les maquettes HTML vers la base (admin uniquement).
+ * C'est ce qui permet a la BASE de fabriquer elle-meme les documents, donc
+ * d'envoyer le devis automatiquement a l'attribution, sans dependre de
+ * l'application. A appeler une fois a l'ouverture de l'espace admin.
+ */
+export async function syncDocTemplates() {
+  const kinds = [
+    ['devis', devisTpl],
+    ['bon_de_mission', bonMissionTpl],
+    ['facture', factureTpl],
+  ];
+  const failed = [];
+  for (const [kind, html] of kinds) {
+    const { error } = await supabase.rpc('secoto_save_doc_template', { p_kind: kind, p_html: html });
+    if (error) failed.push(`${kind} (${error.message})`);
   }
-  const { data, error } = await supabase.rpc('secoto_emit_document', {
-    p_mission: missionId,
-    p_type: type,
-    p_html: html,
-    p_recipient: recipientId,
-    p_statut: statut,
-    p_needs_signature: needsSignature,
-    p_ref_devis: refDevis,
-  });
-  if (error) throw new Error(explain(error));
-  if (!data) throw new Error("La base n'a rien renvoye : document non emis.");
-  return docFromDb(Array.isArray(data) ? data[0] : data);
+  if (failed.length) throw new Error(`Maquettes non synchronisees : ${failed.join(', ')}`);
+  return true;
 }
 
 /** Traduit les erreurs techniques Supabase en message actionnable. */
 function explain(error) {
   const msg = error?.message || String(error);
-  if (/could not find the function|does not exist/i.test(msg) && /secoto_(emit|sign)_document/i.test(msg)) {
-    return "Le patch SQL des documents n'a pas encore ete applique dans Supabase. "
-      + "Lancez patch_documents_signature.sql dans le SQL Editor, puis reessayez.";
+  if (/could not find the function|does not exist/i.test(msg) && /secoto_/i.test(msg)) {
+    return "Un patch SQL n'a pas encore ete applique dans Supabase. "
+      + "Lancez patch_documents_signature.sql puis patch_devis_automatique.sql, puis reessayez.";
+  }
+  if (/maquette/i.test(msg)) {
+    return msg + " (les maquettes se synchronisent a l'ouverture de l'espace administrateur)";
   }
   if (/schema cache/i.test(msg)) {
     return "Supabase n'a pas encore recharge son schema. Relancez « notify pgrst, 'reload schema'; » "
@@ -94,75 +97,21 @@ function explain(error) {
 }
 
 /**
- * Etape 1 — a l'attribution d'une mission :
- *   - le DEVIS part au client (a signer) ;
- *   - le BON DE MISSION est prepare en brouillon, invisible du transporteur
- *     tant que le client n'a pas signe.
- * Ne bloque jamais l'attribution : renvoie la liste des envois et des ecarts.
+ * Renvoi manuel du devis + du bon de mission (bouton admin).
+ * L'envoi normal est declenche AUTOMATIQUEMENT par la base des que la mission
+ * passe en « attribuee » : cette fonction sert de rattrapage.
  */
-export async function emitOnAssignment(mission, transporter = {}) {
-  const done = [];
-  const skipped = [];
-
-  // --- Devis client ---
-  if (mission.clientAccountId) {
-    try {
-      const html = renderDevisHtml(mission);
-      const devis = await emit({
-        missionId: mission.id, type: 'devis', html,
-        recipientId: mission.clientAccountId, statut: 'envoye', needsSignature: true,
-      });
-      done.push(`Devis ${devis.numero} envoye au client`);
-    } catch (e) {
-      skipped.push(`Devis non envoye : ${e.message}`);
-    }
-  } else {
-    skipped.push("Devis non envoye : la course n'est pas reliee a un compte client.");
-  }
-
-  // --- Bon de mission (brouillon) ---
-  const transporterId = mission.assignedTransporterId || transporter.id;
-  if (transporterId) {
-    try {
-      const html = renderBonMissionHtml(mission, {
-        name: transporter.fullName || mission.assignedTransporterName || '',
-        address: transporter.city || '',
-        siret: transporter.siret || '',
-        phone: transporter.phone || '',
-      });
-      await emit({
-        missionId: mission.id, type: 'bon_de_mission', html,
-        recipientId: transporterId,
-        // Si la course n'a pas de compte client, personne ne signera le devis :
-        // on envoie donc le bon de mission tout de suite.
-        statut: mission.clientAccountId ? 'brouillon' : 'envoye',
-        needsSignature: true,
-      });
-      done.push(
-        mission.clientAccountId
-          ? 'Bon de mission prepare (il partira des la signature du client)'
-          : 'Bon de mission envoye au transporteur'
-      );
-    } catch (e) {
-      skipped.push(`Bon de mission non prepare : ${e.message}`);
-    }
-  } else {
-    skipped.push('Bon de mission non prepare : aucun transporteur attribue.');
-  }
-
-  return { done, skipped };
+export async function emitMissionDocuments(missionId) {
+  const { data, error } = await supabase.rpc('secoto_emit_mission_documents', { p_mission: missionId });
+  if (error) throw new Error(explain(error));
+  return data || 'Documents emis.';
 }
 
-/** Etape 4 — envoi manuel de la facture au client (decide par l'admin). */
-export async function emitFacture(mission, { refDevis = null } = {}) {
-  const html = renderFactureHtml(mission, {}, refDevis ? { refDevis } : {});
-  return emit({
-    missionId: mission.id, type: 'facture', html,
-    recipientId: mission.clientAccountId,
-    statut: 'envoye',
-    needsSignature: false,   // une facture se telecharge, elle ne se signe pas
-    refDevis,
-  });
+/** Etape finale — envoi de la facture au client (decide par l'admin). */
+export async function emitFacture(missionId) {
+  const { data, error } = await supabase.rpc('secoto_emit_facture', { p_mission: missionId });
+  if (error) throw new Error(explain(error));
+  return data || 'Facture envoyee.';
 }
 
 /** Signature par le destinataire (client ou transporteur). */
