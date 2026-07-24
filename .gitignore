@@ -32,3 +32,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Cles de signature Android — NE JAMAIS publier sur GitHub.
+# push.ps1 fait « git add -A » : sans ces lignes, un keystore depose dans le
+# dossier du projet partirait sur le depot public.
+*.jks
+*.keystore
+keystore.properties
+key.properties
+android/keystore*
