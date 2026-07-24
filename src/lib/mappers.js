@@ -214,8 +214,23 @@ export function notificationFromDb(row) {
   };
 }
 
+/**
+ * Retire les champs vides avant un INSERT.
+ * Envoyer explicitement `null` ecrase la valeur par defaut de la colonne et
+ * declenche une erreur « violates not-null constraint » sur les champs
+ * facultatifs (distance_km, carrier_cost...). En omettant la cle, la base
+ * applique sa propre valeur par defaut.
+ */
+function sansValeursVides(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== null && v !== undefined && v !== "") out[k] = v;
+  }
+  return out;
+}
+
 export function missionToDb(form, extra = {}) {
-  return {
+  return sansValeursVides({
     public_ref: extra.publicRef || generatePublicRef("MIS"),
     type: form.type || "convoyage",
     status: extra.status || "published",
@@ -240,7 +255,7 @@ export function missionToDb(form, extra = {}) {
     assigned_transporter_id: extra.assignedTransporterId || null,
     assigned_transporter_name: extra.assignedTransporterName || null,
     source_request_id: extra.sourceRequestId || null,
-  };
+  });
 }
 
 // IMPORTANT : mission_requests n'a PAS les colonnes de missions
@@ -248,7 +263,7 @@ export function missionToDb(form, extra = {}) {
 // source_request_id...). On liste donc EXPLICITEMENT les colonnes valides pour
 // eviter l'erreur "Could not find the '...' column of 'mission_requests'".
 export function requestToDb(form, account = null, extra = {}) {
-  return {
+  return sansValeursVides({
     public_ref: extra.publicRef || generatePublicRef("REQ"),
     type: form.type || "convoyage",
     status: "pending",
@@ -271,7 +286,7 @@ export function requestToDb(form, account = null, extra = {}) {
     requester_name: (account && account.fullName) || form.clientName || null,
     requester_company: (account && account.companyName) || null,
     approved_mission_id: null,
-  };
+  });
 }
 
 // ---------- Libellés ----------
