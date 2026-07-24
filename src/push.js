@@ -65,7 +65,9 @@ export async function enablePush(account) {
         auth: json.keys?.auth,
         user_agent: navigator.userAgent,
       },
-      { onConflict: "endpoint" }
+      // Cle (compte, appareil) : un meme telephone peut etre connecte a
+      // plusieurs comptes SECOTO sans que l'un ecrase l'abonnement de l'autre.
+      { onConflict: "account_id,endpoint" }
     );
   } catch (err) {
     console.warn("push subscription save failed", err);

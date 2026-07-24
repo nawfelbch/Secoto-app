@@ -994,7 +994,17 @@ export default function App() {
     document.addEventListener("visibilitychange", onWake);
     window.addEventListener("online", onWake);
     window.addEventListener("focus", onWake);
+
+    // Filet de sécurité : sur mobile, la connexion temps réel est coupée dès
+    // que l'écran s'éteint ou que le réseau change, et un événement peut
+    // passer à la trappe. On resynchronise donc régulièrement tant que l'app
+    // est à l'écran — invisible pour l'utilisateur, mais rien ne se perd.
+    const tick = setInterval(() => {
+      if (document.visibilityState === "visible") scheduleRefresh(0);
+    }, 20000);
+
     return () => {
+      clearInterval(tick);
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("online", onWake);
       window.removeEventListener("focus", onWake);
