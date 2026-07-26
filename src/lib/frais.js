@@ -9,6 +9,12 @@
 // ============================================================================
 
 import { supabase } from '../supabaseClient';
+import {
+  buildPrivateFilePath,
+  randomIdempotencyKey,
+  validateFiles,
+} from './fileSafety';
+import { createShortSignedUrl, uploadPrivateFile } from './privateFiles';
 
 export const FRAIS_TYPES = [
   { value: 'essence', label: 'Essence' },
@@ -22,7 +28,8 @@ export function fraisFromDb(row) {
     transporterId: row.transporter_id,
     type: row.type,
     montant: row.montant,
-    justificatifUrl: row.justificatif_url,
+    // Cette colonne contient désormais un chemin privé, jamais une URL publique.
+    justificatifUrl: row.justificatif_path || row.justificatif_url,
     statut: row.statut,
     motifRefus: row.motif_refus,
     date: row.date,
@@ -35,9 +42,10 @@ export function fraisFromDb(row) {
 export async function listMyFrais(transporterId) {
   const { data, error } = await supabase
     .from('frais')
-    .select('*')
+    .select('id,mission_id,transporter_id,type,montant,justificatif_path,justificatif_url,statut,motif_refus,date,created_at,validated_at')
     .eq('transporter_id', transporterId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(200);
   if (error) throw error;
   return (data || []).map(fraisFromDb);
 }
@@ -46,8 +54,9 @@ export async function listMyFrais(transporterId) {
 export async function listAllFrais() {
   const { data, error } = await supabase
     .from('frais')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('id,mission_id,transporter_id,type,montant,justificatif_path,justificatif_url,statut,motif_refus,date,created_at,validated_at')
+    .order('created_at', { ascending: false })
+    .limit(200);
   if (error) throw error;
   return (data || []).map(fraisFromDb);
 }
@@ -56,59 +65,83 @@ export async function listAllFrais() {
  * Cree un frais + uploade le justificatif.
  * @param {{transporterId:string, missionId:string, type:string, montant:number, file:File}} p
  */
-export async function createFrais({ transporterId, missionId, type, montant, file }) {
+export async function createFrais({
+  transporterId,
+  missionId,
+  type,
+  montant,
+  file,
+  operationId = randomIdempotencyKey(),
+  onProgress,
+}) {
   if (!missionId) throw new Error('Selectionnez la mission concernee.');
   if (!(Number(montant) > 0)) throw new Error('Montant invalide.');
   if (!file) throw new Error('Ajoutez le justificatif (photo ou PDF).');
+  if (!FRAIS_TYPES.some((candidate) => candidate.value === type)) throw new Error('Type de frais invalide.');
+  const validation = validateFiles([file], {
+    allowPdf: true,
+    maxFiles: 1,
+    maxSizeBytes: 12 * 1024 * 1024,
+    minFiles: 1,
+  });
+  if (!validation.ok) throw new Error(validation.errors.join(' '));
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `${transporterId}/${missionId}/${Date.now()}_${safeName}`;
+  const path = await buildPrivateFilePath({
+    accountId: transporterId,
+    missionId,
+    operationId,
+    index: 0,
+    file,
+  });
 
-  const { error: upErr } = await supabase.storage
-    .from('justificatifs')
-    .upload(path, file, { upsert: false });
-  if (upErr) throw new Error(`Upload du justificatif impossible : ${upErr.message}`);
+  await uploadPrivateFile({
+    bucket: 'justificatifs',
+    path,
+    file,
+    onProgress,
+  });
 
   const { data, error } = await supabase
-    .from('frais')
-    .insert({
-      transporter_id: transporterId,
-      mission_id: missionId,
-      type,
-      montant: Number(montant),
-      justificatif_url: path,
-      statut: 'en_attente',
-    })
-    .select()
-    .single();
+    .rpc('secoto_create_expense', {
+      p_mission_id: missionId,
+      p_type: type,
+      p_amount: Number(montant),
+      p_file_name: file.name,
+      p_file_path: path,
+      p_mime_type: file.type,
+      p_size_bytes: file.size,
+      p_idempotency_key: operationId,
+    });
   if (error) throw error;
-  return fraisFromDb(data);
+  return fraisFromDb(Array.isArray(data) ? data[0] : data);
 }
 
 /** Valide un frais (admin). Declenche l'eligibilite au remboursement. */
 export async function validateFrais(id) {
-  const { error } = await supabase
-    .from('frais')
-    .update({ statut: 'valide', validated_at: new Date().toISOString(), motif_refus: null })
-    .eq('id', id);
+  const { error } = await supabase.rpc('secoto_admin_review_expense', {
+    p_expense_id: id,
+    p_decision: 'valide',
+    p_reason: null,
+    p_idempotency_key: randomIdempotencyKey(),
+  });
   if (error) throw error;
 }
 
 /** Refuse un frais (admin) avec motif obligatoire. */
 export async function refuseFrais(id, motif) {
   if (!motif || !motif.trim()) throw new Error('Motif de refus obligatoire.');
-  const { error } = await supabase
-    .from('frais')
-    .update({ statut: 'refuse', motif_refus: motif.trim(), validated_at: new Date().toISOString() })
-    .eq('id', id);
+  const { error } = await supabase.rpc('secoto_admin_review_expense', {
+    p_expense_id: id,
+    p_decision: 'refuse',
+    p_reason: motif.trim(),
+    p_idempotency_key: randomIdempotencyKey(),
+  });
   if (error) throw error;
 }
 
 /** URL signee (120 s) pour consulter un justificatif. */
 export async function justificatifUrl(path) {
-  const { data, error } = await supabase.storage.from('justificatifs').createSignedUrl(path, 120);
-  if (error) throw error;
-  return data.signedUrl;
+  return createShortSignedUrl('justificatifs', path, 120);
 }
 
 /** Total remboursable = somme des frais valides. */

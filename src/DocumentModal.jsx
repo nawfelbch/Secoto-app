@@ -278,6 +278,8 @@ export default function DocumentModal({ kind, mission, transporter = {}, onClose
                 id="secoto-doc-frame"
                 title="Aperçu du document"
                 srcDoc={html}
+                sandbox=""
+                referrerPolicy="no-referrer"
               />
             )}
           </div>

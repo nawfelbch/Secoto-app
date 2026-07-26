@@ -14,7 +14,6 @@ import {
   notificationFromDb,
   missionToDb,
   requestToDb,
-  generatePublicRef,
   labelTransporterType,
   labelTrackingEventType,
   labelFuelLevel,
@@ -23,14 +22,52 @@ import {
   labelProgress,
   formatDateTime,
 } from "./lib/mappers";
-import { enablePush, triggerPush, pushSupported } from "./push";
+import {
+  disablePush,
+  enablePush,
+  initializePushListeners,
+  pushSupported,
+} from "./push";
 import { computeClientPrice, computeCarrierPay, computeMargin, formatAmount } from "./lib/pricing";
+import {
+  normalizePublicSignupMetadata,
+  progressFromTrackingEvent,
+} from "./lib/domainPolicy";
+import {
+  getAuthRedirectUrl,
+  getServerFunctionUrl,
+  getOneTimeLocation,
+  initializePlatform,
+  openExternal,
+  openRoute,
+  shareOrOpen,
+} from "./platform/runtime";
+import {
+  buildPrivateFilePath,
+  randomIdempotencyKey,
+  validateFiles,
+} from "./lib/fileSafety";
+import {
+  createShortSignedUrl,
+  hydrateSignedFileUrls,
+  uploadPrivateFile,
+} from "./lib/privateFiles";
+import {
+  clearEncryptedAccountData,
+  listPendingActions,
+  listTrackingDrafts,
+  queueTrackingAction,
+  removeEncryptedRecord,
+  removeTrackingDraft,
+  saveTrackingDraft,
+} from "./lib/resilienceStore";
 import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
+import SecureFilePicker from "./SecureFilePicker";
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
 import "./index.css";
 
@@ -45,11 +82,63 @@ const DOC_LABEL_FR = {
   facture: "Facture",
 };
 
+const DATA_PAGE_SIZE = 200;
+const MISSION_ADMIN_COLUMNS = [
+  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
+  "distance_km", "carrier_cost", "client_price", "carrier_pay", "margin",
+  "client_name", "client_contact", "client_phone", "price_mode", "proposed_price",
+  "payment_method", "notes", "created_by_role", "client_account_id",
+  "assigned_transporter_id", "assigned_transporter_name", "source_request_id", "created_at",
+].join(",");
+const MISSION_CLIENT_COLUMNS = [
+  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
+  "distance_km", "client_price", "client_name", "client_contact", "client_phone",
+  "price_mode", "proposed_price", "payment_method", "notes", "created_by_role",
+  "client_account_id", "assigned_transporter_id", "assigned_transporter_name",
+  "source_request_id", "created_at",
+].join(",");
+const MISSION_TRANSPORTER_COLUMNS = [
+  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
+  "distance_km", "carrier_cost", "carrier_pay", "client_name", "client_contact",
+  "client_phone", "payment_method", "notes", "assigned_transporter_id",
+  "assigned_transporter_name", "created_at",
+].join(",");
+const PUBLIC_MISSION_COLUMNS = [
+  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "vehicle", "distance_km", "created_at",
+].join(",");
+const APPLICATION_COLUMNS = [
+  "id", "mission_id", "transporter_id", "transporter_name", "transporter_company",
+  "transporter_status", "message", "proposed_price", "price_note", "status", "created_at",
+].join(",");
+const REQUEST_COLUMNS = [
+  "id", "public_ref", "status", "requester_id", "requester_name", "requester_company",
+  "type", "from_city", "to_city", "pickup_address", "delivery_address", "mission_date",
+  "vehicle", "plate", "distance_km", "client_name", "client_contact", "client_phone",
+  "price_mode", "proposed_price", "notes", "created_by_role", "approved_mission_id", "created_at",
+].join(",");
+const DOCUMENT_COLUMNS = [
+  "id", "mission_id", "account_id", "recipient_id", "type", "file_name", "file_path",
+  "status", "doc_type", "numero", "statut", "needs_signature", "signed_at", "emitted_at", "created_at",
+].join(",");
+const TRACKING_EVENT_COLUMNS = [
+  "id", "mission_id", "transporter_id", "event_type", "title", "comment", "odometer_km",
+  "fuel_level", "issue_type", "issue_severity", "latitude", "longitude",
+  "location_accuracy_m", "location_recorded_at", "created_at",
+].join(",");
+const TRACKING_PHOTO_COLUMNS = [
+  "id", "tracking_event_id", "mission_id", "transporter_id", "photo_type",
+  "file_name", "file_path", "created_at",
+].join(",");
+
 function Field({ label, name, value, onChange, type = "text", placeholder = "", required = false }) {
   return (
     <label className="field">
       <span>{label}{required ? " *" : ""}</span>
-      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} aria-label={label} />
+      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} aria-label={label} required={required} />
     </label>
   );
 }
@@ -118,6 +207,27 @@ function ThemeToggle() {
   );
 }
 
+function AccountDangerZone({ onDelete }) {
+  return (
+    <div className="danger-zone">
+      <button
+        className="privacy-link"
+        type="button"
+        onClick={() => openExternal("https://app.secoto-transport.fr/politique-confidentialite.html")}
+      >
+        Politique de confidentialité
+      </button>
+      <button className="btn danger small" type="button" onClick={onDelete}>
+        Supprimer mon compte
+      </button>
+      <p className="muted danger-note">
+        La suppression efface votre compte et vos données personnelles. Les documents comptables
+        légalement obligatoires (factures) peuvent être conservés le temps prévu par la loi.
+      </p>
+    </div>
+  );
+}
+
 function NotificationBell({ notifications, unreadCount, open, setOpen, onMarkAll, onOpenItem }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -164,7 +274,7 @@ function NotificationBell({ notifications, unreadCount, open, setOpen, onMarkAll
   );
 }
 
-function MissionForm({ form, setForm, onSubmit, submitLabel }) {
+function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false, disabled = false }) {
   function update(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -207,12 +317,12 @@ function MissionForm({ form, setForm, onSubmit, submitLabel }) {
           <option value="especes">Espèces à la livraison</option>
         </select>
       </label>
-      <BaremeBox form={form} />
+      {showPricing && <BaremeBox form={form} />}
       <label className="field field-full">
         <span>Notes internes</span>
         <textarea name="notes" value={form.notes} onChange={update} />
       </label>
-      <button className="btn primary field-full" type="submit">{submitLabel}</button>
+      <button className="btn primary field-full" type="submit" disabled={disabled}>{submitLabel}</button>
     </form>
   );
 }
@@ -292,7 +402,11 @@ function PublicMissionInfo({ mission }) {
   );
 }
 
-function PrivateMissionInfo({ mission, showPricing = false }) {
+function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none" }) {
+  const visiblePricing = showPricing ? "admin" : pricingView;
+  const clientAmount = mission.clientPrice ?? computeClientPrice(mission);
+  const carrierAmount = mission.carrierPay ?? computeCarrierPay(mission);
+  const marginAmount = mission.margin ?? (clientAmount - carrierAmount);
   return (
     <div className="card-section private-box">
       <p><strong>Date :</strong> {formatDateTime(mission.missionDate)}</p>
@@ -301,13 +415,15 @@ function PrivateMissionInfo({ mission, showPricing = false }) {
       <p><strong>Téléphone :</strong> {mission.clientPhone || "Non renseigné"}</p>
       <p><strong>Immatriculation :</strong> {mission.plate || "Non renseignée"}</p>
       {/* Montants visibles uniquement par l'admin (cloisonnement marge/coût). */}
-      {showPricing && (
+      {visiblePricing === "admin" && (
         <>
-          <p><strong>Prix client :</strong> {formatAmount(computeClientPrice(mission))}</p>
-          <p><strong>Rémunération transporteur :</strong> {formatAmount(computeCarrierPay(mission))}</p>
-          <p><strong>Marge SECOTO :</strong> {formatAmount(computeMargin(mission))}</p>
+          <p><strong>Prix client :</strong> {formatAmount(clientAmount)}</p>
+          <p><strong>Rémunération transporteur :</strong> {formatAmount(carrierAmount)}</p>
+          <p><strong>Marge SECOTO :</strong> {formatAmount(marginAmount)}</p>
         </>
       )}
+      {visiblePricing === "client" && <p><strong>Prix client :</strong> {formatAmount(clientAmount)}</p>}
+      {visiblePricing === "transporter" && <p><strong>Votre rémunération :</strong> {formatAmount(carrierAmount)}</p>}
       <p><strong>Notes internes :</strong> {mission.notes || "Aucune note"}</p>
     </div>
   );
@@ -322,8 +438,6 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
   ];
   const byType = {};
   events.forEach((ev) => { byType[ev.eventType] = ev; });
-
-  const ordered = ["published", "assigned"].includes(mission.status) && !byType.pickup_inspection;
 
   return (
     <div className="timeline">
@@ -397,6 +511,24 @@ function AuthScreen({ onBack }) {
     setLoading(false);
   }
 
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail) throw new Error("Indiquez l’adresse e-mail de votre compte.");
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: getAuthRedirectUrl(),
+      });
+      if (resetError) throw resetError;
+      setNotice("Un lien sécurisé de réinitialisation vient de vous être envoyé.");
+    } catch (resetError) {
+      setError(resetError.message || "Envoi du lien impossible.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleSignup(e) {
     e.preventDefault();
     setLoading(true); setError(""); setNotice("");
@@ -408,19 +540,21 @@ function AuthScreen({ onBack }) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const metadata = normalizePublicSignupMetadata({
+      role,
+      full_name: fullName,
+      company_name: companyName,
+      phone,
+      city,
+      transporter_type: transporterType,
+      client_type: clientType,
+    });
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
       options: {
-        data: {
-          role,
-          full_name: fullName || "",
-          company_name: companyName || "",
-          phone: phone || "",
-          city: city || "",
-          transporter_type: role === "transporter" ? transporterType : "",
-          client_type: role === "client" ? clientType : "",
-        },
+        data: metadata,
+        emailRedirectTo: getAuthRedirectUrl(),
       },
     });
 
@@ -453,24 +587,43 @@ function AuthScreen({ onBack }) {
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
 
-      <Tabs
-        active={authMode}
-        onChange={setAuthMode}
-        items={[
-          { value: "login", label: "Connexion" },
-          { value: "signup", label: "Créer un compte" },
-        ]}
-      />
+      {authMode !== "reset" && (
+        <Tabs
+          active={authMode}
+          onChange={setAuthMode}
+          items={[
+            { value: "login", label: "Connexion" },
+            { value: "signup", label: "Créer un compte" },
+          ]}
+        />
+      )}
 
       <section className="layout">
         <div className="panel panel-full">
-          {authMode === "login" ? (
+          {authMode === "reset" ? (
+            <>
+              <h2>Réinitialiser le mot de passe</h2>
+              <p className="muted">Le lien fonctionne sur le Web, Android et iOS.</p>
+              <form className="form-grid" onSubmit={handleResetPassword}>
+                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+                <button className="btn primary field-full" type="submit" disabled={loading}>
+                  {loading ? "Envoi…" : "Recevoir le lien sécurisé"}
+                </button>
+                <button className="btn ghost field-full" type="button" onClick={() => setAuthMode("login")}>
+                  Retour à la connexion
+                </button>
+              </form>
+            </>
+          ) : authMode === "login" ? (
             <>
               <h2>Connexion</h2>
               <form className="form-grid" onSubmit={handleLogin}>
-                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
-                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
                 <button className="btn primary field-full" type="submit" disabled={loading}>{loading ? "Connexion…" : "Se connecter"}</button>
+                <button className="linklike field-full" type="button" onClick={() => setAuthMode("reset")}>
+                  Mot de passe oublié ?
+                </button>
               </form>
             </>
           ) : (
@@ -520,12 +673,12 @@ function AuthScreen({ onBack }) {
               )}
 
               <form className="form-grid" style={{ marginTop: 18 }} onSubmit={handleSignup}>
-                <Field label="Nom complet" name="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <Field label="Nom complet" name="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
                 <Field label={role === "client" && clientType === "particulier" ? "Société (optionnel)" : "Société"} name="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required={role === "transporter" || (role === "client" && clientType === "pro")} />
-                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
-                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
-                <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
+                <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+                <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
+                <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} required />
                 <button className="btn primary field-full" type="submit" disabled={loading}>
                   {loading ? "Création…" : role === "client" ? "Créer mon compte client" : "Demander mon accès transporteur"}
                 </button>
@@ -585,8 +738,10 @@ function PublicLanding({ onShowAuth }) {
       notes: q.get("notes") || q.get("infos") || "",
       type: svc.includes("moto") || svc === "plateau" ? "plateau" : "convoyage",
     };
-    setForm((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")) , type: patch.type }));
-    if (patch.clientContact || patch.distanceKm || patch.missionDate || patch.notes) setShowDetails(true);
+    queueMicrotask(() => {
+      setForm((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")), type: patch.type }));
+      if (patch.clientContact || patch.distanceKm || patch.missionDate || patch.notes) setShowDetails(true);
+    });
     setTimeout(() => {
       const el = document.querySelector(".deposit-card");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -611,9 +766,13 @@ function PublicLanding({ onShowAuth }) {
     setLoading(true);
     try {
       const row = requestToDb(form, null, { createdByRole: "guest" });
-      const { error } = await supabase.from("mission_requests").insert(row);
+      const { data, error } = await supabase.rpc("secoto_create_public_request", {
+        p_payload: row,
+        p_idempotency_key: randomIdempotencyKey(),
+      });
       if (error) throw error;
-      setDone({ ref: row.public_ref, phone: form.clientPhone.trim() });
+      const created = Array.isArray(data) ? data[0] : data;
+      setDone({ ref: created?.public_ref || row.public_ref, phone: form.clientPhone.trim() });
       setForm(emptyGuestForm);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -725,6 +884,55 @@ function PublicLanding({ onShowAuth }) {
   );
 }
 
+function PasswordRecoveryScreen({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function updatePassword(event) {
+    event.preventDefault();
+    setError("");
+    if (password.length < 10) {
+      setError("Utilisez au moins 10 caractères.");
+      return;
+    }
+    if (password !== confirmation) {
+      setError("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    setLoading(true);
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (updateError) {
+      setError(updateError.message || "Mise à jour impossible.");
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="app-header">
+        <div><p className="eyebrow">SECOTO</p><h1>Nouveau mot de passe</h1></div>
+        <ThemeToggle />
+      </header>
+      {error && <div className="alert error">{error}</div>}
+      <section className="layout">
+        <div className="panel panel-full">
+          <form className="form-grid" onSubmit={updatePassword}>
+            <Field label="Nouveau mot de passe" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <Field label="Confirmer le mot de passe" type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+            <button className="btn primary field-full" type="submit" disabled={loading}>
+              {loading ? "Mise à jour…" : "Enregistrer le mot de passe"}
+            </button>
+          </form>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 function PublicEntry() {
   const [view, setView] = useState("landing");
   if (view === "auth") return <AuthScreen onBack={() => setView("landing")} />;
@@ -740,6 +948,11 @@ export default function App() {
   const [account, setAccount] = useState(null);
   const [bootLoading, setBootLoading] = useState(true);
   const [accountChecked, setAccountChecked] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [networkConnected, setNetworkConnected] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   const [mode, setMode] = useState("admin");
   const [adminTab, setAdminTab] = useState("create");
@@ -763,6 +976,9 @@ export default function App() {
   const [applicationMessages, setApplicationMessages] = useState({});
   const [applicationPrices, setApplicationPrices] = useState({});
   const [documentType, setDocumentType] = useState("assurance_rc_pro");
+  const [documentFiles, setDocumentFiles] = useState([]);
+  const [documentOperationId, setDocumentOperationId] = useState(() => randomIdempotencyKey());
+  const [uploadProgress, setUploadProgress] = useState({});
 
   // Fenêtre documents (devis / bon de mission / facture) : { kind, mission, transporter }
   const [docModal, setDocModal] = useState(null);
@@ -797,8 +1013,174 @@ export default function App() {
 
   const accountRef = useRef(null);
   useEffect(() => { accountRef.current = account; }, [account]);
+  const actionLocksRef = useRef(new Set());
+  const accountLoadGenerationRef = useRef(0);
+  const dataGenerationRef = useRef(0);
+  const notificationGenerationRef = useRef(0);
+  const draftTimersRef = useRef(new Map());
+  const pendingSyncRef = useRef(false);
+  const pendingDeepLinkRef = useRef(null);
+  const uiStateRef = useRef({ navOpen: false, notifOpen: false });
+  useEffect(() => {
+    uiStateRef.current = { navOpen, notifOpen };
+  }, [navOpen, notifOpen]);
   // Minuteur de regroupement des rafraîchissements temps réel.
   const refreshTimer = useRef(null);
+
+  async function runLocked(key, work) {
+    if (actionLocksRef.current.has(key)) return { skipped: true };
+    actionLocksRef.current.add(key);
+    setActionLoading(true);
+    try {
+      return await work();
+    } finally {
+      actionLocksRef.current.delete(key);
+      setActionLoading(actionLocksRef.current.size > 0);
+    }
+  }
+
+  function applyNavigationLink(link, currentAccount = accountRef.current) {
+    if (!link || link.kind !== "navigation") return;
+    if (!currentAccount) {
+      pendingDeepLinkRef.current = link;
+      return;
+    }
+    const screen = link.screen || "courses";
+    if (currentAccount.role === "admin") {
+      setMode("admin");
+      if (screen === "documents") setAdminTab("assigned");
+      else if (screen === "frais") setAdminTab("frais");
+      else if (screen === "requests") setAdminTab("requests");
+      else if (screen === "applications") setAdminTab("applications");
+      else if (screen === "assigned") setAdminTab("assigned");
+      else setAdminTab("published");
+    } else if (currentAccount.role === "transporter") {
+      if (screen === "documents") setTransporterTab("documents");
+      else if (screen === "frais") setTransporterTab("frais");
+      else if (screen === "applications") setTransporterTab("applications");
+      else if (screen === "requests") setTransporterTab("requests");
+      else if (screen === "assigned") setTransporterTab("assigned");
+      else if (screen === "profile") setTransporterTab("profile");
+      else if (screen === "contact") setTransporterTab("contact");
+      else setTransporterTab("available");
+    } else {
+      if (screen === "documents") setClientTab("documents");
+      else if (screen === "profile") setClientTab("profile");
+      else if (screen === "contact") setClientTab("contact");
+      else setClientTab("courses");
+    }
+    if (link.missionId) setFocusMissionId(link.missionId);
+    pendingDeepLinkRef.current = null;
+  }
+
+  async function handlePlatformDeepLink(link) {
+    if (link?.kind === "auth") {
+      if (link.code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(link.code);
+        if (exchangeError) {
+          setError(exchangeError.message || "Lien d’authentification invalide ou expiré.");
+          return;
+        }
+      }
+      if (link.authType === "recovery") setPasswordRecovery(true);
+      return;
+    }
+    applyNavigationLink(link);
+  }
+
+  useEffect(() => {
+    let dispose = async () => {};
+    let alive = true;
+    initializePlatform({
+      onResume: async () => {
+        const { data } = await supabase.auth.getSession();
+        if (!data?.session) {
+          accountLoadGenerationRef.current += 1;
+          dataGenerationRef.current += 1;
+          notificationGenerationRef.current += 1;
+          setSession(null);
+          setAccount(null);
+          return;
+        }
+        scheduleRefresh(0);
+        loadNotifications(accountRef.current);
+      },
+      onNetworkChange: ({ connected }) => {
+        setNetworkConnected(Boolean(connected));
+        if (connected) scheduleRefresh(0);
+      },
+      onDeepLink: handlePlatformDeepLink,
+      onBack: () => {
+        if (uiStateRef.current.notifOpen) {
+          setNotifOpen(false);
+          return true;
+        }
+        if (uiStateRef.current.navOpen) {
+          setNavOpen(false);
+          return true;
+        }
+        return false;
+      },
+    }).then((cleanup) => {
+      if (alive) dispose = cleanup;
+      else cleanup();
+    }).catch((platformError) => {
+      if (alive) setError(platformError.message || "Initialisation native incomplète.");
+    });
+    return () => {
+      alive = false;
+      dispose();
+    };
+    // Initialisation unique ; les callbacks utilisent des refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!account?.id) return undefined;
+    let dispose = async () => {};
+    let alive = true;
+    initializePushListeners({
+      onNotification: ({ title, body }) => pushToast(title, body),
+      onOpen: handlePlatformDeepLink,
+    }).then((cleanup) => {
+      if (alive) dispose = cleanup;
+      else cleanup();
+    });
+    return () => {
+      alive = false;
+      dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.id]);
+
+  useEffect(() => {
+    if (!account?.id) return undefined;
+    let alive = true;
+    Promise.all([
+      listTrackingDrafts(account.id),
+      listPendingActions(account.id),
+    ]).then(([drafts, pending]) => {
+      if (!alive) return;
+      const restored = {};
+      for (const draft of drafts) {
+        const value = draft.value;
+        if (!value?.missionId || !value?.eventType || !value?.form) continue;
+        restored[`${value.missionId}-${value.eventType}`] = value.form;
+      }
+      if (Object.keys(restored).length) setTrackingForms((previous) => ({ ...previous, ...restored }));
+      setPendingSyncCount(pending.length);
+    }).catch(() => {
+      if (alive) setPendingSyncCount(0);
+    });
+    return () => { alive = false; };
+  }, [account?.id]);
+
+  useEffect(() => {
+    if (account?.id && pendingDeepLinkRef.current) {
+      applyNavigationLink(pendingDeepLinkRef.current, account);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.id]);
 
   /* ---------- Boot / session ---------- */
   useEffect(() => {
@@ -807,6 +1189,9 @@ export default function App() {
       if (mounted) {
         setBootLoading(false);
         setSession(null);
+        accountLoadGenerationRef.current += 1;
+        dataGenerationRef.current += 1;
+        notificationGenerationRef.current += 1;
         setAccount(null);
       }
     }, 8000);
@@ -831,10 +1216,16 @@ export default function App() {
     }
     boot();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
       setSession(newSession || null);
       if (newSession?.user?.id) loadAccount(newSession.user.id);
-      else setAccount(null);
+      else {
+        accountLoadGenerationRef.current += 1;
+        dataGenerationRef.current += 1;
+        notificationGenerationRef.current += 1;
+        setAccount(null);
+      }
     });
 
     return () => { mounted = false; clearTimeout(timer); listener?.subscription?.unsubscribe(); };
@@ -842,7 +1233,7 @@ export default function App() {
 
   useEffect(() => {
     if (account) {
-      setMode(account.role === "admin" ? "admin" : account.role === "client" ? "client" : "transporter");
+      queueMicrotask(() => setMode(account.role === "admin" ? "admin" : account.role === "client" ? "client" : "transporter"));
       loadAllData(account);
       loadNotifications(account);
       subscribeRealtime(account);
@@ -857,33 +1248,58 @@ export default function App() {
   }, [account?.id]);
 
   async function loadAccount(userId) {
+    const generation = ++accountLoadGenerationRef.current;
+    const isCurrentAccountLoad = async () => {
+      if (generation !== accountLoadGenerationRef.current) return false;
+      const { data } = await supabase.auth.getSession();
+      return data?.session?.user?.id === userId;
+    };
     setError("");
     setAccountChecked(false); // on repasse en "chargement" tant que le profil n'est pas verifie
     try {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 8000));
-      const query = supabase.from("accounts").select("*").eq("id", userId).single();
+      const query = supabase
+        .from("accounts")
+        .select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,created_at")
+        .eq("id", userId)
+        .single();
       const { data, error } = await Promise.race([query, timeout]);
       if (error) throw error;
-      setAccount(accountFromDb(data));
+      if (!(await isCurrentAccountLoad())) return;
+      const loadedAccount = accountFromDb(data);
+      if (loadedAccount.status === "suspended") {
+        await supabase.auth.signOut();
+        throw new Error("Ce compte est suspendu. Contactez SECOTO pour obtenir de l’aide.");
+      }
+      if (!(await isCurrentAccountLoad())) return;
+      setAccount(loadedAccount);
     } catch (err) {
-      setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
-      setAccount(null);
+      if (await isCurrentAccountLoad()) {
+        setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
+        setAccount(null);
+      }
     } finally {
-      setAccountChecked(true);
+      if (generation === accountLoadGenerationRef.current) setAccountChecked(true);
     }
   }
 
   /* ---------- Notifications ---------- */
   async function loadNotifications(currentAccount = account) {
     if (!currentAccount) return;
+    const accountId = currentAccount.id;
+    const generation = ++notificationGenerationRef.current;
     try {
       const { data, error } = await supabase
         .from("notifications")
-        .select("*")
+        .select("id,account_id,type,title,body,mission_id,audience,is_read,created_at")
         .eq("account_id", currentAccount.id)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
+      if (
+        generation !== notificationGenerationRef.current
+        || accountRef.current?.id !== accountId
+      ) return;
       setNotifications((data || []).map(notificationFromDb));
     } catch {
       // table absente => on ignore silencieusement (migration non encore exécutée)
@@ -894,16 +1310,6 @@ export default function App() {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, title, body }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 6000);
-  }
-
-  // Crée une notification persistée pour un compte cible.
-  async function notifyAccount(accountId, { type = "info", title, body, missionId = null, audience = null }) {
-    if (!accountId) return;
-    try {
-      await supabase.from("notifications").insert({
-        account_id: accountId, type, title, body: body || null, mission_id: missionId, audience,
-      });
-    } catch { /* migration non exécutée : ignoré */ }
   }
 
   // Rafraîchissement groupé : plusieurs événements rapprochés ne déclenchent
@@ -932,6 +1338,7 @@ export default function App() {
           const n = notificationFromDb(payload.new);
           setNotifications((prev) => [n, ...prev.filter((x) => x.id !== n.id)]);
           pushToast(n.title, n.body);
+          scheduleRefresh();
         })
       .subscribe();
 
@@ -941,25 +1348,9 @@ export default function App() {
     // chez tout le monde.
     const data = supabase.channel(`secoto-data-${currentAccount.id}`);
 
-    data.on("postgres_changes", { event: "*", schema: "public", table: "missions" }, (payload) => {
-      if (payload.eventType === "DELETE") {
-        const goneId = payload.old?.id;
-        if (goneId) {
-          // Retrait immédiat de l'écran, sans attendre le rechargement.
-          setMissions((prev) => prev.filter((m) => m.id !== goneId));
-          setPublicMissions((prev) => prev.filter((m) => m.id !== goneId));
-        }
-        scheduleRefresh();
-        return;
-      }
-      if (payload.eventType === "INSERT" && currentAccount.role === "transporter") {
-        const m = missionFromDb(payload.new);
-        if (m.status === "published") {
-          pushToast("Nouvelle course disponible", `${m.fromCity || "Départ"} → ${m.toCity || "Arrivée"} · ${labelMissionType(m.type)}`);
-        }
-      }
-      scheduleRefresh();
-    });
+    // Les missions brutes ne passent jamais par Realtime : elles contiennent
+    // des colonnes financieres cloisonnees. Les notifications serveur et le
+    // rafraichissement groupe rechargent les vues expurgees par role.
 
     data.on("postgres_changes", { event: "*", schema: "public", table: "mission_applications" }, (payload) => {
       if (payload.eventType === "INSERT" && currentAccount.role === "admin") {
@@ -1142,11 +1533,14 @@ export default function App() {
   }, [focusMissionId]);
 
   async function handleEnablePush() {
-    const res = await enablePush(account);
+    const res = await enablePush();
     if (res.ok) { setPushState("enabled"); setNotice("Notifications push activées sur cet appareil."); }
     else if (res.reason === "no_vapid") { setPushState("dismissed"); setNotice("Notifications temps réel actives. (Le push système sera disponible une fois les clés VAPID configurées.)"); }
     else if (res.reason === "denied") { setPushState("dismissed"); setError("Notifications refusées par le navigateur."); }
-    else setPushState("dismissed");
+    else if (res.reason === "save_failed") {
+      setPushState("idle");
+      setError("L’appareil n’a pas pu être rattaché au compte. La boîte de notifications interne reste active.");
+    } else setPushState("dismissed");
   }
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
@@ -1204,291 +1598,388 @@ export default function App() {
   }), [missions.length, publishedMissions.length, activeAssignedMissions.length, completedOrDeliveredMissions.length, pendingRequests.length, pendingApplications.length]);
 
   /* ---------- Data loading ---------- */
+  async function signDocuments(rows) {
+    const mapped = (rows || []).map(documentFromDb);
+    return Promise.all(mapped.map(async (document) => {
+      if (!document.filePath) return document;
+      const bucket = document.docType ? "documents-pdf" : "documents";
+      try {
+        return {
+          ...document,
+          fileUrl: await createShortSignedUrl(bucket, document.filePath, 120),
+        };
+      } catch {
+        return { ...document, fileUrl: null };
+      }
+    }));
+  }
+
   async function loadAllData(currentAccount = account) {
     if (!currentAccount) return;
+    const accountId = currentAccount.id;
+    const generation = ++dataGenerationRef.current;
+    const isCurrentLoad = () => (
+      generation === dataGenerationRef.current
+      && accountRef.current?.id === accountId
+    );
     setLoading(true); setError("");
 
     try {
       if (currentAccount.role === "admin") {
         const [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
-          supabase.from("missions").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_applications").select("*").order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
-          supabase.from("accounts").select("*").eq("role", "transporter").order("created_at", { ascending: false }),
-          supabase.from("documents").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_events").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_photos").select("*").order("created_at", { ascending: false }),
+          supabase.from("secoto_missions_admin_v2").select(MISSION_ADMIN_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("accounts").select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,created_at").eq("role", "transporter").order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("documents").select(DOCUMENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult]) {
           if (r.error) throw r.error;
         }
+        const [signedDocuments, signedPhotos] = await Promise.all([
+          signDocuments(documentsResult.data),
+          hydrateSignedFileUrls((trackingPhotosResult.data || []).map(trackingPhotoFromDb), "mission-photos", 120),
+        ]);
+        if (!isCurrentLoad()) return;
         setMissions((missionsResult.data || []).map(missionFromDb));
         setPublicMissions([]);
         setRequests((requestsResult.data || []).map(requestFromDb));
         setApplications((applicationsResult.data || []).map(applicationFromDb));
         setTransporters((transportersResult.data || []).map(accountFromDb));
-        setDocuments((documentsResult.data || []).map(documentFromDb));
+        setDocuments(signedDocuments);
         setTrackingEvents((trackingEventsResult.data || []).map(trackingEventFromDb));
-        setTrackingPhotos((trackingPhotosResult.data || []).map(trackingPhotoFromDb));
+        setTrackingPhotos(signedPhotos);
       } else if (currentAccount.role === "client") {
         const [missionsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
-          supabase.from("missions").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_events").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_photos").select("*").order("created_at", { ascending: false }),
+          supabase.from("secoto_missions_client_v2").select(MISSION_CLIENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [missionsResult, trackingEventsResult, trackingPhotosResult]) { if (r.error) throw r.error; }
+        const signedPhotos = await hydrateSignedFileUrls(
+          (trackingPhotosResult.data || []).map(trackingPhotoFromDb),
+          "mission-photos",
+          120,
+        );
+        if (!isCurrentLoad()) return;
         setMissions((missionsResult.data || []).map(missionFromDb));
         setTrackingEvents((trackingEventsResult.data || []).map(trackingEventFromDb));
-        setTrackingPhotos((trackingPhotosResult.data || []).map(trackingPhotoFromDb));
+        setTrackingPhotos(signedPhotos);
         setPublicMissions([]); setRequests([]); setApplications([]); setTransporters([]); setDocuments([]);
       } else {
         const [publicResult, privateResult, requestsResult, applicationsResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
-          supabase.from("public_missions").select("*").order("created_at", { ascending: false }),
-          supabase.from("missions").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_requests").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_applications").select("*").order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }),
-          supabase.from("documents").select("*").eq("account_id", currentAccount.id).order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_events").select("*").order("created_at", { ascending: false }),
-          supabase.from("mission_tracking_photos").select("*").order("created_at", { ascending: false }),
+          supabase.from("secoto_public_missions_v2").select(PUBLIC_MISSION_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("secoto_missions_transporter_v2").select(MISSION_TRANSPORTER_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("documents").select(DOCUMENT_COLUMNS).eq("account_id", currentAccount.id).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [publicResult, privateResult, requestsResult, applicationsResult, documentsResult, trackingEventsResult, trackingPhotosResult]) {
           if (r.error) throw r.error;
         }
+        const [signedDocuments, signedPhotos] = await Promise.all([
+          signDocuments(documentsResult.data),
+          hydrateSignedFileUrls((trackingPhotosResult.data || []).map(trackingPhotoFromDb), "mission-photos", 120),
+        ]);
+        if (!isCurrentLoad()) return;
         setPublicMissions((publicResult.data || []).map(publicMissionFromDb));
         setMissions((privateResult.data || []).map(missionFromDb));
         setRequests((requestsResult.data || []).map(requestFromDb));
         setApplications((applicationsResult.data || []).map(applicationFromDb));
         setTransporters([]);
-        setDocuments((documentsResult.data || []).map(documentFromDb));
+        setDocuments(signedDocuments);
         setTrackingEvents((trackingEventsResult.data || []).map(trackingEventFromDb));
-        setTrackingPhotos((trackingPhotosResult.data || []).map(trackingPhotoFromDb));
+        setTrackingPhotos(signedPhotos);
       }
     } catch (err) {
-      setError(err.message || "Erreur lors du chargement Supabase.");
+      if (isCurrentLoad()) {
+        setError(err.message || "Erreur lors du chargement Supabase.");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentLoad()) setLoading(false);
     }
   }
 
   /* ---------- Actions ADMIN ---------- */
   async function createMission(e) {
-    e.preventDefault(); setActionLoading(true); setError(""); setNotice("");
+    e.preventDefault(); setError(""); setNotice("");
     try {
-      const { data, error } = await supabase.from("missions").insert(
-        missionToDb(missionForm, { status: "published", createdByRole: "admin" })
-      ).select("*").single();
-      if (error) throw error;
-      const created = missionFromDb(data);
-      setMissions((prev) => [created, ...prev]);
-      setMissionForm(emptyMissionForm);
-      setNotice("Mission publiée avec succès.");
-      setAdminTab("published");
-      triggerPush({ audience: "transporter", title: "Nouvelle course disponible", body: `${created.fromCity || "Départ"} → ${created.toCity || "Arrivée"}`, url: "/", missionId: created.id });
+      await runLocked("mission:create:admin", async () => {
+        const payload = missionToDb(missionForm, { status: "published", createdByRole: "admin" });
+        delete payload.public_ref;
+        const { data, error } = await supabase.rpc("secoto_create_mission", {
+          p_payload: payload,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        const created = missionFromDb(Array.isArray(data) ? data[0] : data);
+        setMissions((prev) => [created, ...prev.filter((mission) => mission.id !== created.id)]);
+        setMissionForm(emptyMissionForm);
+        setNotice("Mission publiée avec succès.");
+        setAdminTab("published");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la création de mission."); }
-    finally { setActionLoading(false); }
   }
 
   /* ---------- Actions CLIENT ---------- */
   async function createClientCourse(e) {
-    e.preventDefault(); setActionLoading(true); setError(""); setNotice("");
+    e.preventDefault(); setError(""); setNotice("");
     try {
-      const enriched = {
-        ...clientForm,
-        clientName: clientForm.clientName || account.fullName || account.companyName || "",
-        clientContact: clientForm.clientContact || account.email || "",
-        clientPhone: clientForm.clientPhone || account.phone || "",
-      };
-      const { data, error } = await supabase.from("missions").insert(
-        missionToDb(enriched, { status: "published", createdByRole: "client", clientAccountId: account.id })
-      ).select("*").single();
-      if (error) throw error;
-      const created = missionFromDb(data);
-      setMissions((prev) => [created, ...prev]);
-      setClientForm(emptyMissionForm);
-      setNotice("Votre course est publiée et visible par les transporteurs.");
-      setClientTab("courses");
-      // Notification/push vers les transporteurs
-      triggerPush({ audience: "transporter", title: "Nouvelle course disponible", body: `${created.fromCity || "Départ"} → ${created.toCity || "Arrivée"} · ${labelMissionType(created.type)}`, url: "/", missionId: created.id });
-      notifyAccount(account.id, { type: "system", title: "Course publiée", body: `${created.fromCity || "Départ"} → ${created.toCity || "Arrivée"}`, missionId: created.id });
+      await runLocked("mission:create:client", async () => {
+        const enriched = {
+          ...clientForm,
+          clientName: clientForm.clientName || account.fullName || account.companyName || "",
+          clientContact: clientForm.clientContact || account.email || "",
+          clientPhone: clientForm.clientPhone || account.phone || "",
+        };
+        const payload = missionToDb(enriched, {
+          status: "published",
+          createdByRole: "client",
+          clientAccountId: account.id,
+        });
+        delete payload.public_ref;
+        delete payload.client_account_id;
+        const { data, error } = await supabase.rpc("secoto_create_client_mission", {
+          p_payload: payload,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        const created = missionFromDb(Array.isArray(data) ? data[0] : data);
+        setMissions((prev) => [created, ...prev.filter((mission) => mission.id !== created.id)]);
+        setClientForm(emptyMissionForm);
+        setNotice("Votre course est publiée et visible par les transporteurs.");
+        setClientTab("courses");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la publication de la course."); }
-    finally { setActionLoading(false); }
   }
 
   async function createMissionRequest(e) {
-    e.preventDefault(); setActionLoading(true); setError(""); setNotice("");
+    e.preventDefault(); setError(""); setNotice("");
     try {
-      if (!account?.isVerified) throw new Error("Votre compte transporteur doit être vérifié pour proposer une mission.");
-      const { data, error } = await supabase.from("mission_requests").insert(requestToDb(requestForm, account)).select("*").single();
-      if (error) throw error;
-      setRequests((prev) => [requestFromDb(data), ...prev]);
-      setRequestForm(emptyMissionForm);
-      setNotice("Demande envoyée à SECOTO pour validation.");
-      setTransporterTab("requests");
+      await runLocked("request:create", async () => {
+        if (!account?.isVerified) throw new Error("Votre compte transporteur doit être vérifié pour proposer une mission.");
+        const payload = requestToDb(requestForm, account);
+        delete payload.public_ref;
+        delete payload.requester_id;
+        delete payload.requester_name;
+        delete payload.requester_company;
+        const { data, error } = await supabase.rpc("secoto_create_transporter_request", {
+          p_payload: payload,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        const created = requestFromDb(Array.isArray(data) ? data[0] : data);
+        setRequests((prev) => [created, ...prev.filter((request) => request.id !== created.id)]);
+        setRequestForm(emptyMissionForm);
+        setNotice("Demande envoyée à SECOTO pour validation.");
+        setTransporterTab("requests");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la demande de mise en ligne."); }
-    finally { setActionLoading(false); }
   }
 
   async function applyToMission(missionId) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      if (!account?.isVerified) throw new Error("Votre compte transporteur doit être vérifié par SECOTO pour candidater.");
-      const alreadyApplied = applications.some((a) => a.missionId === missionId && a.transporterId === account.id);
-      if (alreadyApplied) throw new Error("Vous avez déjà candidaté à cette mission.");
-      const rawPrice = applicationPrices[missionId];
-      const proposedPrice = Number(rawPrice);
-      if (!rawPrice || Number.isNaN(proposedPrice) || proposedPrice <= 0) throw new Error("Veuillez indiquer un tarif proposé valide.");
-
-      const { data, error } = await supabase.from("mission_applications").insert({
-        mission_id: missionId,
-        transporter_id: account.id,
-        transporter_name: account.fullName,
-        transporter_company: account.companyName,
-        transporter_status: account.isVerified ? "verified" : "unverified",
-        message: applicationMessages[missionId] || null,
-        proposed_price: proposedPrice,
-        price_note: applicationMessages[missionId] || null,
-        status: "pending",
-      }).select("*").single();
-      if (error) throw error;
-      setApplications((prev) => [applicationFromDb(data), ...prev]);
-      setApplicationMessages((prev) => ({ ...prev, [missionId]: "" }));
-      setApplicationPrices((prev) => ({ ...prev, [missionId]: "" }));
-      setNotice("Candidature envoyée avec votre tarif.");
-      setTransporterTab("applications");
+      await runLocked(`application:${missionId}`, async () => {
+        if (!account?.isVerified) throw new Error("Votre compte transporteur doit être vérifié par SECOTO pour candidater.");
+        const alreadyApplied = applications.some((a) => a.missionId === missionId && a.transporterId === account.id);
+        if (alreadyApplied) throw new Error("Vous avez déjà candidaté à cette mission.");
+        const rawPrice = applicationPrices[missionId];
+        const proposedPrice = Number(rawPrice);
+        if (!rawPrice || Number.isNaN(proposedPrice) || proposedPrice <= 0) throw new Error("Veuillez indiquer un tarif proposé valide.");
+        const { data, error } = await supabase.rpc("secoto_apply_to_mission", {
+          p_mission_id: missionId,
+          p_proposed_price: proposedPrice,
+          p_message: applicationMessages[missionId] || null,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        const created = applicationFromDb(Array.isArray(data) ? data[0] : data);
+        setApplications((prev) => [created, ...prev.filter((application) => application.id !== created.id)]);
+        setApplicationMessages((prev) => ({ ...prev, [missionId]: "" }));
+        setApplicationPrices((prev) => ({ ...prev, [missionId]: "" }));
+        setNotice("Candidature envoyée avec votre tarif.");
+        setTransporterTab("applications");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la candidature."); }
-    finally { setActionLoading(false); }
   }
 
   async function assignMission(missionId, application) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { error: missionError } = await supabase.from("missions").update({
-        status: "assigned",
-        assigned_transporter_id: application.transporterId,
-        assigned_transporter_name: application.transporterName,
-      }).eq("id", missionId);
-      if (missionError) throw missionError;
-      const { error: acceptError } = await supabase.from("mission_applications").update({ status: "accepted" }).eq("id", application.id);
-      if (acceptError) throw acceptError;
-      const { error: rejectError } = await supabase.from("mission_applications").update({ status: "rejected" }).eq("mission_id", missionId).neq("id", application.id);
-      if (rejectError) throw rejectError;
-
-      const mission = missions.find((m) => m.id === missionId);
-      notifyAccount(application.transporterId, { type: "course_assigned", title: "Mission attribuée", body: "Une mission vous a été attribuée par SECOTO.", missionId });
-      triggerPush({ accountId: application.transporterId, title: "Mission attribuée", body: "Vous avez une nouvelle mission SECOTO.", url: "/", missionId });
-      if (mission?.clientAccountId) {
-        notifyAccount(mission.clientAccountId, { type: "course_assigned", title: "Un transporteur a été attribué", body: `${application.transporterName} prend en charge votre course.`, missionId });
-        triggerPush({ accountId: mission.clientAccountId, title: "Transporteur attribué", body: `${application.transporterName} prend en charge votre course.`, url: "/", missionId });
-      }
-
-      // Le devis et le bon de mission sont émis AUTOMATIQUEMENT par la base
-      // dès que la mission passe en « attribuée » : rien à faire ici.
-      await loadAllData(account);
-      setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
-      setAdminTab("assigned");
+      await runLocked(`mission:assign:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_assign_mission", {
+          p_mission_id: missionId,
+          p_application_id: application.id,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
+        setAdminTab("assigned");
+      });
     } catch (err) { setError(err.message || "Erreur lors de l’attribution."); }
-    finally { setActionLoading(false); }
   }
 
   async function markMissionCompleted(missionId) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { error } = await supabase.from("missions").update({ status: "completed" }).eq("id", missionId);
-      if (error) throw error;
-      await loadAllData(account);
-      setNotice("Mission marquée comme terminée.");
-      setAdminTab("completed");
+      await runLocked(`mission:complete:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_transition_mission", {
+          p_mission_id: missionId,
+          p_target_status: "completed",
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Mission marquée comme terminée.");
+        setAdminTab("completed");
+      });
     } catch (err) { setError(err.message || "Erreur lors du changement de statut."); }
-    finally { setActionLoading(false); }
   }
 
   async function deleteMission(missionId, { confirmLabel = "Supprimer définitivement cette annonce ?" } = {}) {
     if (typeof window !== "undefined" && !window.confirm(confirmLabel)) return;
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      // Nettoyage des dépendances (les policies/FK peuvent l'exiger)
-      await supabase.from("mission_applications").delete().eq("mission_id", missionId);
-      const { error } = await supabase.from("missions").delete().eq("id", missionId);
-      if (error) throw error;
-      setMissions((prev) => prev.filter((m) => m.id !== missionId));
-      setNotice("Annonce supprimée.");
+      await runLocked(`mission:delete:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_delete_unstarted_mission", {
+          p_mission_id: missionId,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        setMissions((prev) => prev.filter((m) => m.id !== missionId));
+        setNotice("Annonce supprimée.");
+      });
     } catch (err) {
       setError(err.message || "Erreur lors de la suppression de l’annonce.");
-    } finally { setActionLoading(false); }
+    }
   }
 
   async function approveRequest(request) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { data: createdMission, error: missionError } = await supabase.from("missions").insert(
-        missionToDb(request, { status: "published", createdByRole: "transporter_request", sourceRequestId: request.id })
-      ).select("*").single();
-      if (missionError) throw missionError;
-      const { error: requestError } = await supabase.from("mission_requests").update({ status: "approved", approved_mission_id: createdMission.id }).eq("id", request.id);
-      if (requestError) throw requestError;
-      await loadAllData(account);
-      setNotice("Demande validée et mission publiée.");
-      setAdminTab("published");
+      await runLocked(`request:approve:${request.id}`, async () => {
+        const { error } = await supabase.rpc("secoto_approve_request", {
+          p_request_id: request.id,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Demande validée et mission publiée.");
+        setAdminTab("published");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la validation de la demande."); }
-    finally { setActionLoading(false); }
   }
 
   async function rejectRequest(requestId) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { error } = await supabase.from("mission_requests").update({ status: "rejected" }).eq("id", requestId);
-      if (error) throw error;
-      await loadAllData(account);
-      setNotice("Demande refusée.");
+      await runLocked(`request:reject:${requestId}`, async () => {
+        const { error } = await supabase.rpc("secoto_reject_request", {
+          p_request_id: requestId,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Demande refusée.");
+      });
     } catch (err) { setError(err.message || "Erreur lors du refus de la demande."); }
-    finally { setActionLoading(false); }
   }
 
   async function updateTransporterStatus(transporterId, updates) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { error } = await supabase.from("accounts").update(updates).eq("id", transporterId);
-      if (error) throw error;
-      if (updates.is_verified) {
-        notifyAccount(transporterId, { type: "system", title: "Compte validé", body: "Votre compte transporteur est vérifié : vous pouvez candidater aux missions." });
-      }
-      await loadAllData(account);
-      setNotice("Statut transporteur mis à jour.");
+      await runLocked(`transporter:status:${transporterId}`, async () => {
+        const { error } = await supabase.rpc("secoto_admin_set_transporter_status", {
+          p_transporter_id: transporterId,
+          p_status: updates.status,
+          p_is_verified: Boolean(updates.is_verified),
+          p_docs_count: Number.isFinite(updates.docs_count) ? updates.docs_count : null,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Statut transporteur mis à jour.");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la mise à jour du transporteur."); }
-    finally { setActionLoading(false); }
   }
 
   async function updateDocumentStatus(documentId, status) {
-    setActionLoading(true); setError(""); setNotice("");
+    setError(""); setNotice("");
     try {
-      const { error } = await supabase.from("documents").update({ status }).eq("id", documentId);
-      if (error) throw error;
-      await loadAllData(account);
-      setNotice("Document mis à jour.");
+      await runLocked(`document:status:${documentId}`, async () => {
+        const { error } = await supabase.rpc("secoto_admin_set_document_status", {
+          p_document_id: documentId,
+          p_status: status,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Document mis à jour.");
+      });
     } catch (err) { setError(err.message || "Erreur lors de la mise à jour du document."); }
-    finally { setActionLoading(false); }
   }
 
-  async function uploadTransporterDocument(e) {
-    const file = e.target.files?.[0];
-    if (!file || !account) return;
-    setActionLoading(true); setError(""); setNotice("");
+  async function uploadTransporterDocument() {
+    if (!account || documentFiles.length !== 1) {
+      setError("Sélectionnez une pièce avant l’envoi.");
+      return;
+    }
+    const validation = validateFiles(documentFiles, {
+      allowPdf: true,
+      maxFiles: 1,
+      maxSizeBytes: 12 * 1024 * 1024,
+      minFiles: 1,
+    });
+    if (!validation.ok) {
+      setError(validation.errors.join(" "));
+      return;
+    }
+    setError(""); setNotice("");
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `${account.id}/${Date.now()}-${safeName}`;
-      const { error: uploadError } = await supabase.storage.from("documents").upload(path, file, { upsert: false });
-      if (uploadError) throw uploadError;
-      const { data: publicUrlData } = supabase.storage.from("documents").getPublicUrl(path);
-      const { data, error: insertError } = await supabase.from("documents").insert({
-        account_id: account.id, type: documentType, document_type: documentType,
-        file_name: file.name, file_path: path, file_url: publicUrlData.publicUrl, status: "uploaded",
-      }).select("*").single();
-      if (insertError) throw insertError;
-      setDocuments((prev) => [documentFromDb(data), ...prev]);
-      setNotice("Pièce justificative envoyée.");
-      e.target.value = "";
-    } catch (err) { setError(err.message || "Erreur lors de l’envoi du document."); }
-    finally { setActionLoading(false); }
+      await runLocked("document:upload", async () => {
+        const file = documentFiles[0];
+        const path = await buildPrivateFilePath({
+          accountId: account.id,
+          operationId: documentOperationId,
+          index: 0,
+          file,
+        });
+        setUploadProgress((previous) => ({ ...previous, document: 0 }));
+        await uploadPrivateFile({
+          bucket: "documents",
+          path,
+          file,
+          onProgress: (progress) => setUploadProgress((previous) => ({ ...previous, document: progress })),
+        });
+        const { data, error } = await supabase.rpc("secoto_register_transporter_document", {
+          p_document_type: documentType,
+          p_file_name: file.name,
+          p_file_path: path,
+          p_mime_type: file.type,
+          p_size_bytes: file.size,
+          p_idempotency_key: documentOperationId,
+        });
+        if (error) throw error;
+        const mapped = documentFromDb(Array.isArray(data) ? data[0] : data);
+        const signed = {
+          ...mapped,
+          fileUrl: await createShortSignedUrl("documents", path, 120),
+        };
+        setDocuments((previous) => [signed, ...previous.filter((document) => document.id !== signed.id)]);
+        setDocumentFiles([]);
+        setDocumentOperationId(randomIdempotencyKey());
+        setUploadProgress((previous) => ({ ...previous, document: null }));
+        setNotice("Pièce justificative envoyée.");
+      });
+    } catch (err) {
+      setError(err.message || "Erreur lors de l’envoi du document. Vous pouvez réessayer sans créer de doublon.");
+    }
   }
 
   // Pièces justificatives déposées par un compte (jamais les documents générés).
@@ -1505,72 +1996,224 @@ export default function App() {
 
   function getTrackingForm(missionId, eventType) {
     return trackingForms[trackingKey(missionId, eventType)] || {
-      comment: "", odometerKm: "", fuelLevel: "unknown", issueType: "autre", issueSeverity: "moyen", photoType: "general", files: [],
+      comment: "",
+      odometerKm: "",
+      fuelLevel: "unknown",
+      issueType: "autre",
+      issueSeverity: "moyen",
+      photoType: "general",
+      files: [],
+      location: null,
+      operationId: null,
     };
   }
   function updateTrackingForm(missionId, eventType, patch) {
     const key = trackingKey(missionId, eventType);
-    setTrackingForms((prev) => ({ ...prev, [key]: { ...getTrackingForm(missionId, eventType), ...patch } }));
-  }
-  function progressFromEventType(eventType) {
-    if (eventType === "pickup_inspection") return "pickup_completed";
-    if (eventType === "road_incident") return "incident_reported";
-    if (eventType === "delivery_inspection") return "delivery_completed";
-    return "assigned_pending";
+    const next = {
+      ...getTrackingForm(missionId, eventType),
+      ...patch,
+    };
+    setTrackingForms((prev) => ({ ...prev, [key]: next }));
+    if (account?.id) {
+      const owner = account.id;
+      const previousTimer = draftTimersRef.current.get(key);
+      if (previousTimer) clearTimeout(previousTimer);
+      draftTimersRef.current.set(key, setTimeout(() => {
+        draftTimersRef.current.delete(key);
+        saveTrackingDraft(owner, missionId, eventType, next).catch(() => {
+          if (accountRef.current?.id === owner) {
+            setError("Le brouillon reste utilisable, mais sa sauvegarde chiffrée a échoué.");
+          }
+        });
+      }, 350));
+    }
   }
 
-  async function submitTrackingEvent(mission, eventType) {
+  async function captureTrackingLocation(missionId, eventType) {
+    setNotice("La position est facultative et sera capturée une seule fois pour cette étape.");
+    const result = await getOneTimeLocation();
+    if (!result.ok) {
+      setNotice("");
+      if (result.reason === "denied") {
+        setError("Position refusée : vous pouvez continuer et saisir les informations manuellement.");
+      } else {
+        setError("Position indisponible : le parcours reste utilisable sans géolocalisation.");
+      }
+      return;
+    }
+    updateTrackingForm(missionId, eventType, { location: result });
+    setError("");
+    setNotice("Position ponctuelle ajoutée à cette étape.");
+  }
+
+  async function refreshPendingSyncCount() {
+    if (!account?.id) return;
+    try {
+      const pending = await listPendingActions(account.id);
+      setPendingSyncCount(pending.length);
+    } catch {
+      setPendingSyncCount(0);
+    }
+  }
+
+  async function submitTrackingEvent(mission, eventType, { fromQueue = false } = {}) {
     const form = getTrackingForm(mission.id, eventType);
     const files = form.files || [];
-    setActionLoading(true); setError(""); setNotice("");
+    const requiresProof = eventType === "pickup_inspection" || eventType === "delivery_inspection";
+    const validation = validateFiles(files, {
+      allowPdf: eventType === "road_incident",
+      maxFiles: 10,
+      maxSizeBytes: 12 * 1024 * 1024,
+      minFiles: requiresProof ? 1 : 0,
+      requireImage: requiresProof,
+    });
+    if (!validation.ok) {
+      setError(validation.errors.join(" "));
+      return false;
+    }
+
+    const operationId = form.operationId || randomIdempotencyKey();
+    if (!form.operationId) updateTrackingForm(mission.id, eventType, { operationId });
+    setError(""); setNotice("");
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await queueTrackingAction(account.id, mission.id, eventType, operationId);
+      await saveTrackingDraft(account.id, mission.id, eventType, { ...form, operationId });
+      await refreshPendingSyncCount();
+      setNotice("Hors ligne : l’étape et ses photos sont chiffrées sur l’appareil et seront reprises au retour du réseau.");
+      return false;
+    }
+
     try {
-      const { data: createdEvent, error: eventError } = await supabase.from("mission_tracking_events").insert({
-        mission_id: mission.id, transporter_id: account.id, event_type: eventType,
-        title: labelTrackingEventType(eventType), comment: form.comment || null,
-        odometer_km: form.odometerKm ? Number(form.odometerKm) : null, fuel_level: form.fuelLevel || "unknown",
-        issue_type: eventType === "road_incident" ? form.issueType : null,
-        issue_severity: eventType === "road_incident" ? form.issueSeverity : null,
-      }).select("*").single();
-      if (eventError) throw eventError;
+      const result = await runLocked(`tracking:${mission.id}:${eventType}`, async () => {
+        const progressKey = `${mission.id}:${eventType}`;
+        const uploadedFiles = [];
+        for (let index = 0; index < files.length; index += 1) {
+          const file = files[index];
+          const path = await buildPrivateFilePath({
+            accountId: account.id,
+            missionId: mission.id,
+            operationId,
+            index,
+            file,
+          });
+          await uploadPrivateFile({
+            bucket: "mission-photos",
+            path,
+            file,
+            onProgress: (fileProgress) => {
+              const aggregate = Math.round(((index + fileProgress / 100) / Math.max(files.length, 1)) * 100);
+              setUploadProgress((previous) => ({ ...previous, [progressKey]: aggregate }));
+            },
+          });
+          uploadedFiles.push({
+            file_name: file.name,
+            file_path: path,
+            photo_type: form.photoType || "general",
+            mime_type: file.type,
+            size_bytes: file.size,
+          });
+        }
 
-      const createdPhotos = [];
-      for (const file of files) {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${mission.id}/${createdEvent.id}/${Date.now()}-${safeName}`;
-        const { error: uploadError } = await supabase.storage.from("mission-photos").upload(path, file, { upsert: false });
-        if (uploadError) throw uploadError;
-        const { data: publicUrlData } = supabase.storage.from("mission-photos").getPublicUrl(path);
-        const { data: createdPhoto, error: photoError } = await supabase.from("mission_tracking_photos").insert({
-          tracking_event_id: createdEvent.id, mission_id: mission.id, transporter_id: account.id,
-          photo_type: form.photoType || "general", file_name: file.name, file_path: path, file_url: publicUrlData.publicUrl,
-        }).select("*").single();
-        if (photoError) throw photoError;
-        createdPhotos.push(trackingPhotoFromDb(createdPhoto));
+        const location = form.location || null;
+        const { error: rpcError } = await supabase.rpc("secoto_finalize_tracking_event", {
+          p_mission_id: mission.id,
+          p_event_type: eventType,
+          p_payload: {
+            comment: form.comment || null,
+            odometer_km: form.odometerKm ? Number(form.odometerKm) : null,
+            fuel_level: form.fuelLevel || "unknown",
+            issue_type: eventType === "road_incident" ? form.issueType : null,
+            issue_severity: eventType === "road_incident" ? form.issueSeverity : null,
+            latitude: location?.latitude ?? null,
+            longitude: location?.longitude ?? null,
+            location_accuracy_m: location?.accuracy ?? null,
+            expected_progress_status: progressFromTrackingEvent(eventType),
+          },
+          p_files: uploadedFiles,
+          p_idempotency_key: operationId,
+        });
+        if (rpcError) throw rpcError;
+
+        const draftKey = trackingKey(mission.id, eventType);
+        const draftTimer = draftTimersRef.current.get(draftKey);
+        if (draftTimer) clearTimeout(draftTimer);
+        draftTimersRef.current.delete(draftKey);
+        await removeTrackingDraft(account.id, mission.id, eventType).catch(() => {});
+        await removeEncryptedRecord(`queue:${account.id}:${operationId}`).catch(() => {});
+        setTrackingForms((previous) => {
+          const next = { ...previous };
+          delete next[trackingKey(mission.id, eventType)];
+          return next;
+        });
+        setUploadProgress((previous) => ({ ...previous, [progressKey]: null }));
+        await refreshPendingSyncCount();
+        await loadAllData(account);
+        setNotice(
+          eventType === "delivery_inspection"
+            ? "Livraison validée et état des lieux d’arrivée transmis."
+            : `${labelTrackingEventType(eventType)} transmis.`,
+        );
+        return true;
+      });
+      return Boolean(result && !result.skipped);
+    } catch (err) {
+      const networkError =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        err instanceof TypeError ||
+        /network|réseau|fetch|interrompu|timeout/i.test(err?.message || "");
+      if (networkError) {
+        await queueTrackingAction(account.id, mission.id, eventType, operationId).catch(() => {});
+        await saveTrackingDraft(account.id, mission.id, eventType, { ...form, operationId }).catch(() => {});
+        await refreshPendingSyncCount();
+        setNotice("Envoi interrompu : les éléments restent chiffrés sur l’appareil et seront réessayés.");
+        if (!fromQueue) setError("");
+      } else {
+        setError(err.message || "Erreur lors de l’envoi du suivi mission.");
       }
-
-      const missionPatch = { progress_status: progressFromEventType(eventType), last_tracking_event_at: new Date().toISOString() };
-      if (eventType === "delivery_inspection") missionPatch.status = "completed";
-      const { error: missionUpdateError } = await supabase.from("missions").update(missionPatch).eq("id", mission.id);
-      if (missionUpdateError) throw missionUpdateError;
-
-      setTrackingEvents((prev) => [trackingEventFromDb(createdEvent), ...prev]);
-      setTrackingPhotos((prev) => [...createdPhotos, ...prev]);
-      updateTrackingForm(mission.id, eventType, { comment: "", odometerKm: "", files: [] });
-
-      // Notifier le client de l'avancement
-      if (mission.clientAccountId) {
-        const stepLabel = eventType === "pickup_inspection" ? "Véhicule pris en charge"
-          : eventType === "delivery_inspection" ? "Véhicule livré"
-          : "Incident signalé sur votre transport";
-        notifyAccount(mission.clientAccountId, { type: eventType === "delivery_inspection" ? "delivered" : "tracking_update", title: stepLabel, body: `${mission.fromCity || "Départ"} → ${mission.toCity || "Arrivée"}`, missionId: mission.id });
-        triggerPush({ accountId: mission.clientAccountId, title: stepLabel, body: `${mission.fromCity || "Départ"} → ${mission.toCity || "Arrivée"}`, url: "/", missionId: mission.id });
-      }
-
-      setNotice(eventType === "delivery_inspection" ? "Livraison validée et état des lieux d’arrivée transmis." : `${labelTrackingEventType(eventType)} transmis.`);
-      await loadAllData(account);
-    } catch (err) { setError(err.message || "Erreur lors de l’envoi du suivi mission."); }
-    finally { setActionLoading(false); }
+      return false;
+    }
   }
+
+  async function resumePendingTrackingActions() {
+    if (!account?.id || !networkConnected || pendingSyncRef.current) return;
+    pendingSyncRef.current = true;
+    try {
+      const pending = await listPendingActions(account.id);
+      setPendingSyncCount(pending.length);
+      for (const item of pending) {
+        const action = item.value;
+        if (action?.type !== "tracking") continue;
+        let mission = missions.find((candidate) => candidate.id === action.missionId);
+        if (!mission) {
+          const { data } = await supabase
+            .from("secoto_missions_transporter_v2")
+            .select(MISSION_TRANSPORTER_COLUMNS)
+            .eq("id", action.missionId)
+            .maybeSingle();
+          mission = data ? missionFromDb(data) : null;
+        }
+        if (!mission || isMissionDeliveryValidated(mission)) {
+          await removeEncryptedRecord(item.key).catch(() => {});
+          await removeTrackingDraft(account.id, action.missionId, action.eventType).catch(() => {});
+          continue;
+        }
+        await submitTrackingEvent(mission, action.eventType, { fromQueue: true });
+      }
+      await refreshPendingSyncCount();
+    } finally {
+      pendingSyncRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!account?.id || !networkConnected || pendingSyncCount === 0 || missions.length === 0) return undefined;
+    const timer = setTimeout(() => {
+      resumePendingTrackingActions().catch(() => {});
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.id, networkConnected, pendingSyncCount, missions.length]);
 
   function hasDeliveryInspection(missionId) {
     return trackingEvents.some((event) => event.missionId === missionId && event.eventType === "delivery_inspection");
@@ -1670,20 +2313,44 @@ export default function App() {
             </label>
           </>
         )}
-        <label className="field field-full">
-          <span>Photos{isDelivery ? " de livraison" : ""}</span>
-          <input type="file" accept="image/*,.pdf" multiple onChange={(e) => updateTrackingForm(mission.id, eventType, { files: Array.from(e.target.files || []) })} />
-        </label>
+        <SecureFilePicker
+          files={form.files}
+          onChange={(files) => updateTrackingForm(mission.id, eventType, { files })}
+          label={`Photos${isDelivery ? " de livraison" : ""}${isIncident ? " / justificatifs" : " (au moins une photo obligatoire)"}`}
+          allowPdf={isIncident}
+          maxFiles={10}
+          disabled={actionLoading}
+          progress={uploadProgress[`${mission.id}:${eventType}`]}
+        />
+        <div className="field field-full location-box">
+          <span>Position ponctuelle (facultative)</span>
+          <small>Uniquement au moment de cette prise en charge, de cet incident ou de cette livraison. Aucun suivi en arrière-plan.</small>
+          <div className="actions-row">
+            <button
+              className="btn ghost small"
+              type="button"
+              onClick={() => captureTrackingLocation(mission.id, eventType)}
+              disabled={actionLoading}
+            >
+              {form.location ? "Actualiser la position" : "Ajouter ma position"}
+            </button>
+            {form.location && (
+              <span className="status status-accepted">
+                Position ajoutée · précision {Math.round(form.location.accuracy || 0)} m
+              </span>
+            )}
+          </div>
+        </div>
         <label className="field field-full">
           <span>Commentaire</span>
           <textarea value={form.comment} onChange={(e) => updateTrackingForm(mission.id, eventType, { comment: e.target.value })} placeholder="État du véhicule, réserves ou problème constaté." />
         </label>
         {isDelivery ? (
-          <button className="btn primary field-full track-submit deliver" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
+          <button className="btn primary field-full track-submit deliver" type="button" disabled={actionLoading} onClick={() => submitTrackingEvent(mission, eventType)}>
             Valider la livraison
           </button>
         ) : (
-          <button className="btn primary field-full track-submit" type="button" onClick={() => submitTrackingEvent(mission, eventType)}>
+          <button className="btn primary field-full track-submit" type="button" disabled={actionLoading} onClick={() => submitTrackingEvent(mission, eventType)}>
             Transmettre {labelTrackingEventType(eventType)}
           </button>
         )}
@@ -1721,61 +2388,66 @@ export default function App() {
     try {
       setError(""); setNotice("");
       if (!doc?.filePath) throw new Error("Chemin du document introuvable.");
-      const { data, error } = await supabase.storage.from("documents").createSignedUrl(doc.filePath, 120);
-      if (error) throw error;
-      if (!data?.signedUrl) throw new Error("Lien sécurisé impossible à générer.");
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      const bucket = doc.docType ? "documents-pdf" : "documents";
+      const signedUrl = await createShortSignedUrl(bucket, doc.filePath, 120);
+      await shareOrOpen({
+        title: doc.fileName || "Document SECOTO",
+        text: "Document SECOTO — lien temporaire sécurisé",
+        url: signedUrl,
+      });
     } catch (err) { setError(err.message || "Impossible d’ouvrir le document sécurisé."); }
   }
 
   async function signOut() {
+    accountLoadGenerationRef.current += 1;
+    dataGenerationRef.current += 1;
+    notificationGenerationRef.current += 1;
+    for (const timer of draftTimersRef.current.values()) clearTimeout(timer);
+    draftTimersRef.current.clear();
+    const owner = account?.id;
+    await disablePush(account?.id);
     await supabase.auth.signOut();
     supabase.removeAllChannels();
+    if (owner) await clearEncryptedAccountData(owner).catch(() => {});
     setSession(null); setAccount(null);
     setMissions([]); setPublicMissions([]); setRequests([]); setApplications([]);
     setTransporters([]); setDocuments([]); setTrackingEvents([]); setTrackingPhotos([]);
     setTrackingForms({}); setNotifications([]);
+    setPushState("idle");
   }
 
-  // Suppression de compte en un clic (exigence Apple). Supprime les donnees
-  // et le compte d'authentification via la fonction SQL secoto_delete_account,
-  // puis deconnecte.
+  // Suppression via une fonction serveur authentifiee : Storage, donnees
+  // personnelles, tokens et Auth sont traites sans exposer service_role.
   async function deleteAccount() {
     const ok = window.confirm(
       "Supprimer définitivement votre compte et vos données ? Cette action est irréversible."
     );
     if (!ok) return;
+    const confirmation = window.prompt("Pour confirmer, saisissez SUPPRIMER");
+    if (confirmation !== "SUPPRIMER") {
+      setError("Suppression annulée : confirmation incorrecte.");
+      return;
+    }
     setError("");
     try {
-      const { error } = await supabase.rpc("secoto_delete_account");
-      if (error) throw error;
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data?.session?.access_token;
+      if (!accessToken) throw new Error("Session expirée. Reconnectez-vous avant cette action.");
+      const response = await fetch(getServerFunctionUrl("request-account-deletion"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ idempotencyKey: randomIdempotencyKey() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Demande de suppression refusée.");
       await signOut();
-      window.alert("Votre compte et vos données ont été supprimés.");
+      window.alert("Votre demande est enregistrée. Les données non soumises à conservation sont supprimées ; les pièces légales sont anonymisées et conservées selon la durée annoncée.");
     } catch (e) {
       setError(e.message || "Suppression du compte impossible. Réessayez ou contactez le support.");
     }
-  }
-
-  // Bloc "zone sensible" reutilisable : lien confidentialite + suppression compte.
-  function AccountDangerZone() {
-    return (
-      <div className="danger-zone">
-        <button
-          className="privacy-link"
-          type="button"
-          onClick={() => window.open("https://app.secoto-transport.fr/politique-confidentialite.html", "_system")}
-        >
-          Politique de confidentialité
-        </button>
-        <button className="btn danger small" type="button" onClick={deleteAccount}>
-          Supprimer mon compte
-        </button>
-        <p className="muted danger-note">
-          La suppression efface votre compte et vos données personnelles. Les documents comptables
-          légalement obligatoires (factures) peuvent être conservés le temps prévu par la loi.
-        </p>
-      </div>
-    );
   }
 
   function getMissionApplications(missionId) {
@@ -1905,7 +2577,7 @@ export default function App() {
         </summary>
         <div style={{ marginTop: 14 }}>
           <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} showPricing={isAdmin} />
+          <PrivateMissionInfo mission={mission} pricingView="transporter" />
           {renderTrackingTimeline(mission)}
         </div>
       </details>
@@ -2134,6 +2806,10 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery && session) {
+    return <PasswordRecoveryScreen onDone={() => setPasswordRecovery(false)} />;
+  }
+
   if (!session) return <PublicEntry />;
 
   if (!account) {
@@ -2214,6 +2890,21 @@ export default function App() {
 
       {loading && <div className="alert">Synchronisation des données SECOTO…</div>}
       {actionLoading && <div className="alert">Traitement en cours…</div>}
+      {!networkConnected && (
+        <div className="alert">
+          Mode hors ligne : les brouillons terrain et photos en attente sont conservés chiffrés sur cet appareil.
+        </div>
+      )}
+      {pendingSyncCount > 0 && (
+        <div className="alert">
+          {pendingSyncCount} action{pendingSyncCount > 1 ? "s" : ""} en attente de synchronisation.
+          {networkConnected && (
+            <button className="btn ghost small" type="button" onClick={resumePendingTrackingActions}>
+              Réessayer maintenant
+            </button>
+          )}
+        </div>
+      )}
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
 
@@ -2239,7 +2930,11 @@ export default function App() {
                 )}
                 <div className="cards">
                   {clientMissions.map((mission) => (
-                    <article className="mission-card" key={mission.id}>
+                    <article
+                      id={`mission-${mission.id}`}
+                      className={`mission-card${focusMissionId === mission.id ? " is-focused" : ""}`}
+                      key={mission.id}
+                    >
                       <div className="card-top">
                         <span className="badge">{mission.publicRef}</span>
                         <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
@@ -2289,7 +2984,7 @@ export default function App() {
                     <p><strong>Ville :</strong> {account.city || "Non renseignée"}</p>
                   </div>
                 </div>
-                <AccountDangerZone />
+                <AccountDangerZone onDelete={deleteAccount} />
               </div>
             </section>
           )}
@@ -2305,7 +3000,7 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Créer une mission</h2>
-                <MissionForm form={missionForm} setForm={setMissionForm} onSubmit={createMission} submitLabel="Publier la mission" />
+                <MissionForm form={missionForm} setForm={setMissionForm} onSubmit={createMission} submitLabel="Publier la mission" showPricing disabled={actionLoading} />
               </div>
             </section>
           )}
@@ -2476,7 +3171,11 @@ export default function App() {
                 {visiblePublicMissions.length === 0 && <p className="muted">Aucune mission disponible actuellement.</p>}
                 <div className="cards">
                   {visiblePublicMissions.map((mission) => (
-                    <article className="mission-card" key={mission.id}>
+                    <article
+                      id={`mission-${mission.id}`}
+                      className={`mission-card${focusMissionId === mission.id ? " is-focused" : ""}`}
+                      key={mission.id}
+                    >
                       <div className="card-top">
                         <span className="badge">{mission.publicRef}</span>
                         <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
@@ -2539,14 +3238,34 @@ export default function App() {
                       <div className="cards">
                         {activeMissions.length === 0 && <div className="alert success">Aucune mission en cours.</div>}
                         {activeMissions.map((mission) => (
-                          <article className="mission-card" key={mission.id}>
+                          <article
+                            id={`mission-${mission.id}`}
+                            className={`mission-card${focusMissionId === mission.id ? " is-focused" : ""}`}
+                            key={mission.id}
+                          >
                             <div className="card-top">
                               <span className="badge">{mission.publicRef}</span>
                               <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />
-                            <PrivateMissionInfo mission={mission} showPricing={isAdmin} />
+                            <PrivateMissionInfo mission={mission} pricingView="transporter" />
+                            <div className="actions-row">
+                              <button
+                                className="btn ghost small"
+                                type="button"
+                                onClick={() => openRoute({ address: mission.pickupAddress || mission.fromCity })}
+                              >
+                                Itinéraire vers la prise en charge
+                              </button>
+                              <button
+                                className="btn ghost small"
+                                type="button"
+                                onClick={() => openRoute({ address: mission.deliveryAddress || mission.toCity })}
+                              >
+                                Itinéraire vers la livraison
+                              </button>
+                            </div>
                             {renderTrackingTimeline(mission)}
                             <div className="applications-box">
                               <h4>Actions terrain</h4>
@@ -2577,7 +3296,7 @@ export default function App() {
                 {isAdmin ? <p className="muted">Prévisualisation admin.</p> : (
                   <>
                     {!account.isVerified && <div className="alert error">Compte non vérifié : impossible de proposer une mission.</div>}
-                    <MissionForm form={requestForm} setForm={setRequestForm} onSubmit={createMissionRequest} submitLabel="Envoyer à SECOTO" />
+                    <MissionForm form={requestForm} setForm={setRequestForm} onSubmit={createMissionRequest} submitLabel="Envoyer à SECOTO" showPricing={false} disabled={actionLoading || !account.isVerified} />
                   </>
                 )}
               </div>
@@ -2660,10 +3379,26 @@ export default function App() {
                             <option value="autre">Autre document</option>
                           </select>
                         </label>
-                        <label className="field">
-                          <span>Fichier PDF / image</span>
-                          <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={uploadTransporterDocument} />
-                        </label>
+                        <SecureFilePicker
+                          files={documentFiles}
+                          onChange={(files) => {
+                            setDocumentFiles(files.slice(0, 1));
+                            setDocumentOperationId(randomIdempotencyKey());
+                          }}
+                          label="Fichier PDF ou image"
+                          allowPdf
+                          maxFiles={1}
+                          disabled={actionLoading}
+                          progress={uploadProgress.document}
+                        />
+                        <button
+                          className="btn primary field-full"
+                          type="button"
+                          onClick={uploadTransporterDocument}
+                          disabled={actionLoading || documentFiles.length !== 1}
+                        >
+                          Envoyer la pièce privée
+                        </button>
                       </div>
                       <div className="cards" style={{ marginTop: 18 }}>
                         {documents.length === 0 && <p className="muted">Aucun document envoyé.</p>}
@@ -2679,7 +3414,7 @@ export default function App() {
                         ))}
                       </div>
                     </div>
-                    <AccountDangerZone />
+                    <AccountDangerZone onDelete={deleteAccount} />
                   </>
                 )}
               </div>

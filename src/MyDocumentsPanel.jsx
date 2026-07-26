@@ -147,7 +147,12 @@ export default function MyDocumentsPanel({ account, focusMissionId = null }) {
 
                 {isOpen && (
                   <div className="doc-inline-preview">
-                    <iframe title={`Document ${doc.numero}`} srcDoc={withSignature(doc)} />
+                    <iframe
+                      title={`Document ${doc.numero}`}
+                      srcDoc={withSignature(doc)}
+                      sandbox=""
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                 )}
 

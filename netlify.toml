@@ -9,6 +9,22 @@
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,SUPABASE_URL"
 
+[functions."retry-push-outbox"]
+  schedule = "* * * * *"
+
+[functions."retry-account-deletions"]
+  schedule = "*/5 * * * *"
+
+[[redirects]]
+  from = "/suppression-compte"
+  to = "/suppression-compte.html"
+  status = 301
+
+[[redirects]]
+  from = "/politique-confidentialite"
+  to = "/politique-confidentialite.html"
+  status = 301
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

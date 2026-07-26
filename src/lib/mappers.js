@@ -94,8 +94,6 @@ export function publicMissionFromDb(row) {
     progressStatus: row.progress_status,
     fromCity: row.from_city,
     toCity: row.to_city,
-    pickupAddress: row.pickup_address,
-    deliveryAddress: row.delivery_address,
     vehicle: row.vehicle,
     distanceKm: row.distance_km,
     createdAt: row.created_at,
@@ -127,7 +125,9 @@ export function documentFromDb(row) {
     type: row.type,
     fileName: row.file_name,
     filePath: row.file_path,
-    fileUrl: row.file_url,
+    // Les anciennes URL publiques restent en base pour migration, mais ne sont
+    // jamais consommées. L'application injecte uniquement une URL signée.
+    fileUrl: row.signed_url || null,
     status: row.status,
     // Documents generes (devis / bon de mission / facture). Restent nuls pour
     // les pieces justificatives deposees par les transporteurs.
@@ -153,6 +153,10 @@ export function trackingEventFromDb(row) {
     fuelLevel: row.fuel_level,
     issueType: row.issue_type,
     issueSeverity: row.issue_severity,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    locationAccuracy: row.location_accuracy_m,
+    locationRecordedAt: row.location_recorded_at,
     createdAt: row.created_at,
   };
 }
@@ -166,7 +170,7 @@ export function trackingPhotoFromDb(row) {
     photoType: row.photo_type,
     fileName: row.file_name,
     filePath: row.file_path,
-    fileUrl: row.file_url,
+    fileUrl: row.signed_url || null,
     createdAt: row.created_at,
   };
 }

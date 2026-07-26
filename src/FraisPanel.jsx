@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FRAIS_TYPES,
   listMyFrais,
@@ -13,6 +13,9 @@ import {
 import { formatAmount } from "./lib/pricing";
 import { labelStatus } from "./lib/mappers";
 import { supabase } from "./supabaseClient";
+import SecureFilePicker from "./SecureFilePicker";
+import { randomIdempotencyKey } from "./lib/fileSafety";
+import { shareOrOpen } from "./platform/runtime";
 
 const STATUT_LABEL = { en_attente: "En attente", valide: "Validé", refuse: "Refusé" };
 
@@ -31,8 +34,11 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
   const [missionId, setMissionId] = useState("");
   const [type, setType] = useState("essence");
   const [montant, setMontant] = useState("");
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [operationId, setOperationId] = useState(() => randomIdempotencyKey());
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   async function reload() {
     setLoading(true);
@@ -59,19 +65,32 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
 
   async function onSubmit(e) {
     e.preventDefault();
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await createFrais({ transporterId: account.id, missionId, type, montant, file });
+      await createFrais({
+        transporterId: account.id,
+        missionId,
+        type,
+        montant,
+        file: files[0],
+        operationId,
+        onProgress: setUploadProgress,
+      });
       setNotice("Frais envoyé. En attente de validation SECOTO.");
-      setMissionId(""); setType("essence"); setMontant(""); setFile(null);
+      setMissionId(""); setType("essence"); setMontant(""); setFiles([]);
+      setOperationId(randomIdempotencyKey());
+      setUploadProgress(null);
       e.target.reset?.();
       await reload();
     } catch (err) {
       setError(err.message || "Envoi impossible.");
     }
     setBusy(false);
+    busyRef.current = false;
   }
 
   async function onValidate(id) {
@@ -91,7 +110,11 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
   async function openJustificatif(path) {
     try {
       const url = await justificatifUrl(path);
-      window.open(url, "_blank");
+      await shareOrOpen({
+        title: "Justificatif SECOTO",
+        text: "Justificatif privé — lien temporaire sécurisé",
+        url,
+      });
     } catch (e) {
       setError(e.message || "Justificatif indisponible.");
     }
@@ -126,11 +149,19 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
             <span>Montant € *</span>
             <input type="number" step="0.01" min="0" value={montant} onChange={(e) => setMontant(e.target.value)} required />
           </label>
-          <label className="field">
-            <span>Justificatif (photo / PDF) *</span>
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} required />
-          </label>
-          <button className="btn primary field-full" type="submit" disabled={busy}>
+          <SecureFilePicker
+            files={files}
+            onChange={(selected) => {
+              setFiles(selected.slice(0, 1));
+              setOperationId(randomIdempotencyKey());
+            }}
+            label="Justificatif (photo ou PDF) *"
+            allowPdf
+            maxFiles={1}
+            disabled={busy}
+            progress={uploadProgress}
+          />
+          <button className="btn primary field-full" type="submit" disabled={busy || files.length !== 1}>
             {busy ? "Envoi…" : "Envoyer le frais"}
           </button>
         </form>

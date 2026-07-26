@@ -1,20 +1,66 @@
 /* SECOTO — Service Worker (PWA + Web Push) */
-const CACHE = "secoto-shell-v1";
+const CACHE = "secoto-shell-v3";
+const OFFLINE_SHELL = [
+  "/",
+  "/manifest.json",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/politique-confidentialite.html",
+  "/suppression-compte.html",
+];
 
 self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(OFFLINE_SHELL)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("secoto-shell-") && key !== CACHE).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/.netlify/functions/")) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          const cacheKey = url.pathname === "/" ? "/" : request;
+          caches.open(CACHE).then((cache) => cache.put(cacheKey, copy));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const refresh = fetch(request)
+        .then((response) => {
+          if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
+          return response;
+        })
+        .catch(() => cached);
+      return cached || refresh;
+    }),
+  );
 });
 
 // Réception d'une notification push envoyée par le serveur (fonction Netlify).
 self.addEventListener("push", (event) => {
-  let payload = {};
+  let payload;
   try {
     payload = event.data ? event.data.json() : {};
-  } catch (e) {
+  } catch {
     payload = { title: "SECOTO", body: event.data ? event.data.text() : "" };
   }
 

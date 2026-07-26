@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="index,follow" />
+  <title>Suppression de compte SECOTO</title>
+  <meta name="description" content="Demander la suppression d’un compte SECOTO et des données associées." />
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; background:#06101f; color:#e8f0fa; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#12345c 0,#06101f 45%); }
+    main { width:min(760px,calc(100% - 32px)); margin:0 auto; padding:48px 0 max(48px,env(safe-area-inset-bottom)); }
+    .eyebrow { color:#65d6c0; font-weight:800; letter-spacing:.16em; margin:0 0 8px; }
+    h1 { font-size:clamp(2rem,7vw,3.4rem); margin:0 0 16px; line-height:1.05; }
+    h2 { margin-top:30px; font-size:1.25rem; }
+    p,li { color:#c9d6e5; line-height:1.65; }
+    .card { background:rgba(9,25,45,.92); border:1px solid #284968; border-radius:20px; padding:24px; box-shadow:0 24px 60px rgba(0,0,0,.25); }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin:24px 0; }
+    .button { display:inline-flex; min-height:46px; align-items:center; justify-content:center; padding:0 18px; border-radius:12px; text-decoration:none; font-weight:800; }
+    .primary { color:#04121b; background:#65d6c0; }
+    .secondary { color:#e8f0fa; border:1px solid #52708e; }
+    .note { border-left:4px solid #65d6c0; padding:12px 16px; background:#0d233c; border-radius:8px; }
+    a { color:#8ee7d6; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">SECOTO</p>
+    <h1>Supprimer votre compte</h1>
+    <div class="card">
+      <p>Cette page permet d’initier une suppression sans réinstaller l’application Android ou iOS.</p>
+
+      <h2>Depuis votre compte</h2>
+      <ol>
+        <li>Ouvrez l’application Web SECOTO et connectez-vous.</li>
+        <li>Ouvrez <strong>Profil</strong>.</li>
+        <li>Sélectionnez <strong>Supprimer mon compte</strong> et confirmez.</li>
+      </ol>
+      <div class="actions">
+        <a class="button primary" href="/?ecran=profile">Ouvrir SECOTO</a>
+        <a class="button secondary" href="mailto:contact.secoto@gmail.com?subject=Demande%20de%20suppression%20de%20compte%20SECOTO&body=Bonjour%2C%0A%0AJe%20souhaite%20demander%20la%20suppression%20de%20mon%20compte%20SECOTO.%0A%0AAdresse%20e-mail%20du%20compte%20%3A%20%0A%0ACordialement.">Demander par e-mail</a>
+      </div>
+
+      <h2>Données supprimées</h2>
+      <p>Après vérification de votre identité, SECOTO révoque les sessions et appareils, supprime les pièces de compte qui ne doivent pas être conservées et anonymise les données personnelles qui ne sont plus nécessaires.</p>
+
+      <h2>Données légalement conservées</h2>
+      <p>Les factures, écritures et autres pièces soumises à une obligation légale peuvent être conservées pendant la durée applicable, avec accès restreint. Elles ne sont pas utilisées à des fins commerciales. Les autres données sont supprimées ou anonymisées.</p>
+
+      <p class="note">La boîte e-mail sert uniquement à vérifier que la demande vient bien du titulaire. N’envoyez jamais de mot de passe, de pièce d’identité ou de secret dans le premier message.</p>
+      <p>Pour plus de détails, consultez la <a href="/politique-confidentialite.html#suppression-compte">politique de confidentialité</a>.</p>
+    </div>
+  </main>
+</body>
+</html>
