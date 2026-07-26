@@ -1,14 +1,31 @@
 apply plugin: 'com.android.application'
 
+def secotoBuildNumber = (System.getenv('BUILD_NUMBER') ?: '1').toInteger()
+def secotoVersionName = System.getenv('SECOTO_ANDROID_VERSION_NAME') ?: '1.0'
+def secotoKeystorePath = System.getenv('CM_KEYSTORE_PATH') ?: System.getenv('SECOTO_ANDROID_KEYSTORE_PATH')
+def secotoKeystorePassword = System.getenv('CM_KEYSTORE_PASSWORD') ?: System.getenv('SECOTO_ANDROID_KEYSTORE_PASSWORD')
+def secotoKeyAlias = System.getenv('CM_KEY_ALIAS') ?: System.getenv('SECOTO_ANDROID_KEY_ALIAS')
+def secotoKeyPassword = System.getenv('CM_KEY_PASSWORD') ?: System.getenv('SECOTO_ANDROID_KEY_PASSWORD')
+
 android {
     namespace = "fr.secototransport.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    if (secotoKeystorePath && secotoKeystorePassword && secotoKeyAlias && secotoKeyPassword) {
+        signingConfigs {
+            release {
+                storeFile file(secotoKeystorePath)
+                storePassword secotoKeystorePassword
+                keyAlias secotoKeyAlias
+                keyPassword secotoKeyPassword
+            }
+        }
+    }
     defaultConfig {
         applicationId "fr.secototransport.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode secotoBuildNumber
+        versionName secotoVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +37,14 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (secotoKeystorePath && secotoKeystorePassword && secotoKeyAlias && secotoKeyPassword) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }

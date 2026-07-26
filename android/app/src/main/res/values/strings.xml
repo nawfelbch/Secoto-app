@@ -4,4 +4,5 @@
     <string name="title_activity_main">SECOTO</string>
     <string name="package_name">fr.secototransport.app</string>
     <string name="custom_url_scheme">fr.secototransport.app</string>
+    <string name="default_notification_channel_id">secoto-missions</string>
 </resources>

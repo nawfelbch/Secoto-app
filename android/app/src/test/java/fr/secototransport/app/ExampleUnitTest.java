@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package fr.secototransport.app;
 
 import static org.junit.Assert.*;
 
@@ -12,7 +12,12 @@ import org.junit.Test;
 public class ExampleUnitTest {
 
     @Test
-    public void addition_isCorrect() throws Exception {
+    public void addition_isCorrect() {
         assertEquals(4, 2 + 2);
+    }
+
+    @Test
+    public void applicationId_isFinalSecotoId() {
+        assertEquals("fr.secototransport.app", MainActivity.class.getPackage().getName());
     }
 }

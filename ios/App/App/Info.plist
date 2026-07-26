@@ -22,38 +22,47 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>fr.secototransport.app.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>secoto</string>
+			</array>
+		</dict>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>SECOTO utilise l'appareil photo pour vos états des lieux et justificatifs.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SECOTO accède à vos photos pour joindre états des lieux et justificatifs.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>SECOTO enregistre des photos liées à vos missions.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SECOTO utilise votre position pour le suivi de mission en temps réel.</string>
+	<string>Avec votre accord, SECOTO enregistre une position ponctuelle lors de la prise en charge, d’un incident ou de la livraison. Aucun suivi permanent.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SECOTO utilise uniquement une position ponctuelle au premier plan pour documenter une étape de mission ; aucun suivi en arrière-plan.</string>
 </dict>
 </plist>

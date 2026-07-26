@@ -12,7 +12,7 @@
   },
   "plugins": {
     "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "alert"]
+      "presentationOptions": ["badge", "sound", "banner", "list"]
     },
     "Keyboard": {
       "resize": "native"
