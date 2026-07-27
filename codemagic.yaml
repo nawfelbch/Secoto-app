@@ -11,7 +11,7 @@ workflows:
         - secoto_ios
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: fr.secototransport.app
+        bundle_identifier: fr.secoto.app
       vars:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App

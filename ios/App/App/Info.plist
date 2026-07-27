@@ -28,7 +28,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>fr.secototransport.app.auth</string>
+			<string>fr.secoto.app.auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>secoto</string>

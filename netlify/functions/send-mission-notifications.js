@@ -7,7 +7,7 @@ import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
 
 const {
-  APNS_BUNDLE_ID = "fr.secototransport.app",
+  APNS_BUNDLE_ID = "fr.secoto.app",
   APNS_KEY_ID,
   APNS_PRIVATE_KEY_BASE64,
   APNS_TEAM_ID,
