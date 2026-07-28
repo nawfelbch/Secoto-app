@@ -1319,7 +1319,7 @@ export default function App() {
     refreshTimer.current = setTimeout(() => {
       refreshTimer.current = null;
       const acc = accountRef.current;
-      if (acc) loadAllData(acc);
+      if (acc) loadAllData(acc, { silent: true });
     }, delay);
   }
 
@@ -1614,7 +1614,7 @@ export default function App() {
     }));
   }
 
-  async function loadAllData(currentAccount = account) {
+  async function loadAllData(currentAccount = account, { silent = false } = {}) {
     if (!currentAccount) return;
     const accountId = currentAccount.id;
     const generation = ++dataGenerationRef.current;
@@ -1622,7 +1622,10 @@ export default function App() {
       generation === dataGenerationRef.current
       && accountRef.current?.id === accountId
     );
-    setLoading(true); setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       if (currentAccount.role === "admin") {
@@ -1696,11 +1699,11 @@ export default function App() {
         setTrackingPhotos(signedPhotos);
       }
     } catch (err) {
-      if (isCurrentLoad()) {
+      if (isCurrentLoad() && !silent) {
         setError(err.message || "Erreur lors du chargement Supabase.");
       }
     } finally {
-      if (isCurrentLoad()) setLoading(false);
+      if (isCurrentLoad() && !silent) setLoading(false);
     }
   }
 
