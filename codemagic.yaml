@@ -71,7 +71,7 @@ workflows:
 
   android-secoto:
     name: SECOTO Android — API 36 / Play Internal
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
     max_build_duration: 45
     environment:
       groups:
