@@ -119,8 +119,3 @@ workflows:
       - android/app/build/outputs/**/*.aab
       - android/app/build/outputs/**/*.apk
       - android/app/build/reports/**/*
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
