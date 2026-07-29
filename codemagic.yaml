@@ -8,7 +8,6 @@ workflows:
     environment:
       groups:
         - secoto_shared
-        - secoto_ios
       ios_signing:
         distribution_type: app_store
         bundle_identifier: fr.secoto.app
@@ -24,6 +23,27 @@ workflows:
     scripts:
       - name: Dépendances reproductibles
         script: npm ci
+      - name: Verify SECOTO configuration
+        script: |
+          test -n "$VITE_SUPABASE_URL"
+          test -n "$VITE_SUPABASE_ANON_KEY"
+          test -n "$VITE_SECOTO_FUNCTIONS_BASE_URL"
+
+          case "$VITE_SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *) echo "VITE_SUPABASE_URL invalid"; exit 1 ;;
+          esac
+
+          case "$VITE_SUPABASE_ANON_KEY" in
+            sb_publishable_*|eyJ*) ;;
+            *) echo "VITE_SUPABASE_ANON_KEY invalid"; exit 1 ;;
+          esac
+
+          case "$VITE_SECOTO_FUNCTIONS_BASE_URL" in
+            https://*/.netlify/functions) ;;
+            *) echo "VITE_SECOTO_FUNCTIONS_BASE_URL invalid"; exit 1 ;;
+          esac
+
       - name: Lint, tests et build Web
         script: |
           npm run lint
@@ -91,6 +111,27 @@ workflows:
     scripts:
       - name: Dépendances reproductibles
         script: npm ci
+      - name: Verify SECOTO configuration
+        script: |
+          test -n "$VITE_SUPABASE_URL"
+          test -n "$VITE_SUPABASE_ANON_KEY"
+          test -n "$VITE_SECOTO_FUNCTIONS_BASE_URL"
+
+          case "$VITE_SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *) echo "VITE_SUPABASE_URL invalid"; exit 1 ;;
+          esac
+
+          case "$VITE_SUPABASE_ANON_KEY" in
+            sb_publishable_*|eyJ*) ;;
+            *) echo "VITE_SUPABASE_ANON_KEY invalid"; exit 1 ;;
+          esac
+
+          case "$VITE_SECOTO_FUNCTIONS_BASE_URL" in
+            https://*/.netlify/functions) ;;
+            *) echo "VITE_SECOTO_FUNCTIONS_BASE_URL invalid"; exit 1 ;;
+          esac
+
       - name: Lint, tests et build Web
         script: |
           npm run lint
