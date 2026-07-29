@@ -1,3 +1,4 @@
+import { withLambda } from "@netlify/aws-lambda-compat";
 // SECOTO — suppression de compte authentifiée, idempotente et reprenable.
 // Les objets sont supprimés via l'API Storage, jamais via storage.objects.
 import { createClient } from "@supabase/supabase-js";
@@ -152,3 +153,5 @@ export const handler = async (event) => {
     });
   }
 };
+
+export default withLambda(handler);

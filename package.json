@@ -24,6 +24,7 @@
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/push-notifications": "^8.1.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@netlify/aws-lambda-compat": "^1.0.2",
     "@supabase/supabase-js": "^2.107.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

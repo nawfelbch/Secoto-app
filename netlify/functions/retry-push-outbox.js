@@ -1,3 +1,4 @@
+import { withLambda } from "@netlify/aws-lambda-compat";
 // Reprise planifiée de l'outbox. Le webhook reste le chemin rapide ; ce
 // balayage récupère les indisponibilités fournisseur, fonctions ou réseau.
 import { createClient } from "@supabase/supabase-js";
@@ -70,3 +71,5 @@ export const handler = async () => {
     results,
   });
 };
+
+export default withLambda(handler);

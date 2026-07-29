@@ -15,11 +15,12 @@ test("le workflow iOS utilise le projet SPM réel, Node 24 et Xcode 26", async (
   assert.match(yaml, /submit_to_testflight:\s+true/);
 });
 
-test("le workflow Android prouve tests, lint, APK debug et AAB release", async () => {
+test("le workflow Android prouve tests, lint, APK debug et AAB release sans publication automatique", async () => {
   const yaml = await source("../codemagic.yaml");
   assert.match(yaml, /testDebugUnitTest lintDebug assembleDebug/);
   assert.match(yaml, /\.\/gradlew bundleRelease/);
-  assert.match(yaml, /track:\s+internal/);
+  assert.match(yaml, /android\/app\/build\/outputs\/\*\*\/\*\.aab/);
+  assert.doesNotMatch(yaml, /google_play:|track:\s+internal/);
 });
 
 test("les identifiants natifs et les liens Auth restent cohérents", async () => {

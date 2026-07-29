@@ -1,3 +1,4 @@
+import { withLambda } from "@netlify/aws-lambda-compat";
 // SECOTO — consommateur d'outbox Push privé.
 // Entrée autorisée : uniquement un identifiant d'outbox provenant d'un
 // Database Webhook Supabase signé par SECOTO_PUSH_WEBHOOK_SECRET.
@@ -478,3 +479,5 @@ export const handler = async (event) => {
     pending: !success,
   });
 };
+
+export default withLambda(handler);

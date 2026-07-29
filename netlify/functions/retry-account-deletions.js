@@ -1,3 +1,4 @@
+import { withLambda } from "@netlify/aws-lambda-compat";
 // Finalise les suppressions Auth restées en auth_pending après une coupure.
 // Aucun identifiant n'est accepté de l'appelant : seules les lignes déjà
 // autorisées et anonymisées par la transaction SQL sont traitées.
@@ -20,7 +21,19 @@ function response(statusCode, body) {
 }
 
 export const handler = async (event = {}) => {
-  if (event.httpMethod && !event.next_run) {
+  const scheduledPayload = (() => {
+    try {
+      return JSON.parse(event.body || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
+  if (
+    event.httpMethod &&
+    !event.next_run &&
+    !scheduledPayload.next_run
+  ) {
     return response(404, { error: "not_found" });
   }
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -69,3 +82,5 @@ export const handler = async (event = {}) => {
     pending,
   });
 };
+
+export default withLambda(handler);
