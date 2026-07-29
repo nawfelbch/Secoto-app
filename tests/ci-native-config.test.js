@@ -15,6 +15,22 @@ test("le workflow iOS utilise le projet SPM réel, Node 24 et Xcode 26", async (
   assert.match(yaml, /submit_to_testflight:\s+true/);
 });
 
+test("iOS couvre la zone de la Dynamic Island sans doubler les marges sûres", async () => {
+  const [configRaw, html, css] = await Promise.all([
+    source("../capacitor.config.json"),
+    source("../index.html"),
+    source("../src/index.css"),
+  ]);
+
+  const config = JSON.parse(configRaw);
+
+  assert.equal(config.ios?.contentInset, "never");
+  assert.equal(config.plugins?.StatusBar?.overlaysWebView, true);
+  assert.match(html, /viewport-fit=cover/);
+  assert.match(css, /env\(safe-area-inset-top/);
+  assert.match(css, /env\(safe-area-inset-bottom/);
+});
+
 test("le workflow Android prouve tests, lint, APK debug et AAB release sans publication automatique", async () => {
   const yaml = await source("../codemagic.yaml");
   assert.match(yaml, /testDebugUnitTest lintDebug assembleDebug/);

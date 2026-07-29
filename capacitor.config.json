@@ -4,7 +4,7 @@
   "webDir": "dist",
   "backgroundColor": "#060b16",
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#060b16"
   },
   "android": {
@@ -12,10 +12,18 @@
   },
   "plugins": {
     "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "banner", "list"]
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "banner",
+        "list"
+      ]
     },
     "Keyboard": {
       "resize": "native"
+    },
+    "StatusBar": {
+      "overlaysWebView": true
     }
   }
 }
