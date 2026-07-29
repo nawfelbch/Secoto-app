@@ -2,7 +2,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Reprise planifiée de l'outbox. Le webhook reste le chemin rapide ; ce
 // balayage récupère les indisponibilités fournisseur, fonctions ou réseau.
 import { createClient } from "@supabase/supabase-js";
-import { handler as dispatchPush } from "./send-mission-notifications.js";
+import { dispatchMissionNotifications as dispatchPush } from "./send-mission-notifications.js";
 
 const {
   SECOTO_PUSH_WEBHOOK_SECRET,
@@ -21,7 +21,7 @@ function response(statusCode, body) {
   };
 }
 
-export const handler = async () => {
+const handler = async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SECOTO_PUSH_WEBHOOK_SECRET) {
     return response(503, { error: "server_not_configured" });
   }

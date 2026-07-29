@@ -20,7 +20,7 @@ function response(statusCode, body) {
   };
 }
 
-export const handler = async (event = {}) => {
+const handler = async (event = {}) => {
   const scheduledPayload = (() => {
     try {
       return JSON.parse(event.body || "{}");

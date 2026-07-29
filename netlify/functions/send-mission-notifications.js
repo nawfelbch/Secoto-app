@@ -268,7 +268,7 @@ async function sendToDevice(device, push, route, missionId) {
   throw new Error("UNKNOWN_PUSH_PROVIDER");
 }
 
-export const handler = async (event) => {
+export const dispatchMissionNotifications = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SECOTO_PUSH_WEBHOOK_SECRET) {
     return response(503, { error: "server_not_configured" });
@@ -480,4 +480,4 @@ export const handler = async (event) => {
   });
 };
 
-export default withLambda(handler);
+export default withLambda(dispatchMissionNotifications);

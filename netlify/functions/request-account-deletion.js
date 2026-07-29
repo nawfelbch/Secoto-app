@@ -61,7 +61,7 @@ async function markFailure(admin, requestId, reason) {
   });
 }
 
-export const handler = async (event) => {
+const handler = async (event) => {
   const origin = event.headers?.origin || event.headers?.Origin || "";
   const respond = (status, body) => json(status, body, origin);
   if (origin && !ALLOWED_ORIGINS.has(origin)) return respond(403, { error: "origin_not_allowed" });
