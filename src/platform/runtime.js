@@ -184,8 +184,8 @@ export async function initializePlatform({
     ]);
 
     try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-      await StatusBar.setStyle({ style: Style.Light });
+      await StatusBar.setOverlaysWebView({ overlay: true });
+      await StatusBar.setStyle({ style: Style.Dark });
     } catch {
       // Certains environnements WebView de test n'exposent pas la barre système.
     }

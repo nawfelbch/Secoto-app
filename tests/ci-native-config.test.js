@@ -31,6 +31,23 @@ test("iOS couvre la zone de la Dynamic Island sans doubler les marges sûres", a
   assert.match(css, /env\(safe-area-inset-bottom/);
 });
 
+test("le runtime iOS conserve la WebView derrière la Dynamic Island", async () => {
+  const runtime = await source("../src/platform/runtime.js");
+
+  assert.match(
+    runtime,
+    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*true\s*\}\)/,
+  );
+  assert.doesNotMatch(
+    runtime,
+    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*false\s*\}\)/,
+  );
+  assert.match(
+    runtime,
+    /StatusBar\.setStyle\(\{\s*style:\s*Style\.Dark\s*\}\)/,
+  );
+});
+
 test("le workflow Android prouve tests, lint, APK debug et AAB release sans publication automatique", async () => {
   const yaml = await source("../codemagic.yaml");
   assert.match(yaml, /testDebugUnitTest lintDebug assembleDebug/);
