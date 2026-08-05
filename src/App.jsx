@@ -34,6 +34,10 @@ import {
   progressFromTrackingEvent,
 } from "./lib/domainPolicy";
 import {
+  labelLuxuryCapacityStatus,
+  labelVehicleCategory,
+} from "./lib/luxuryRouting";
+import {
   getAuthRedirectUrl,
   getServerFunctionUrl,
   getOneTimeLocation,
@@ -96,7 +100,7 @@ const DOC_LABEL_FR = {
 
 const DATA_PAGE_SIZE = 200;
 const MISSION_ADMIN_COLUMNS = [
-  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
   "distance_km", "carrier_cost", "client_price", "carrier_pay", "margin",
   "client_name", "client_contact", "client_phone", "price_mode", "proposed_price",
@@ -104,7 +108,7 @@ const MISSION_ADMIN_COLUMNS = [
   "assigned_transporter_id", "assigned_transporter_name", "source_request_id", "created_at",
 ].join(",");
 const MISSION_CLIENT_COLUMNS = [
-  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
   "distance_km", "client_price", "client_name", "client_contact", "client_phone",
   "price_mode", "proposed_price", "payment_method", "notes", "created_by_role",
@@ -112,14 +116,14 @@ const MISSION_CLIENT_COLUMNS = [
   "source_request_id", "created_at",
 ].join(",");
 const MISSION_TRANSPORTER_COLUMNS = [
-  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
   "distance_km", "carrier_cost", "carrier_pay", "client_name", "client_contact",
   "client_phone", "payment_method", "notes", "assigned_transporter_id",
   "assigned_transporter_name", "created_at",
 ].join(",");
 const PUBLIC_MISSION_COLUMNS = [
-  "id", "public_ref", "type", "status", "progress_status", "from_city", "to_city",
+  "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "vehicle", "distance_km", "created_at",
 ].join(",");
 const APPLICATION_COLUMNS = [
@@ -128,7 +132,7 @@ const APPLICATION_COLUMNS = [
 ].join(",");
 const REQUEST_COLUMNS = [
   "id", "public_ref", "status", "requester_id", "requester_name", "requester_company",
-  "type", "from_city", "to_city", "pickup_address", "delivery_address", "mission_date",
+  "type", "vehicle_category", "from_city", "to_city", "pickup_address", "delivery_address", "mission_date",
   "vehicle", "plate", "distance_km", "client_name", "client_contact", "client_phone",
   "price_mode", "proposed_price", "notes", "created_by_role", "approved_mission_id", "created_at",
 ].join(",");
@@ -301,6 +305,20 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
           <option value="plateau">Transport par plateau</option>
         </select>
       </label>
+      <label className="field">
+        <span>Catégorie du véhicule</span>
+        <select name="vehicleCategory" value={form.vehicleCategory || "standard"} onChange={update}>
+          <option value="standard">Véhicule standard</option>
+          <option value="luxury">Prestige / collection / grande valeur</option>
+        </select>
+      </label>
+      {form.vehicleCategory === "luxury" && (
+        <div className="alert field-full luxury-routing-notice">
+          {form.type === "plateau"
+            ? "Transport premium : camion fermé validé obligatoire."
+            : "Convoyage premium : notification réservée aux convoyeurs vérifiés."}
+        </div>
+      )}
       <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" />
       <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" />
       <AddressAutocomplete label="Adresse de départ" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
@@ -377,6 +395,18 @@ function ClientCourseForm({ form, setForm, onSubmit, submitLabel, disabled }) {
           <option value="plateau">Transport par plateau / camion</option>
         </select>
       </label>
+      <label className="field">
+        <span>Catégorie du véhicule *</span>
+        <select name="vehicleCategory" value={form.vehicleCategory || "standard"} onChange={update}>
+          <option value="standard">Véhicule standard</option>
+          <option value="luxury">Prestige / collection / grande valeur</option>
+        </select>
+      </label>
+      {form.vehicleCategory === "luxury" && form.type === "plateau" && (
+        <div className="alert field-full luxury-routing-notice">
+          Un transporteur disposant d’un camion fermé validé sera sélectionné.
+        </div>
+      )}
       <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" required />
       <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" required />
       <AddressAutocomplete label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
@@ -403,11 +433,16 @@ function ClientCourseForm({ form, setForm, onSubmit, submitLabel, disabled }) {
 }
 
 function PublicMissionInfo({ mission }) {
+  const luxury = mission.vehicleCategory === "luxury";
   return (
     <div className="card-section">
       <p><strong>Départ :</strong> {mission.pickupAddress || mission.fromCity || "Non renseigné"}</p>
       <p><strong>Arrivée :</strong> {mission.deliveryAddress || mission.toCity || "Non renseigné"}</p>
       <p><strong>Type de transport :</strong> {labelMissionType(mission.type)}</p>
+      <p><strong>Catégorie :</strong> {labelVehicleCategory(mission.vehicleCategory)}</p>
+      {luxury && mission.type === "plateau" && (
+        <p className="luxury-requirement"><strong>Exigence :</strong> camion fermé validé</p>
+      )}
       <p><strong>Type de véhicule :</strong> {mission.vehicle || "Non renseigné"}</p>
       <p><strong>Distance :</strong> {mission.distanceKm ? `${mission.distanceKm} km` : "Non renseignée"}</p>
     </div>
@@ -507,6 +542,8 @@ function AuthScreen({ onBack, claimInvite = null }) {
 
 
   const [transporterType, setTransporterType] = useState("convoyeur");
+  const [receivesStandardPlateau, setReceivesStandardPlateau] = useState(true);
+  const [luxuryClosedTransportRequested, setLuxuryClosedTransportRequested] = useState(false);
   const [clientType, setClientType] = useState("particulier");
 
   const [email, setEmail] = useState("");
@@ -570,6 +607,8 @@ function AuthScreen({ onBack, claimInvite = null }) {
       city,
       transporter_type: transporterType,
       client_type: clientType,
+      receives_standard_plateau: receivesStandardPlateau,
+      luxury_closed_transport_requested: luxuryClosedTransportRequested,
     });
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -691,6 +730,34 @@ function AuthScreen({ onBack, claimInvite = null }) {
                       </button>
                     ))}
                   </div>
+
+                  {["vl", "pl"].includes(transporterType) && (
+                    <div className="transporter-capabilities">
+                      <p className="field"><span>Types de missions souhaités</span></p>
+                      <label className="preference-card">
+                        <input
+                          type="checkbox"
+                          checked={receivesStandardPlateau}
+                          onChange={(event) => setReceivesStandardPlateau(event.target.checked)}
+                        />
+                        <span>
+                          <strong>Transports standards sur plateau</strong>
+                          <small>Recevoir les missions classiques compatibles avec mon activité.</small>
+                        </span>
+                      </label>
+                      <label className="preference-card premium">
+                        <input
+                          type="checkbox"
+                          checked={luxuryClosedTransportRequested}
+                          onChange={(event) => setLuxuryClosedTransportRequested(event.target.checked)}
+                        />
+                        <span>
+                          <strong>Transport de véhicules de prestige en camion fermé</strong>
+                          <small>Cette capacité sera contrôlée et validée séparément par SECOTO.</small>
+                        </span>
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -735,6 +802,7 @@ function AuthScreen({ onBack, claimInvite = null }) {
 
 const emptyGuestForm = {
   type: "convoyage",
+  vehicleCategory: "standard",
   clientName: "",
   clientPhone: "",
   clientContact: "",
@@ -881,6 +949,18 @@ function PublicLanding({ onShowAuth }) {
                 <option value="plateau">Plateau / camion</option>
               </select>
             </label>
+            <label className="field">
+              <span>Catégorie du véhicule *</span>
+              <select name="vehicleCategory" value={form.vehicleCategory} onChange={update}>
+                <option value="standard">Véhicule standard</option>
+                <option value="luxury">Prestige / collection / grande valeur</option>
+              </select>
+            </label>
+            {form.vehicleCategory === "luxury" && form.type === "plateau" && (
+              <div className="alert field-full luxury-routing-notice">
+                SECOTO recherchera un transporteur validé disposant d’un camion fermé.
+              </div>
+            )}
             <Field label="Véhicule à transporter" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Yamaha MT-07, Peugeot 208…" required />
             <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" required />
             <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" required />
@@ -1410,7 +1490,7 @@ export default function App() {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 8000));
       const query = supabase
         .from("accounts")
-        .select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,created_at")
+        .select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,created_at")
         .eq("id", userId)
         .single();
       const { data, error } = await Promise.race([query, timeout]);
@@ -1802,7 +1882,7 @@ export default function App() {
           supabase.from("secoto_missions_admin_v2").select(MISSION_ADMIN_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
-          supabase.from("accounts").select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,created_at").eq("role", "transporter").order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("accounts").select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,created_at").eq("role", "transporter").order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("documents").select(DOCUMENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
@@ -3356,6 +3436,12 @@ export default function App() {
                           <p><strong>Téléphone :</strong> {transporter.phone || "Non renseigné"}</p>
                           <p><strong>Ville :</strong> {transporter.city || "Non renseignée"}</p>
                           <p><strong>Documents :</strong> {transporterDocs.length}</p>
+                          {["vl", "pl"].includes(transporter.transporterType) && (
+                            <>
+                              <p><strong>Plateau standard :</strong> {transporter.receivesStandardPlateau ? "Oui" : "Non"}</p>
+                              <p><strong>Camion fermé premium :</strong> {labelLuxuryCapacityStatus(transporter.luxuryClosedTransportStatus)}</p>
+                            </>
+                          )}
                         </div>
                         <div className="applications-box">
                           <h4>Pièces justificatives</h4>
@@ -3606,6 +3692,12 @@ export default function App() {
                         <p><strong>Ville :</strong> {account.city || "Non renseignée"}</p>
                         <p><strong>Statut :</strong> {labelStatus(account.status)}</p>
                         <p><strong>Vérifié :</strong> {account.isVerified ? "Oui" : "Non"}</p>
+                        {["vl", "pl"].includes(account.transporterType) && (
+                          <>
+                            <p><strong>Plateau standard :</strong> {account.receivesStandardPlateau ? "Activé" : "Désactivé"}</p>
+                            <p><strong>Camion fermé premium :</strong> {labelLuxuryCapacityStatus(account.luxuryClosedTransportStatus)}</p>
+                          </>
+                        )}
                       </div>
                     </div>
 

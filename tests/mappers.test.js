@@ -24,6 +24,9 @@ test("accountFromDb conserve les rôles et sous-types existants", () => {
       is_verified: true,
       transporter_type: "convoyeur",
       client_type: null,
+      receives_standard_plateau: false,
+      luxury_closed_transport_status: "not_requested",
+      luxury_closed_transport_requested_at: null,
       created_at: "2026-01-01T00:00:00Z",
     }),
     {
@@ -39,6 +42,9 @@ test("accountFromDb conserve les rôles et sous-types existants", () => {
       isVerified: true,
       transporterType: "convoyeur",
       clientType: null,
+      receivesStandardPlateau: false,
+      luxuryClosedTransportStatus: "not_requested",
+      luxuryClosedTransportRequestedAt: null,
       createdAt: "2026-01-01T00:00:00Z",
     },
   );
@@ -49,6 +55,7 @@ test("missionFromDb conserve tous les champs autorisés d'une mission privée", 
     id: "m-1",
     public_ref: "MIS-2026-1000",
     type: "plateau",
+    vehicle_category: "luxury",
     status: "assigned",
     progress_status: "pickup_completed",
     from_city: "Paris",
@@ -78,6 +85,7 @@ test("missionFromDb conserve tous les champs autorisés d'une mission privée", 
     created_at: "2026-01-01T00:00:00Z",
   });
 
+  assert.equal(result.vehicleCategory, "luxury");
   assert.equal(result.pickupAddress, "1 rue du Départ");
   assert.equal(result.deliveryAddress, "2 rue de l'Arrivée");
   assert.equal(result.clientPrice, 480);
@@ -90,6 +98,7 @@ test("missionToDb omet les valeurs vides sans changer les valeurs explicites", (
   const payload = missionToDb(
     {
       type: "convoyage",
+      vehicleCategory: "luxury",
       fromCity: "Paris",
       toCity: "Lille",
       pickupAddress: "",
@@ -101,6 +110,7 @@ test("missionToDb omet les valeurs vides sans changer les valeurs explicites", (
   );
 
   assert.equal(payload.public_ref, "MIS-TEST");
+  assert.equal(payload.vehicle_category, "luxury");
   assert.equal(payload.distance_km, 220.5);
   assert.equal(payload.payment_method, "virement");
   assert.equal(payload.created_by_role, "client");
@@ -112,6 +122,7 @@ test("requestToDb n'envoie jamais les colonnes propres à missions", () => {
   const payload = requestToDb(
     {
       type: "plateau",
+      vehicleCategory: "standard",
       fromCity: "Nantes",
       toCity: "Rennes",
       carrierCost: "999",
@@ -132,6 +143,7 @@ test("requestToDb n'envoie jamais les colonnes propres à missions", () => {
     assert.equal(forbidden in payload, false, forbidden);
   }
   assert.equal(payload.status, "pending");
+  assert.equal(payload.vehicle_category, "standard");
   assert.equal(payload.requester_id, "t-1");
 });
 
@@ -140,6 +152,7 @@ test("le mapper du flux transporteur doit expurger les adresses exactes", () => 
     id: "m-2",
     public_ref: "MIS-2026-1001",
     type: "convoyage",
+    vehicle_category: "luxury",
     status: "published",
     progress_status: null,
     from_city: "Paris",
@@ -153,6 +166,7 @@ test("le mapper du flux transporteur doit expurger les adresses exactes", () => 
 
   assert.equal(result.fromCity, "Paris");
   assert.equal(result.toCity, "Lyon");
+  assert.equal(result.vehicleCategory, "luxury");
   assert.equal("pickupAddress" in result, false);
   assert.equal("deliveryAddress" in result, false);
 });

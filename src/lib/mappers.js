@@ -2,6 +2,7 @@
 
 export const emptyMissionForm = {
   type: "convoyage",
+  vehicleCategory: "standard",
   fromCity: "",
   toCity: "",
   pickupAddress: "",
@@ -44,6 +45,11 @@ export function accountFromDb(row) {
     isVerified: row.is_verified,
     transporterType: row.transporter_type || null,
     clientType: row.client_type || null,
+    receivesStandardPlateau: row.receives_standard_plateau ?? true,
+    luxuryClosedTransportStatus:
+      row.luxury_closed_transport_status || "not_requested",
+    luxuryClosedTransportRequestedAt:
+      row.luxury_closed_transport_requested_at || null,
     createdAt: row.created_at || null,
   };
 }
@@ -53,6 +59,7 @@ export function missionFromDb(row) {
     id: row.id,
     publicRef: row.public_ref,
     type: row.type,
+    vehicleCategory: row.vehicle_category || "standard",
     status: row.status,
     progressStatus: row.progress_status,
     fromCity: row.from_city,
@@ -90,6 +97,7 @@ export function publicMissionFromDb(row) {
     id: row.id,
     publicRef: row.public_ref,
     type: row.type,
+    vehicleCategory: row.vehicle_category || "standard",
     status: row.status,
     progressStatus: row.progress_status,
     fromCity: row.from_city,
@@ -184,6 +192,7 @@ export function requestFromDb(row) {
     requesterName: row.requester_name,
     requesterCompany: row.requester_company,
     type: row.type,
+    vehicleCategory: row.vehicle_category || "standard",
     fromCity: row.from_city,
     toCity: row.to_city,
     pickupAddress: row.pickup_address,
@@ -237,6 +246,7 @@ export function missionToDb(form, extra = {}) {
   return sansValeursVides({
     public_ref: extra.publicRef || generatePublicRef("MIS"),
     type: form.type || "convoyage",
+    vehicle_category: form.vehicleCategory === "luxury" ? "luxury" : "standard",
     status: extra.status || "published",
     from_city: form.fromCity || null,
     to_city: form.toCity || null,
@@ -270,6 +280,7 @@ export function requestToDb(form, account = null, extra = {}) {
   return sansValeursVides({
     public_ref: extra.publicRef || generatePublicRef("REQ"),
     type: form.type || "convoyage",
+    vehicle_category: form.vehicleCategory === "luxury" ? "luxury" : "standard",
     status: "pending",
     from_city: form.fromCity || null,
     to_city: form.toCity || null,

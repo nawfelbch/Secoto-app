@@ -28,6 +28,8 @@ test("les métadonnées sensibles ne traversent jamais la normalisation d'inscri
     role: "admin",
     full_name: "  Alice  ",
     client_type: "pro",
+    luxury_closed_transport_requested: true,
+    receives_standard_plateau: false,
     is_verified: true,
     status: "active",
     docs_count: 99,
@@ -41,6 +43,8 @@ test("les métadonnées sensibles ne traversent jamais la normalisation d'inscri
     role: "client",
     client_type: "pro",
     transporter_type: null,
+    receives_standard_plateau: false,
+    luxury_closed_transport_requested: false,
   });
   assert.equal("is_verified" in result, false);
   assert.equal("status" in result, false);
@@ -76,4 +80,19 @@ test("chaque événement terrain garde son statut de progression historique", ()
   assert.equal(progressFromTrackingEvent("road_incident"), "incident_reported");
   assert.equal(progressFromTrackingEvent("delivery_inspection"), "delivery_completed");
   assert.equal(progressFromTrackingEvent("inconnu"), null);
+});
+
+test("une demande camion fermé reste une demande non validée", () => {
+  const result = normalizePublicSignupMetadata({
+    role: "transporter",
+    transporter_type: "vl",
+    receives_standard_plateau: false,
+    luxury_closed_transport_requested: true,
+    luxury_closed_transport_status: "approved",
+  });
+
+  assert.equal(result.transporter_type, "vl");
+  assert.equal(result.receives_standard_plateau, false);
+  assert.equal(result.luxury_closed_transport_requested, true);
+  assert.equal("luxury_closed_transport_status" in result, false);
 });

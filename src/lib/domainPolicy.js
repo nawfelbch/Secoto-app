@@ -44,6 +44,13 @@ export function normalizePublicSignupMetadata(input = {}) {
     role === "transporter" && TRANSPORTER_TYPE_VALUES.includes(input.transporter_type)
       ? input.transporter_type
       : null;
+  const isPlateauTransporter =
+    role === "transporter" && ["vl", "pl"].includes(transporterType);
+  const receivesStandardPlateau =
+    isPlateauTransporter ? input.receives_standard_plateau !== false : false;
+  const luxuryClosedTransportRequested =
+    isPlateauTransporter
+    && input.luxury_closed_transport_requested === true;
 
   return {
     full_name: typeof input.full_name === "string" ? input.full_name.trim() : "",
@@ -53,6 +60,8 @@ export function normalizePublicSignupMetadata(input = {}) {
     role,
     client_type: clientType,
     transporter_type: transporterType,
+    receives_standard_plateau: receivesStandardPlateau,
+    luxury_closed_transport_requested: luxuryClosedTransportRequested,
   };
 }
 

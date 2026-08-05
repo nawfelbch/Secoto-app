@@ -1347,3 +1347,55 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
     width: 100%;
   }
 }
+/* SECOTO 1.2 — capacités transport premium */
+.transporter-capabilities {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.preference-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: var(--radius-md);
+  background: var(--neo-bg);
+  box-shadow: var(--neo-inset);
+  cursor: pointer;
+}
+
+.preference-card input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  box-shadow: none !important;
+}
+
+.preference-card > span {
+  display: grid;
+  gap: 4px;
+}
+
+.preference-card strong {
+  color: var(--text);
+}
+
+.preference-card small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.preference-card.premium {
+  outline: 1px solid rgba(255, 106, 26, 0.34);
+}
+
+.luxury-routing-notice {
+  border-color: var(--accent);
+}
+
+.luxury-requirement {
+  color: var(--accent);
+}
