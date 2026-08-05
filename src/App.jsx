@@ -65,6 +65,11 @@ import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
+import MissionClaimPanel, {
+  AdminClaimSharePanel,
+} from "./MissionClaimPanel";
+import { createMissionClaimForAdmin } from "./lib/missionClaims";
+import NotificationConsentGate from "./NotificationConsentGate";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
@@ -984,6 +989,7 @@ export default function App() {
   const [docModal, setDocModal] = useState(null);
   // Mission mise en avant après clic sur une notification.
   const [focusMissionId, setFocusMissionId] = useState(null);
+  const [claimShare, setClaimShare] = useState(null);
 
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -991,19 +997,46 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   // Le choix « notifications » est mémorisé PAR COMPTE : sur un téléphone
   // partagé entre plusieurs comptes SECOTO, chacun doit pouvoir les activer.
-  const [pushState, setPushState] = useState("idle"); // idle | enabled | dismissed
+  const [pushState, setPushState] = useState("loading"); // loading | idle | enabled | dismissed
+  const [pushDecisionBusy, setPushDecisionBusy] = useState(false);
 
   // Relecture du choix à chaque changement de compte (clé propre au compte).
   useEffect(() => {
     if (!account?.id) return;
+
+    const key = `secoto-push-consent-v2-${account.id}`;
+    const legacyKey = `secoto-push-${account.id}`;
     let v = "idle";
-    try { v = localStorage.getItem(`secoto-push-${account.id}`) || "idle"; } catch { /* ignore */ }
+
+    try {
+      const stored = localStorage.getItem(key);
+
+      if (stored === "enabled" || stored === "dismissed") {
+        v = stored;
+      } else if (localStorage.getItem(legacyKey) === "enabled") {
+        // Une véritable activation précédente reste valable.
+        v = "enabled";
+      }
+      // L'ancien état "dismissed" signifiait seulement "Plus tard".
+      // Il ne doit donc pas empêcher le nouveau choix explicite.
+    } catch {
+      /* ignore */
+    }
+
     queueMicrotask(() => setPushState(v));
   }, [account?.id]);
 
   useEffect(() => {
-    if (!account?.id) return;
-    try { localStorage.setItem(`secoto-push-${account.id}`, pushState); } catch { /* ignore */ }
+    if (!account?.id || pushState === "loading") return;
+
+    try {
+      localStorage.setItem(
+        `secoto-push-consent-v2-${account.id}`,
+        pushState,
+      );
+    } catch {
+      /* ignore */
+    }
   }, [pushState, account?.id]);
 
   const [loading, setLoading] = useState(false);
@@ -1533,14 +1566,33 @@ export default function App() {
   }, [focusMissionId]);
 
   async function handleEnablePush() {
-    const res = await enablePush();
-    if (res.ok) { setPushState("enabled"); setNotice("Notifications push activées sur cet appareil."); }
-    else if (res.reason === "no_vapid") { setPushState("dismissed"); setNotice("Notifications temps réel actives. (Le push système sera disponible une fois les clés VAPID configurées.)"); }
-    else if (res.reason === "denied") { setPushState("dismissed"); setError("Notifications refusées par le navigateur."); }
-    else if (res.reason === "save_failed") {
-      setPushState("idle");
-      setError("L’appareil n’a pas pu être rattaché au compte. La boîte de notifications interne reste active.");
-    } else setPushState("dismissed");
+    setPushDecisionBusy(true);
+    setError("");
+    try {
+      const res = await enablePush();
+      if (res.ok) {
+        setPushState("enabled");
+        setNotice("Notifications de missions activées sur cet appareil.");
+      } else if (res.reason === "no_vapid") {
+        setPushState("dismissed");
+        setNotice("La boîte de notifications SECOTO reste active dans l’application.");
+      } else if (res.reason === "denied") {
+        setPushState("dismissed");
+        setError("Notifications refusées. Vous pourrez les autoriser plus tard dans les réglages de votre téléphone.");
+      } else if (res.reason === "save_failed") {
+        setPushState("idle");
+        setError("L’appareil n’a pas pu être rattaché au compte. Réessayez avec une connexion stable.");
+      } else {
+        setPushState("dismissed");
+      }
+    } finally {
+      setPushDecisionBusy(false);
+    }
+  }
+
+  function handleDeclinePush() {
+    setPushState("dismissed");
+    setNotice("Notifications non activées. Les nouvelles courses restent consultables dans l’application.");
   }
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
@@ -1708,6 +1760,18 @@ export default function App() {
   }
 
   /* ---------- Actions ADMIN ---------- */
+  async function createOrRenewMissionClaim(mission) {
+    try {
+      const claim = await createMissionClaimForAdmin(mission);
+      setClaimShare(claim);
+      setNotice(`Mission ${claim.publicRef} publiée. Envoyez maintenant le lien sécurisé au client.`);
+      return claim;
+    } catch (claimError) {
+      setError(claimError.message || "Mission publiée, mais le lien client n’a pas pu être généré.");
+      return null;
+    }
+  }
+
   async function createMission(e) {
     e.preventDefault(); setError(""); setNotice("");
     try {
@@ -1722,8 +1786,8 @@ export default function App() {
         const created = missionFromDb(Array.isArray(data) ? data[0] : data);
         setMissions((prev) => [created, ...prev.filter((mission) => mission.id !== created.id)]);
         setMissionForm(emptyMissionForm);
-        setNotice("Mission publiée avec succès.");
         setAdminTab("published");
+        await createOrRenewMissionClaim(created);
       });
     } catch (err) { setError(err.message || "Erreur lors de la création de mission."); }
   }
@@ -2511,7 +2575,11 @@ export default function App() {
         {options.showTracking && renderTrackingTimeline(mission)}
         {isAdmin && options.showPrivate && (
           <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-            <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Documents :</span>
+            <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Accès client :</span>
+            <button className="btn primary small" type="button" onClick={() => createOrRenewMissionClaim(mission)}>
+              Créer / renouveler le lien de suivi
+            </button>
+            <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Documents :</span>
             <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
             <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
             <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
@@ -2854,6 +2922,14 @@ export default function App() {
         ))}
       </div>
 
+      {isTransporter && pushSupported() && pushState === "idle" && (
+        <NotificationConsentGate
+          busy={pushDecisionBusy}
+          onEnable={handleEnablePush}
+          onDecline={handleDeclinePush}
+        />
+      )}
+
       <header className="topbar">
         <button className="hamburger" aria-label="Ouvrir le menu" onClick={() => setNavOpen(true)}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -2877,7 +2953,7 @@ export default function App() {
         </div>
       </header>
 
-      {pushSupported() && pushState === "idle" && (
+      {!isTransporter && pushSupported() && pushState === "idle" && (
         <div className="push-banner">
           <p><strong>Activez les notifications</strong> pour être alerté {isClient ? "à chaque étape de votre transport" : "dès qu’une nouvelle course est disponible"}.</p>
           <div className="actions-row" style={{ marginTop: 0 }}>
@@ -2910,6 +2986,9 @@ export default function App() {
       )}
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
+      {claimShare && (
+        <AdminClaimSharePanel claim={claimShare} onClose={() => setClaimShare(null)} />
+      )}
 
       {/* ===================== CLIENT ===================== */}
       {isClient && (
@@ -2928,6 +3007,7 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Mes courses & suivi</h2>
+                <MissionClaimPanel onClaimed={() => loadAllData(account)} />
                 {clientMissions.length === 0 && (
                   <div className="empty-state"><strong>Aucune course pour le moment</strong>Publiez votre première demande de transport en quelques secondes.</div>
                 )}
@@ -3365,6 +3445,14 @@ export default function App() {
                         <p><strong>Statut :</strong> {labelStatus(account.status)}</p>
                         <p><strong>Vérifié :</strong> {account.isVerified ? "Oui" : "Non"}</p>
                       </div>
+                    </div>
+
+                    <div className="panel" style={{ marginTop: 18 }}>
+                      <h2>Notifications de missions</h2>
+                      <p className="muted">Elles servent uniquement aux nouvelles courses et aux actions importantes liées à vos missions.</p>
+                      <button className="btn primary" type="button" disabled={pushDecisionBusy} onClick={handleEnablePush}>
+                        {pushState === "enabled" ? "Notifications activées" : "Activer / réessayer"}
+                      </button>
                     </div>
 
                     <div className="panel" style={{ marginTop: 18 }}>

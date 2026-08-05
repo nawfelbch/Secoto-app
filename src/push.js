@@ -171,7 +171,12 @@ export async function initializePushListeners({ onNotification, onOpen } = {}) {
 
 export async function disablePush(accountId = null) {
   if (accountId) {
-    try { localStorage.removeItem(`secoto-push-${accountId}`); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(`secoto-push-${accountId}`);
+      localStorage.removeItem(`secoto-push-consent-v2-${accountId}`);
+    } catch {
+      /* ignore */
+    }
   }
   try {
     await supabase.rpc("secoto_deactivate_push_device", {

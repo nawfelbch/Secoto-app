@@ -14,6 +14,8 @@ workflows:
       vars:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
+        APP_STORE_APPLE_ID: "6794878696"
+        IOS_MARKETING_VERSION: "1.1"
       node: 24
       xcode: 26.0
     cache:
@@ -72,6 +74,12 @@ workflows:
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             build
+      - name: Numéro de build App Store
+        script: |
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --app-store-version="$IOS_MARKETING_VERSION" --platform=IOS 2>/dev/null || echo 0)
+          IOS_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
+          echo "SECOTO $IOS_MARKETING_VERSION ($IOS_BUILD_NUMBER)"
       - name: Profils App Store
         script: xcode-project use-profiles
       - name: Archive et IPA Release
@@ -79,7 +87,7 @@ workflows:
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CURRENT_PROJECT_VERSION=$BUILD_NUMBER"
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER MARKETING_VERSION=$IOS_MARKETING_VERSION"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log

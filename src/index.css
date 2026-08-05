@@ -1210,3 +1210,58 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
     width: 100%;
   }
 }
+
+/* ============================================================
+   SECOTO 1.1 — consentement notifications + rattachement client
+============================================================ */
+.permission-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  background: rgba(4, 9, 18, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.permission-gate-card {
+  width: min(520px, 100%);
+  padding: clamp(22px, 5vw, 34px);
+  border-radius: var(--radius-xl);
+  background: var(--neo-bg, var(--glass-strong));
+  box-shadow: var(--shadow-xl);
+  text-align: center;
+}
+.permission-gate-card h2 { margin: 10px 0 12px; }
+.permission-gate-card p { line-height: 1.55; }
+.permission-gate-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  box-shadow: var(--shadow-accent);
+}
+.permission-gate-actions { display: grid; gap: 10px; margin-top: 22px; }
+.permission-gate-actions .btn { width: 100%; min-height: 52px; }
+
+.claim-share-panel { margin: 12px 0 18px; }
+.claim-link-input { width: 100%; margin-top: 12px; padding: 13px 14px; border-radius: var(--radius-sm); }
+.claim-client-panel {
+  margin: 0 0 18px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: var(--neo-bg, var(--glass-soft));
+  box-shadow: var(--neo-inset, inset 0 0 0 1px var(--border));
+}
+.claim-client-panel h3 { margin: 0 0 6px; }
+.claim-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 12px; }
+.claim-form input { width: 100%; min-width: 0; padding: 12px 14px; border-radius: var(--radius-sm); }
+@media (max-width: 640px) {
+  .claim-form { grid-template-columns: 1fr; }
+  .claim-form .btn { width: 100%; }
+}
