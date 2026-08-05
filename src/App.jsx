@@ -190,6 +190,8 @@ function TransporterTypeBadge({ type }) {
 }
 
 function TransportPreferencesPanel({ account, busy, onSave }) {
+  const luxurySuspended =
+    account.luxuryClosedTransportStatus === "suspended";
   const [receivesStandard, setReceivesStandard] = useState(
     account.receivesStandardPlateau !== false,
   );
@@ -224,6 +226,7 @@ function TransportPreferencesPanel({ account, busy, onSave }) {
           <input
             type="checkbox"
             checked={requestsLuxury}
+            disabled={luxurySuspended}
             onChange={(event) => setRequestsLuxury(event.target.checked)}
           />
           <span>
@@ -231,7 +234,9 @@ function TransportPreferencesPanel({ account, busy, onSave }) {
             <small>
               Statut actuel : {labelLuxuryCapacityStatus(
                 account.luxuryClosedTransportStatus,
-              )}. Toute nouvelle demande doit être validée par SECOTO.
+              )}. {luxurySuspended
+                ? "Seul SECOTO peut réactiver cette capacité."
+                : "Toute nouvelle demande doit être validée par SECOTO."}
             </small>
           </span>
         </label>
@@ -3645,7 +3650,12 @@ export default function App() {
               <div className="panel panel-full">
                 <h2>Missions disponibles</h2>
                 {isAdmin && <div className="alert">Prévisualisation admin de la vue transporteur.</div>}
-                {!isAdmin && !account.isVerified && <div className="alert error">Compte non vérifié : vous pouvez consulter les missions, mais pas encore candidater.</div>}
+                {!isAdmin && !account.isVerified && (
+                  <div className="alert">
+                    Compte non vérifié : les missions compatibles seront visibles
+                    après validation de votre compte par SECOTO.
+                  </div>
+                )}
                 {visiblePublicMissions.length === 0 && <p className="muted">Aucune mission disponible actuellement.</p>}
                 <div className="cards">
                   {visiblePublicMissions.map((mission) => (

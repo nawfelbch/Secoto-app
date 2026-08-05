@@ -204,6 +204,7 @@ begin
   v_next_status := case
     when not v_requested then 'not_requested'
     when v_account.luxury_closed_transport_status = 'approved' then 'approved'
+    when v_account.luxury_closed_transport_status = 'suspended' then 'suspended'
     when v_account.luxury_closed_transport_status = 'pending' then 'pending'
     else 'pending'
   end;

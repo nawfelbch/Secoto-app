@@ -69,3 +69,28 @@ test("l'administration et le transporteur disposent des commandes premium", () =
   assert.match(app, /Valider camion fermé/);
   assert.match(app, /Transport de véhicules de prestige en camion fermé/);
 });
+test("une suspension premium ne peut pas être levée par le transporteur", () => {
+  assert.match(
+    sql,
+    /luxury_closed_transport_status = 'suspended' then 'suspended'/,
+  );
+  assert.match(
+    app,
+    /Seul SECOTO peut réactiver cette capacité\./,
+  );
+  assert.match(
+    app,
+    /disabled=\{luxurySuspended\}/,
+  );
+});
+
+test("un compte non vérifié n'est pas annoncé comme autorisé à consulter les missions", () => {
+  assert.doesNotMatch(
+    app,
+    /vous pouvez consulter les missions, mais pas encore candidater/,
+  );
+  assert.match(
+    app,
+    /les missions compatibles seront visibles[\s\S]*après validation/,
+  );
+});
