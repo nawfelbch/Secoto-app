@@ -35,10 +35,11 @@ where role::text = 'transporter'
 
 update public.accounts
 set
+  receives_standard_plateau = false,
   luxury_closed_transport_status = 'not_requested',
   luxury_closed_transport_requested_at = null
 where role::text = 'transporter'
-  and transporter_type::text not in ('vl', 'pl');
+  and coalesce(transporter_type::text, '') not in ('vl', 'pl');
 
 create or replace function secoto_private.safe_vehicle_category(
   p_payload jsonb
@@ -202,10 +203,13 @@ begin
   end if;
 
   v_next_status := case
+    when v_account.luxury_closed_transport_status = 'suspended'
+      then 'suspended'
     when not v_requested then 'not_requested'
-    when v_account.luxury_closed_transport_status = 'approved' then 'approved'
-    when v_account.luxury_closed_transport_status = 'suspended' then 'suspended'
-    when v_account.luxury_closed_transport_status = 'pending' then 'pending'
+    when v_account.luxury_closed_transport_status = 'approved'
+      then 'approved'
+    when v_account.luxury_closed_transport_status = 'pending'
+      then 'pending'
     else 'pending'
   end;
 
@@ -221,11 +225,11 @@ begin
       else luxury_closed_transport_requested_at
     end,
     luxury_closed_transport_reviewed_at = case
-      when v_next_status = 'not_requested' then null
+      when v_next_status in ('not_requested', 'pending') then null
       else luxury_closed_transport_reviewed_at
     end,
     luxury_closed_transport_reviewed_by = case
-      when v_next_status = 'not_requested' then null
+      when v_next_status in ('not_requested', 'pending') then null
       else luxury_closed_transport_reviewed_by
     end
   where id = v_actor
@@ -1242,7 +1246,7 @@ $function$;
 -- Vues cloisonnées. La nouvelle colonne est ajoutée en fin de vue afin de
 -- préserver l'ordre historique des colonnes existantes.
 create or replace view public.secoto_missions_admin_v2
-with (security_barrier = true)
+with (security_barrier = true, security_invoker = false)
 as
 select
   m.id,
@@ -1280,7 +1284,7 @@ from public.missions m
 where secoto_private.is_admin(auth.uid());
 
 create or replace view public.secoto_missions_client_v2
-with (security_barrier = true)
+with (security_barrier = true, security_invoker = false)
 as
 select
   m.id,
@@ -1315,7 +1319,7 @@ from public.missions m
 where m.client_account_id = auth.uid();
 
 create or replace view public.secoto_missions_transporter_v2
-with (security_barrier = true)
+with (security_barrier = true, security_invoker = false)
 as
 select
   m.id,
@@ -1346,7 +1350,7 @@ from public.missions m
 where m.assigned_transporter_id = auth.uid();
 
 create or replace view public.secoto_public_missions_v2
-with (security_barrier = true)
+with (security_barrier = true, security_invoker = false)
 as
 select
   m.id,

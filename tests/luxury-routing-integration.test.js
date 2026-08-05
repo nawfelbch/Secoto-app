@@ -72,7 +72,7 @@ test("l'administration et le transporteur disposent des commandes premium", () =
 test("une suspension premium ne peut pas être levée par le transporteur", () => {
   assert.match(
     sql,
-    /luxury_closed_transport_status = 'suspended' then 'suspended'/,
+    /luxury_closed_transport_status = 'suspended'\s+then 'suspended'/,
   );
   assert.match(
     app,
@@ -99,5 +99,50 @@ test("la migration SQL ne contient aucun caractère PowerShell parasite", () => 
   assert.match(
     sql,
     /split_part\(coalesce\(new\.email, 'utilisateur'\), '@', 1\)/,
+  );
+});
+test("la suspension administrative prime sur toute préférence transporteur", () => {
+  const functionStart = sql.indexOf(
+    "function public.secoto_update_my_transport_preferences",
+  );
+  const functionEnd = sql.indexOf(
+    "create or replace function public.secoto_admin_review_luxury_capacity",
+    functionStart,
+  );
+  const body = sql.slice(functionStart, functionEnd);
+
+  const suspendedIndex = body.indexOf(
+    "luxury_closed_transport_status = 'suspended'",
+  );
+  const uncheckedIndex = body.indexOf(
+    "when not v_requested then 'not_requested'",
+  );
+
+  assert.ok(suspendedIndex >= 0);
+  assert.ok(uncheckedIndex >= 0);
+  assert.ok(
+    suspendedIndex < uncheckedIndex,
+    "la suspension doit être évaluée avant une désactivation demandée",
+  );
+});
+
+test("une nouvelle demande premium efface l'ancien avis administratif", () => {
+  assert.match(
+    sql,
+    /v_next_status in \('not_requested', 'pending'\) then null/,
+  );
+});
+
+test("les quatre vues missions conservent explicitement leur sécurité", () => {
+  const matches = sql.match(
+    /with \(security_barrier = true, security_invoker = false\)/g,
+  ) || [];
+  assert.equal(matches.length, 4);
+});
+
+test("les anciens profils transporteur incomplets ne reçoivent aucun plateau", () => {
+  assert.match(
+    sql,
+    /coalesce\(transporter_type::text, ''\) not in \('vl', 'pl'\)/,
   );
 });
