@@ -81,8 +81,8 @@ workflows:
 
           # Le build 15 a déjà été généré lors de la tentative précédente.
           # On utilise au minimum 16.
-          if [ "$IOS_BUILD_NUMBER" -lt 17 ]; then
-            IOS_BUILD_NUMBER=17
+          if [ "$IOS_BUILD_NUMBER" -lt 18 ]; then
+            IOS_BUILD_NUMBER=18
           fi
 
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
@@ -112,12 +112,10 @@ workflows:
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
+            -destination "generic/platform=iOS" \
             -showBuildSettings \
             MARKETING_VERSION="$IOS_MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
-            INFOPLIST_KEY_CFBundleShortVersionString="$IOS_MARKETING_VERSION" \
-            INFOPLIST_KEY_CFBundleVersion="$IOS_BUILD_NUMBER" \
-            GENERATE_INFOPLIST_FILE=NO \
             > /tmp/secoto-build-settings.txt
 
           grep -E \
@@ -126,7 +124,7 @@ workflows:
 
           RESOLVED_VERSION=$(
             awk -F ' = ' \
-              '/^[[:space:]]*INFOPLIST_KEY_CFBundleShortVersionString = / {
+              '/^[[:space:]]*MARKETING_VERSION = / {
                 print $2;
                 exit
               }' \
@@ -155,7 +153,7 @@ workflows:
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "MARKETING_VERSION=$IOS_MARKETING_VERSION CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER INFOPLIST_KEY_CFBundleShortVersionString=$IOS_MARKETING_VERSION INFOPLIST_KEY_CFBundleVersion=$IOS_BUILD_NUMBER GENERATE_INFOPLIST_FILE=NO"
+            --archive-xcargs "MARKETING_VERSION=$IOS_MARKETING_VERSION CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER"
 
           IPA_PATH=$(find "$CM_BUILD_DIR/build/ios/ipa" -name "*.ipa" -type f -print -quit)
 
