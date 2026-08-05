@@ -94,3 +94,10 @@ test("un compte non vérifié n'est pas annoncé comme autorisé à consulter le
     /les missions compatibles seront visibles[\s\S]*après validation/,
   );
 });
+test("la migration SQL ne contient aucun caractère PowerShell parasite", () => {
+  assert.doesNotMatch(sql, /`/);
+  assert.match(
+    sql,
+    /split_part\(coalesce\(new\.email, 'utilisateur'\), '@', 1\)/,
+  );
+});

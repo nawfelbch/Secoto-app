@@ -140,7 +140,7 @@ begin
     v_role,
     left(coalesce(
       nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''),
-      split_part(coalesce(new.email, 'utilisateur'), '`@', 1)
+      split_part(coalesce(new.email, 'utilisateur'), '@', 1)
     ), 160),
     left(nullif(btrim(new.raw_user_meta_data ->> 'company_name'), ''), 200),
     left(nullif(btrim(new.raw_user_meta_data ->> 'phone'), ''), 40),
