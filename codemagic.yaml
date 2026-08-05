@@ -15,7 +15,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6794878696"
-        IOS_MARKETING_VERSION: "1.1"
+        IOS_MARKETING_VERSION: "1.2"
       node: 24
       xcode: 26.0
     cache:
@@ -79,10 +79,10 @@ workflows:
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --platform=IOS 2>/dev/null || echo 0)
           IOS_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
 
-          # Le build 15 a déjà été généré lors de la tentative précédente.
-          # On utilise au minimum 16.
-          if [ "$IOS_BUILD_NUMBER" -lt 19 ]; then
-            IOS_BUILD_NUMBER=19
+          # SECOTO 1.2 utilise au minimum le build 20 afin de rester
+          # distincte des builds préparés pour la version 1.1.
+          if [ "$IOS_BUILD_NUMBER" -lt 20 ]; then
+            IOS_BUILD_NUMBER=20
           fi
 
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
@@ -90,7 +90,7 @@ workflows:
       - name: Profils App Store
         script: xcode-project use-profiles
 
-      - name: Archive IPA SECOTO 1.1 et contrôle bloquant
+      - name: Archive IPA SECOTO 1.2 et contrôle bloquant
         script: |
           set -euo pipefail
 
