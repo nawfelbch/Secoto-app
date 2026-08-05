@@ -77,7 +77,9 @@ test("la branche SECOTO 1.2 ne peut produire aucune IPA 1.1", async () => {
 
   assert.match(yaml, /IOS_MARKETING_VERSION:\s+"1\.2"/);
   assert.match(yaml, /Archive IPA SECOTO 1\.2/);
-  assert.match(yaml, /IOS_BUILD_NUMBER"\s+-lt 20/);
+  assert.match(yaml, /get-latest-testflight-build-number/);
+  assert.match(yaml, /PROJECT_BUILD_NUMBER/);
+  assert.match(yaml, /IOS_BUILD_NUMBER"\s+-lt 21/);
   assert.match(plist, /CFBundleShortVersionString[\s\S]*?<string>1\.2<\/string>/);
 
   const projectVersions = project.match(/MARKETING_VERSION = 1\.2;/g) || [];

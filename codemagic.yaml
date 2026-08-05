@@ -76,15 +76,41 @@ workflows:
             build
       - name: Numéro de build App Store
         script: |
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --platform=IOS 2>/dev/null || echo 0)
-          IOS_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          APP_STORE_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --platform=IOS 2>/dev/null || echo 0)
+          TESTFLIGHT_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" --platform=IOS 2>/dev/null || echo 0)
+          PROJECT_SEQUENCE=${PROJECT_BUILD_NUMBER:-0}
 
-          # SECOTO 1.2 utilise au minimum le build 20 afin de rester
-          # distincte des builds préparés pour la version 1.1.
-          if [ "$IOS_BUILD_NUMBER" -lt 20 ]; then
-            IOS_BUILD_NUMBER=20
+          case "$APP_STORE_BUILD_NUMBER" in
+            ''|*[!0-9]*) APP_STORE_BUILD_NUMBER=0 ;;
+          esac
+          case "$TESTFLIGHT_BUILD_NUMBER" in
+            ''|*[!0-9]*) TESTFLIGHT_BUILD_NUMBER=0 ;;
+          esac
+          case "$PROJECT_SEQUENCE" in
+            ''|*[!0-9]*) PROJECT_SEQUENCE=0 ;;
+          esac
+
+          LATEST_UPLOADED_BUILD=$APP_STORE_BUILD_NUMBER
+          if [ "$TESTFLIGHT_BUILD_NUMBER" -gt "$LATEST_UPLOADED_BUILD" ]; then
+            LATEST_UPLOADED_BUILD=$TESTFLIGHT_BUILD_NUMBER
           fi
 
+          IOS_BUILD_NUMBER=$((LATEST_UPLOADED_BUILD + 1))
+
+          # La séquence Codemagic protège aussi contre un délai de mise à jour
+          # de l'API App Store Connect après un upload récent.
+          if [ "$PROJECT_SEQUENCE" -gt "$IOS_BUILD_NUMBER" ]; then
+            IOS_BUILD_NUMBER=$PROJECT_SEQUENCE
+          fi
+
+          # Le build 20 existe déjà dans App Store Connect.
+          if [ "$IOS_BUILD_NUMBER" -lt 21 ]; then
+            IOS_BUILD_NUMBER=21
+          fi
+
+          echo "App Store build : $APP_STORE_BUILD_NUMBER"
+          echo "TestFlight build : $TESTFLIGHT_BUILD_NUMBER"
+          echo "Codemagic project build : $PROJECT_SEQUENCE"
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
           echo "SECOTO $IOS_MARKETING_VERSION ($IOS_BUILD_NUMBER)"
       - name: Profils App Store
