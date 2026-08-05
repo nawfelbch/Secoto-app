@@ -1265,3 +1265,85 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
   .claim-form { grid-template-columns: 1fr; }
   .claim-form .btn { width: 100%; }
 }
+/* SECOTO 1.1 — parcours client anti-friction */
+.claim-auth-intro {
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(255, 113, 31, 0.42);
+  border-radius: 18px;
+  background: rgba(255, 113, 31, 0.08);
+}
+
+.claim-auth-intro strong {
+  display: block;
+  margin: 5px 0 8px;
+  font-size: clamp(1.25rem, 4vw, 1.8rem);
+}
+
+.claim-auth-intro p:last-child {
+  margin: 0;
+  color: var(--muted);
+}
+
+.claim-code-display {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid rgba(255, 113, 31, 0.5);
+  border-radius: 18px;
+  background: rgba(255, 113, 31, 0.08);
+  text-align: center;
+}
+
+.claim-code-display span {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.claim-code-display strong {
+  font-size: clamp(1.8rem, 8vw, 2.7rem);
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  user-select: all;
+}
+
+.claim-code-display small {
+  color: var(--muted);
+}
+
+.claim-auto-progress {
+  padding: 18px;
+  border: 1px solid rgba(48, 211, 153, 0.45);
+  border-radius: 16px;
+  background: rgba(48, 211, 153, 0.08);
+}
+
+.claim-code-input {
+  text-align: center;
+  font-size: clamp(1.25rem, 6vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.claim-recovery-trigger {
+  display: inline-flex;
+  margin: 0 0 18px;
+  padding: 0;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .claim-share-panel .actions-row,
+  .claim-client-panel .claim-form {
+    grid-template-columns: 1fr;
+  }
+
+  .claim-share-panel .btn,
+  .claim-client-panel .btn {
+    width: 100%;
+  }
+}

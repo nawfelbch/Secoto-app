@@ -10,10 +10,19 @@ export function isNativePlatform() {
   return Capacitor.isNativePlatform();
 }
 
-export function getAuthRedirectUrl() {
-  if (isNativePlatform()) return buildNativeAuthRedirect();
-  if (typeof window === "undefined") return "https://app.secoto-transport.fr/?auth=callback";
-  return `${window.location.origin}/?auth=callback`;
+export function getAuthRedirectUrl(extraParams = {}) {
+  const base = isNativePlatform()
+    ? buildNativeAuthRedirect()
+    : typeof window === "undefined"
+      ? "https://app.secoto-transport.fr/?auth=callback"
+      : `${window.location.origin}/?auth=callback`;
+
+  const url = new URL(base);
+  for (const [key, value] of Object.entries(extraParams || {})) {
+    const clean = String(value || "").trim();
+    if (clean) url.searchParams.set(key, clean);
+  }
+  return url.toString();
 }
 
 export function getServerFunctionUrl(functionName) {

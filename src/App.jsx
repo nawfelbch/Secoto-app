@@ -65,10 +65,17 @@ import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
-import MissionClaimPanel, {
+import {
   AdminClaimSharePanel,
+  ClientClaimRecoveryPanel,
 } from "./MissionClaimPanel";
-import { createMissionClaimForAdmin } from "./lib/missionClaims";
+import {
+  claimMissionInvite,
+  clearPendingMissionClaim,
+  createMissionClaimForAdmin,
+  getPendingMissionClaim,
+  persistPendingMissionClaim,
+} from "./lib/missionClaims";
 import NotificationConsentGate from "./NotificationConsentGate";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
@@ -492,9 +499,13 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
-function AuthScreen({ onBack }) {
+function AuthScreen({ onBack, claimInvite = null }) {
+  const claimMode = Boolean(claimInvite?.token || claimInvite?.code);
   const [authMode, setAuthMode] = useState("login");
   const [role, setRole] = useState("client");
+  const effectiveRole = claimMode ? "client" : role;
+
+
   const [transporterType, setTransporterType] = useState("convoyeur");
   const [clientType, setClientType] = useState("particulier");
 
@@ -507,6 +518,12 @@ function AuthScreen({ onBack }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const authRedirectUrl = getAuthRedirectUrl({
+    claim: claimInvite?.token || null,
+    claim_code: claimInvite?.code || null,
+    ref: claimInvite?.publicRef || null,
+  });
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -523,7 +540,7 @@ function AuthScreen({ onBack }) {
       const cleanEmail = email.trim().toLowerCase();
       if (!cleanEmail) throw new Error("Indiquez l’adresse e-mail de votre compte.");
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: getAuthRedirectUrl(),
+        redirectTo: authRedirectUrl,
       });
       if (resetError) throw resetError;
       setNotice("Un lien sécurisé de réinitialisation vient de vous être envoyé.");
@@ -538,7 +555,7 @@ function AuthScreen({ onBack }) {
     e.preventDefault();
     setLoading(true); setError(""); setNotice("");
 
-    if (role === "client" && clientType === "pro" && !companyName.trim()) {
+    if (effectiveRole === "client" && clientType === "pro" && !companyName.trim()) {
       setError("Merci d’indiquer le nom de votre société.");
       setLoading(false);
       return;
@@ -546,7 +563,7 @@ function AuthScreen({ onBack }) {
 
     const cleanEmail = email.trim().toLowerCase();
     const metadata = normalizePublicSignupMetadata({
-      role,
+      role: effectiveRole,
       full_name: fullName,
       company_name: companyName,
       phone,
@@ -559,7 +576,7 @@ function AuthScreen({ onBack }) {
       password,
       options: {
         data: metadata,
-        emailRedirectTo: getAuthRedirectUrl(),
+        emailRedirectTo: authRedirectUrl,
       },
     });
 
@@ -567,7 +584,7 @@ function AuthScreen({ onBack }) {
 
     if (!data.user) {
       setNotice("Compte créé. Vérifiez votre email si une confirmation est demandée.");
-    } else if (role === "client") {
+    } else if (effectiveRole === "client") {
       setNotice("Compte client créé — vous pouvez publier vos courses immédiatement.");
     } else {
       setNotice("Compte transporteur créé. Il sera validé par SECOTO avant de pouvoir candidater.");
@@ -580,8 +597,12 @@ function AuthScreen({ onBack }) {
       <header className="app-header">
         <div>
           <p className="eyebrow">SECOTO</p>
-          <h1>Le transport de véhicules, simplifié.</h1>
-          <p className="subtitle">Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous.</p>
+          <h1>{claimMode ? "Retrouvez votre transport" : "Le transport de véhicules, simplifié."}</h1>
+          <p className="subtitle">
+            {claimMode
+              ? "Connectez-vous ou créez votre compte client. Votre transport sera ajouté automatiquement."
+              : "Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous."}
+          </p>
         </div>
         <div className="header-actions">
           {onBack && <button className="btn ghost small" onClick={onBack}>← Retour</button>}
@@ -635,19 +656,31 @@ function AuthScreen({ onBack }) {
             <>
               <h2>Créer un compte</h2>
 
-              <p className="field"><span>Je suis…</span></p>
-              <div className="pick-grid">
-                <button type="button" className={`pick-tile ${role === "client" ? "selected" : ""}`} onClick={() => setRole("client")}>
-                  <strong>Client</strong>
-                  <small>J’ai un véhicule à faire transporter</small>
-                </button>
-                <button type="button" className={`pick-tile ${role === "transporter" ? "selected" : ""}`} onClick={() => setRole("transporter")}>
-                  <strong>Transporteur</strong>
-                  <small>Je réalise des missions de transport</small>
-                </button>
-              </div>
+              {claimMode ? (
+                <div className="claim-auth-intro">
+                  <p className="eyebrow">Invitation client sécurisée</p>
+                  <strong>{claimInvite?.publicRef || "Votre transport SECOTO"}</strong>
+                  <p>
+                    Utilisez le même e-mail ou téléphone que celui communiqué lors de la commande.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="field"><span>Je suis…</span></p>
+                  <div className="pick-grid">
+                    <button type="button" className={`pick-tile ${role === "client" ? "selected" : ""}`} onClick={() => setRole("client")}>
+                      <strong>Client</strong>
+                      <small>J’ai un véhicule à faire transporter</small>
+                    </button>
+                    <button type="button" className={`pick-tile ${role === "transporter" ? "selected" : ""}`} onClick={() => setRole("transporter")}>
+                      <strong>Transporteur</strong>
+                      <small>Je réalise des missions de transport</small>
+                    </button>
+                  </div>
+                </>
+              )}
 
-              {role === "transporter" && (
+              {!claimMode && role === "transporter" && (
                 <>
                   <p className="field" style={{ marginTop: 16 }}><span>Mon activité</span></p>
                   <div className="pick-grid">
@@ -679,13 +712,13 @@ function AuthScreen({ onBack }) {
 
               <form className="form-grid" style={{ marginTop: 18 }} onSubmit={handleSignup}>
                 <Field label="Nom complet" name="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-                <Field label={role === "client" && clientType === "particulier" ? "Société (optionnel)" : "Société"} name="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required={role === "transporter" || (role === "client" && clientType === "pro")} />
+                <Field label={effectiveRole === "client" && clientType === "particulier" ? "Société (optionnel)" : "Société"} name="companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required={effectiveRole === "transporter" || (effectiveRole === "client" && clientType === "pro")} />
                 <Field label="Email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
                 <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
                 <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
                 <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} required />
                 <button className="btn primary field-full" type="submit" disabled={loading}>
-                  {loading ? "Création…" : role === "client" ? "Créer mon compte client" : "Demander mon accès transporteur"}
+                  {loading ? "Création…" : effectiveRole === "client" ? "Créer mon compte client" : "Demander mon accès transporteur"}
                 </button>
               </form>
             </>
@@ -938,9 +971,20 @@ function PasswordRecoveryScreen({ onDone }) {
   );
 }
 
-function PublicEntry() {
-  const [view, setView] = useState("landing");
-  if (view === "auth") return <AuthScreen onBack={() => setView("landing")} />;
+function PublicEntry({ pendingClaim }) {
+  const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
+  const [view, setView] = useState(claimMode ? "auth" : "landing");
+  const effectiveView = claimMode ? "auth" : view;
+
+  if (effectiveView === "auth") {
+    return (
+      <AuthScreen
+        claimInvite={pendingClaim}
+        onBack={claimMode ? null : () => setView("landing")}
+      />
+    );
+  }
+
   return <PublicLanding onShowAuth={() => setView("auth")} />;
 }
 
@@ -990,6 +1034,10 @@ export default function App() {
   // Mission mise en avant après clic sur une notification.
   const [focusMissionId, setFocusMissionId] = useState(null);
   const [claimShare, setClaimShare] = useState(null);
+  const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
+  const [claimStatus, setClaimStatus] = useState("idle");
+  const [claimError, setClaimError] = useState("");
+  const [showClaimRecovery, setShowClaimRecovery] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1046,6 +1094,8 @@ export default function App() {
 
   const accountRef = useRef(null);
   useEffect(() => { accountRef.current = account; }, [account]);
+
+
   const actionLocksRef = useRef(new Set());
   const accountLoadGenerationRef = useRef(0);
   const dataGenerationRef = useRef(0);
@@ -1107,6 +1157,25 @@ export default function App() {
   }
 
   async function handlePlatformDeepLink(link) {
+    const invite = link?.claimToken || link?.claimCode
+      ? persistPendingMissionClaim({
+          token: link.claimToken,
+          code: link.claimCode,
+          publicRef: link.publicRef,
+        })
+      : null;
+
+    if (invite) {
+      setPendingClaim(invite);
+      setClaimError("");
+      setClaimStatus("idle");
+    }
+
+    if (link?.kind === "claim") {
+      if (accountRef.current?.role === "client") setClientTab("courses");
+      return;
+    }
+
     if (link?.kind === "auth") {
       if (link.code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(link.code);
@@ -1118,6 +1187,7 @@ export default function App() {
       if (link.authType === "recovery") setPasswordRecovery(true);
       return;
     }
+
     applyNavigationLink(link);
   }
 
@@ -1214,6 +1284,53 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id]);
+
+  useEffect(() => {
+    if (
+      !account?.id
+      || account.role !== "client"
+      || !pendingClaim
+      || claimStatus === "claiming"
+    ) return undefined;
+
+    let alive = true;
+
+    async function attachClaim() {
+      setClientTab("courses");
+      setClaimStatus("claiming");
+      setClaimError("");
+
+      try {
+        const row = await claimMissionInvite(pendingClaim);
+        if (!alive) return;
+
+        clearPendingMissionClaim();
+        setPendingClaim(null);
+        setClaimStatus("claimed");
+        setShowClaimRecovery(false);
+        setFocusMissionId(row.mission_id);
+        setNotice(`Le transport ${row.public_ref || "SECOTO"} a été ajouté à votre compte.`);
+        await loadAllData(account);
+      } catch (claimFailure) {
+        if (!alive) return;
+        setClaimStatus("error");
+        setShowClaimRecovery(true);
+        setClaimError(
+          claimFailure.message
+          || "Impossible d’ajouter ce transport. Vérifiez le code ou le compte utilisé.",
+        );
+      }
+    }
+
+    attachClaim();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    account?.id,
+    account?.role,
+    pendingClaim?.token,
+    pendingClaim?.code,
+  ]);
 
   /* ---------- Boot / session ---------- */
   useEffect(() => {
@@ -1775,6 +1892,17 @@ export default function App() {
   async function createMission(e) {
     e.preventDefault(); setError(""); setNotice("");
     try {
+      const clientEmailOrContact = String(missionForm.clientContact || "").trim();
+      const clientPhone = String(missionForm.clientPhone || "").trim();
+      const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmailOrContact);
+      const phoneDigits = `${clientPhone} ${clientEmailOrContact}`.replace(/\D/g, "");
+
+      if (!emailLooksValid && phoneDigits.length < 8) {
+        throw new Error(
+          "Renseignez un e-mail valide ou le téléphone du client pour sécuriser son accès au suivi.",
+        );
+      }
+
       await runLocked("mission:create:admin", async () => {
         const payload = missionToDb(missionForm, { status: "published", createdByRole: "admin" });
         delete payload.public_ref;
@@ -2481,6 +2609,10 @@ export default function App() {
     setTransporters([]); setDocuments([]); setTrackingEvents([]); setTrackingPhotos([]);
     setTrackingForms({}); setNotifications([]);
     setPushState("idle");
+    setClaimShare(null);
+    setClaimStatus("idle");
+    setClaimError("");
+    setShowClaimRecovery(false);
   }
 
   // Suppression via une fonction serveur authentifiee : Storage, donnees
@@ -2852,7 +2984,7 @@ export default function App() {
             <button className="btn ghost small" onClick={() => { loadAllData(account); loadNotifications(account); setNavOpen(false); }}>Actualiser</button>
             {/* Toujours accessible : indispensable quand plusieurs comptes se
                 partagent le même téléphone. */}
-            {pushSupported() && (
+            {account.role === "transporter" && pushSupported() && (
               <button
                 className={`btn ${pushState === "enabled" ? "ghost" : "primary"} small`}
                 onClick={() => { handleEnablePush(); setNavOpen(false); }}
@@ -2881,7 +3013,7 @@ export default function App() {
     return <PasswordRecoveryScreen onDone={() => setPasswordRecovery(false)} />;
   }
 
-  if (!session) return <PublicEntry />;
+  if (!session) return <PublicEntry pendingClaim={pendingClaim} />;
 
   if (!account) {
     // Tant que le profil n'a pas fini d'etre verifie, on montre un chargement
@@ -2953,15 +3085,6 @@ export default function App() {
         </div>
       </header>
 
-      {!isTransporter && pushSupported() && pushState === "idle" && (
-        <div className="push-banner">
-          <p><strong>Activez les notifications</strong> pour être alerté {isClient ? "à chaque étape de votre transport" : "dès qu’une nouvelle course est disponible"}.</p>
-          <div className="actions-row" style={{ marginTop: 0 }}>
-            <button className="btn primary small" onClick={handleEnablePush}>Activer</button>
-            <button className="btn ghost small" onClick={() => setPushState("dismissed")}>Plus tard</button>
-          </div>
-        </div>
-      )}
 
       <div className="app-layout">
         {renderSidebar()}
@@ -2986,7 +3109,13 @@ export default function App() {
       )}
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
-      {claimShare && (
+      {pendingClaim && !isClient && (
+        <div className="alert">
+          Ce lien est réservé au client concerné. Déconnectez ce compte puis utilisez
+          l’e-mail ou le téléphone communiqué lors de la commande.
+        </div>
+      )}
+      {isAdmin && claimShare && (
         <AdminClaimSharePanel claim={claimShare} onClose={() => setClaimShare(null)} />
       )}
 
@@ -3007,7 +3136,40 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Mes courses & suivi</h2>
-                <MissionClaimPanel onClaimed={() => loadAllData(account)} />
+
+                {(pendingClaim || showClaimRecovery || claimError) ? (
+                  <ClientClaimRecoveryPanel
+                    key={`${pendingClaim?.token || ""}:${pendingClaim?.code || ""}`}
+                    open
+                    automatic={Boolean(pendingClaim?.token)}
+                    busy={claimStatus === "claiming"}
+                    error={claimError}
+                    initialCode={pendingClaim?.code || ""}
+                    onSubmitCode={(code) => {
+                      const invite = persistPendingMissionClaim({ code });
+                      setPendingClaim(invite);
+                      setClaimStatus("idle");
+                      setClaimError("");
+                      setShowClaimRecovery(true);
+                    }}
+                    onClose={() => {
+                      clearPendingMissionClaim();
+                      setPendingClaim(null);
+                      setClaimStatus("idle");
+                      setClaimError("");
+                      setShowClaimRecovery(false);
+                    }}
+                  />
+                ) : (
+                  <button
+                    className="linklike claim-recovery-trigger"
+                    type="button"
+                    onClick={() => setShowClaimRecovery(true)}
+                  >
+                    J’ai reçu un code SECOTO
+                  </button>
+                )}
+
                 {clientMissions.length === 0 && (
                   <div className="empty-state"><strong>Aucune course pour le moment</strong>Publiez votre première demande de transport en quelques secondes.</div>
                 )}

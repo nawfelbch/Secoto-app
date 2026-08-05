@@ -81,8 +81,8 @@ workflows:
 
           # Le build 15 a déjà été généré lors de la tentative précédente.
           # On utilise au minimum 16.
-          if [ "$IOS_BUILD_NUMBER" -lt 18 ]; then
-            IOS_BUILD_NUMBER=18
+          if [ "$IOS_BUILD_NUMBER" -lt 19 ]; then
+            IOS_BUILD_NUMBER=19
           fi
 
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"

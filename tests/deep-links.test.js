@@ -29,3 +29,30 @@ test("les callbacks Auth natifs PKCE sont distingués de la navigation métier",
     { kind: "auth", code: null, authType: "recovery" },
   );
 });
+
+test("un lien client SECOTO est distingué des liens de navigation", () => {
+  assert.deepEqual(
+    parseSecotoDeepLink(
+      "https://app.secoto-transport.fr/?claim=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef&ref=MIS-2026-TEST",
+    ),
+    {
+      kind: "claim",
+      claimToken: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+      claimCode: null,
+      publicRef: "MIS-2026-TEST",
+    },
+  );
+
+  assert.deepEqual(
+    parseSecotoDeepLink(
+      "secoto://auth/callback?code=pkce-code&claim=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef&ref=MIS-2026-TEST",
+    ),
+    {
+      kind: "auth",
+      code: "pkce-code",
+      authType: null,
+      claimToken: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+      publicRef: "MIS-2026-TEST",
+    },
+  );
+});
