@@ -189,6 +189,70 @@ function TransporterTypeBadge({ type }) {
   return <span className={`type-badge type-${type}`}>{labelTransporterType(type)}</span>;
 }
 
+function TransportPreferencesPanel({ account, busy, onSave }) {
+  const [receivesStandard, setReceivesStandard] = useState(
+    account.receivesStandardPlateau !== false,
+  );
+  const [requestsLuxury, setRequestsLuxury] = useState(
+    ["pending", "approved", "suspended"].includes(
+      account.luxuryClosedTransportStatus,
+    ),
+  );
+
+  return (
+    <div className="panel" style={{ marginTop: 18 }}>
+      <h2>Types de missions reçues</h2>
+      <p className="muted">
+        Ces préférences déterminent les courses visibles et les notifications
+        envoyées à ce compte.
+      </p>
+
+      <div className="transporter-capabilities">
+        <label className="preference-card">
+          <input
+            type="checkbox"
+            checked={receivesStandard}
+            onChange={(event) => setReceivesStandard(event.target.checked)}
+          />
+          <span>
+            <strong>Transports standards sur plateau</strong>
+            <small>Recevoir les missions classiques VL ou PL.</small>
+          </span>
+        </label>
+
+        <label className="preference-card premium">
+          <input
+            type="checkbox"
+            checked={requestsLuxury}
+            onChange={(event) => setRequestsLuxury(event.target.checked)}
+          />
+          <span>
+            <strong>Transport de véhicules de prestige en camion fermé</strong>
+            <small>
+              Statut actuel : {labelLuxuryCapacityStatus(
+                account.luxuryClosedTransportStatus,
+              )}. Toute nouvelle demande doit être validée par SECOTO.
+            </small>
+          </span>
+        </label>
+      </div>
+
+      <button
+        className="btn primary"
+        type="button"
+        disabled={busy}
+        onClick={() => onSave({
+          receivesStandardPlateau: receivesStandard,
+          luxuryClosedTransportRequested: requestsLuxury,
+        })}
+        style={{ marginTop: 14 }}
+      >
+        Enregistrer mes préférences
+      </button>
+    </div>
+  );
+}
+
 function ThemeToggle() {
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") return null;
@@ -2184,6 +2248,51 @@ export default function App() {
     } catch (err) { setError(err.message || "Erreur lors de la mise à jour du transporteur."); }
   }
 
+  async function reviewLuxuryCapacity(transporterId, status) {
+    setError(""); setNotice("");
+    try {
+      await runLocked(`transporter:luxury:${transporterId}`, async () => {
+        const { error } = await supabase.rpc(
+          "secoto_admin_review_luxury_capacity",
+          {
+            p_transporter_id: transporterId,
+            p_status: status,
+          },
+        );
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Capacité camion fermé mise à jour.");
+      });
+    } catch (err) {
+      setError(
+        err.message
+        || "Erreur lors de la validation de la capacité camion fermé.",
+      );
+    }
+  }
+
+  async function saveTransportPreferences(preferences) {
+    setError(""); setNotice("");
+    try {
+      await runLocked(`transporter:preferences:${account.id}`, async () => {
+        const { error } = await supabase.rpc(
+          "secoto_update_my_transport_preferences",
+          {
+            p_luxury_closed_transport_requested:
+              preferences.luxuryClosedTransportRequested,
+            p_receives_standard_plateau:
+              preferences.receivesStandardPlateau,
+          },
+        );
+        if (error) throw error;
+        await loadAccount(account.id);
+        setNotice("Préférences de missions enregistrées.");
+      });
+    } catch (err) {
+      setError(err.message || "Impossible d’enregistrer vos préférences.");
+    }
+  }
+
   async function updateDocumentStatus(documentId, status) {
     setError(""); setNotice("");
     try {
@@ -3440,6 +3549,44 @@ export default function App() {
                             <>
                               <p><strong>Plateau standard :</strong> {transporter.receivesStandardPlateau ? "Oui" : "Non"}</p>
                               <p><strong>Camion fermé premium :</strong> {labelLuxuryCapacityStatus(transporter.luxuryClosedTransportStatus)}</p>
+                              <div className="actions-row">
+                                {transporter.luxuryClosedTransportStatus === "pending" && (
+                                  <>
+                                    <button
+                                      className="btn primary small"
+                                      type="button"
+                                      onClick={() => reviewLuxuryCapacity(transporter.id, "approved")}
+                                    >
+                                      Valider camion fermé
+                                    </button>
+                                    <button
+                                      className="btn danger small"
+                                      type="button"
+                                      onClick={() => reviewLuxuryCapacity(transporter.id, "rejected")}
+                                    >
+                                      Refuser la capacité
+                                    </button>
+                                  </>
+                                )}
+                                {transporter.luxuryClosedTransportStatus === "approved" && (
+                                  <button
+                                    className="btn danger small"
+                                    type="button"
+                                    onClick={() => reviewLuxuryCapacity(transporter.id, "suspended")}
+                                  >
+                                    Suspendre camion fermé
+                                  </button>
+                                )}
+                                {transporter.luxuryClosedTransportStatus === "suspended" && (
+                                  <button
+                                    className="btn primary small"
+                                    type="button"
+                                    onClick={() => reviewLuxuryCapacity(transporter.id, "approved")}
+                                  >
+                                    Réactiver camion fermé
+                                  </button>
+                                )}
+                              </div>
                             </>
                           )}
                         </div>
@@ -3700,6 +3847,19 @@ export default function App() {
                         )}
                       </div>
                     </div>
+
+                    {["vl", "pl"].includes(account.transporterType) && (
+                      <TransportPreferencesPanel
+                        key={[
+                          account.id,
+                          account.receivesStandardPlateau,
+                          account.luxuryClosedTransportStatus,
+                        ].join(":")}
+                        account={account}
+                        busy={actionLoading}
+                        onSave={saveTransportPreferences}
+                      />
+                    )}
 
                     <div className="panel" style={{ marginTop: 18 }}>
                       <h2>Notifications de missions</h2>
