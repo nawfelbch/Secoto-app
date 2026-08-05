@@ -81,15 +81,22 @@ workflows:
 
           # Le build 15 a déjà été généré lors de la tentative précédente.
           # On utilise au minimum 16.
-          if [ "$IOS_BUILD_NUMBER" -lt 16 ]; then
-            IOS_BUILD_NUMBER=16
+          if [ "$IOS_BUILD_NUMBER" -lt 17 ]; then
+            IOS_BUILD_NUMBER=17
           fi
 
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
           echo "SECOTO $IOS_MARKETING_VERSION ($IOS_BUILD_NUMBER)"
-      - name: Fixer et vérifier la version iOS
+      - name: Profils App Store
+        script: xcode-project use-profiles
+
+      - name: Archive IPA SECOTO 1.1 et contrôle bloquant
         script: |
+          set -euo pipefail
+
           PLIST="$CM_BUILD_DIR/ios/App/App/Info.plist"
+
+          test -f "$PLIST"
 
           /usr/libexec/PlistBuddy \
             -c "Set :CFBundleShortVersionString $IOS_MARKETING_VERSION" \
@@ -99,28 +106,65 @@ workflows:
             -c "Set :CFBundleVersion $IOS_BUILD_NUMBER" \
             "$PLIST"
 
-          PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
-          PLIST_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          echo "Réglages Xcode Release réellement résolus :"
 
-          echo "Info.plist SECOTO : $PLIST_VERSION ($PLIST_BUILD)"
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -showBuildSettings \
+            MARKETING_VERSION="$IOS_MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            INFOPLIST_KEY_CFBundleShortVersionString="$IOS_MARKETING_VERSION" \
+            INFOPLIST_KEY_CFBundleVersion="$IOS_BUILD_NUMBER" \
+            GENERATE_INFOPLIST_FILE=NO \
+            > /tmp/secoto-build-settings.txt
 
-          test "$PLIST_VERSION" = "$IOS_MARKETING_VERSION"
-          test "$PLIST_BUILD" = "$IOS_BUILD_NUMBER"
+          grep -E \
+            "MARKETING_VERSION|CURRENT_PROJECT_VERSION|INFOPLIST_KEY_CFBundleShortVersionString|GENERATE_INFOPLIST_FILE" \
+            /tmp/secoto-build-settings.txt
 
-      - name: Profils App Store
-        script: xcode-project use-profiles
-      - name: Archive et IPA Release
-        script: |
+          RESOLVED_VERSION=$(
+            awk -F ' = ' \
+              '/^[[:space:]]*INFOPLIST_KEY_CFBundleShortVersionString = / {
+                print $2;
+                exit
+              }' \
+              /tmp/secoto-build-settings.txt
+          )
+
+          RESOLVED_BUILD=$(
+            awk -F ' = ' \
+              '/^[[:space:]]*CURRENT_PROJECT_VERSION = / {
+                print $2;
+                exit
+              }' \
+              /tmp/secoto-build-settings.txt
+          )
+
+          if [ "$RESOLVED_VERSION" != "$IOS_MARKETING_VERSION" ]; then
+            echo "ERREUR : Xcode prépare la version $RESOLVED_VERSION au lieu de $IOS_MARKETING_VERSION"
+            exit 1
+          fi
+
+          if [ "$RESOLVED_BUILD" != "$IOS_BUILD_NUMBER" ]; then
+            echo "ERREUR : Xcode prépare le build $RESOLVED_BUILD au lieu de $IOS_BUILD_NUMBER"
+            exit 1
+          fi
+
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER MARKETING_VERSION=$IOS_MARKETING_VERSION"
+            --archive-xcargs "MARKETING_VERSION=$IOS_MARKETING_VERSION CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER INFOPLIST_KEY_CFBundleShortVersionString=$IOS_MARKETING_VERSION INFOPLIST_KEY_CFBundleVersion=$IOS_BUILD_NUMBER GENERATE_INFOPLIST_FILE=NO"
 
           IPA_PATH=$(find "$CM_BUILD_DIR/build/ios/ipa" -name "*.ipa" -type f -print -quit)
-          test -n "$IPA_PATH"
-          test -f "$IPA_PATH"
 
-          CHECK_DIR="/tmp/secoto-ipa-version-check"
+          if [ -z "$IPA_PATH" ] || [ ! -f "$IPA_PATH" ]; then
+            echo "ERREUR : aucune IPA trouvée."
+            exit 1
+          fi
+
+          CHECK_DIR="/tmp/secoto-final-ipa"
           rm -rf "$CHECK_DIR"
           mkdir -p "$CHECK_DIR"
 
@@ -129,15 +173,38 @@ workflows:
           APP_DIR=$(find "$CHECK_DIR/Payload" -maxdepth 1 -name "*.app" -type d -print -quit)
           APP_PLIST="$APP_DIR/Info.plist"
 
-          test -f "$APP_PLIST"
+          if [ ! -f "$APP_PLIST" ]; then
+            echo "ERREUR : Info.plist absent de l’IPA."
+            exit 1
+          fi
 
-          IPA_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PLIST")
-          IPA_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PLIST")
+          IPA_VERSION=$(
+            /usr/libexec/PlistBuddy \
+              -c "Print :CFBundleShortVersionString" \
+              "$APP_PLIST"
+          )
 
-          echo "IPA finale SECOTO : $IPA_VERSION ($IPA_BUILD)"
+          IPA_BUILD=$(
+            /usr/libexec/PlistBuddy \
+              -c "Print :CFBundleVersion" \
+              "$APP_PLIST"
+          )
 
-          test "$IPA_VERSION" = "$IOS_MARKETING_VERSION"
-          test "$IPA_BUILD" = "$IOS_BUILD_NUMBER"
+          echo "======================================="
+          echo "IPA FINALE SECOTO : $IPA_VERSION ($IPA_BUILD)"
+          echo "======================================="
+
+          if [ "$IPA_VERSION" != "$IOS_MARKETING_VERSION" ]; then
+            echo "ERREUR BLOQUANTE : l’IPA contient $IPA_VERSION au lieu de $IOS_MARKETING_VERSION."
+            exit 1
+          fi
+
+          if [ "$IPA_BUILD" != "$IOS_BUILD_NUMBER" ]; then
+            echo "ERREUR BLOQUANTE : l’IPA contient le build $IPA_BUILD au lieu de $IOS_BUILD_NUMBER."
+            exit 1
+          fi
+
+          echo "IPA SECOTO validée pour publication."
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
