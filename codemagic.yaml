@@ -76,10 +76,37 @@ workflows:
             build
       - name: Numéro de build App Store
         script: |
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --app-store-version="$IOS_MARKETING_VERSION" --platform=IOS 2>/dev/null || echo 0)
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" --platform=IOS 2>/dev/null || echo 0)
           IOS_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+
+          # Le build 15 a déjà été généré lors de la tentative précédente.
+          # On utilise au minimum 16.
+          if [ "$IOS_BUILD_NUMBER" -lt 16 ]; then
+            IOS_BUILD_NUMBER=16
+          fi
+
           echo "IOS_BUILD_NUMBER=$IOS_BUILD_NUMBER" >> "$CM_ENV"
           echo "SECOTO $IOS_MARKETING_VERSION ($IOS_BUILD_NUMBER)"
+      - name: Fixer et vérifier la version iOS
+        script: |
+          PLIST="$CM_BUILD_DIR/ios/App/App/Info.plist"
+
+          /usr/libexec/PlistBuddy \
+            -c "Set :CFBundleShortVersionString $IOS_MARKETING_VERSION" \
+            "$PLIST"
+
+          /usr/libexec/PlistBuddy \
+            -c "Set :CFBundleVersion $IOS_BUILD_NUMBER" \
+            "$PLIST"
+
+          PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          PLIST_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+
+          echo "Info.plist SECOTO : $PLIST_VERSION ($PLIST_BUILD)"
+
+          test "$PLIST_VERSION" = "$IOS_MARKETING_VERSION"
+          test "$PLIST_BUILD" = "$IOS_BUILD_NUMBER"
+
       - name: Profils App Store
         script: xcode-project use-profiles
       - name: Archive et IPA Release
@@ -88,6 +115,29 @@ workflows:
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
             --archive-xcargs "CURRENT_PROJECT_VERSION=$IOS_BUILD_NUMBER MARKETING_VERSION=$IOS_MARKETING_VERSION"
+
+          IPA_PATH=$(find "$CM_BUILD_DIR/build/ios/ipa" -name "*.ipa" -type f -print -quit)
+          test -n "$IPA_PATH"
+          test -f "$IPA_PATH"
+
+          CHECK_DIR="/tmp/secoto-ipa-version-check"
+          rm -rf "$CHECK_DIR"
+          mkdir -p "$CHECK_DIR"
+
+          unzip -q "$IPA_PATH" -d "$CHECK_DIR"
+
+          APP_DIR=$(find "$CHECK_DIR/Payload" -maxdepth 1 -name "*.app" -type d -print -quit)
+          APP_PLIST="$APP_DIR/Info.plist"
+
+          test -f "$APP_PLIST"
+
+          IPA_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PLIST")
+          IPA_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PLIST")
+
+          echo "IPA finale SECOTO : $IPA_VERSION ($IPA_BUILD)"
+
+          test "$IPA_VERSION" = "$IOS_MARKETING_VERSION"
+          test "$IPA_BUILD" = "$IOS_BUILD_NUMBER"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
