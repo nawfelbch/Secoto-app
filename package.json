@@ -14,6 +14,7 @@
     "cap:ios": "npm run build && npx cap sync && npx cap open ios"
   },
   "dependencies": {
+    "@capacitor-community/stripe": "^8.2.1",
     "@capacitor/android": "^8.4.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/camera": "^8.2.1",
@@ -28,6 +29,7 @@
     "@supabase/supabase-js": "^2.107.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "stripe": "^22.5.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

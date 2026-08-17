@@ -18,6 +18,11 @@ export const emptyMissionForm = {
   priceMode: "fixed",
   proposedPrice: "",
   paymentMethod: "virement",
+  // Suppléments convoyage : 100 % manuels, cochés par l'admin. Aucune
+  // détection automatique, aucun supplément appliqué à l'insu de personne.
+  surchargeUrgent: false,
+  surchargeWeekend: false,
+  surchargeOversizePct: 0,
   notes: "",
 };
 
@@ -76,6 +81,20 @@ export function missionFromDb(row) {
     clientPrice: row.client_price,
     carrierPay: row.carrier_pay,
     margin: row.margin,
+    // Suppléments convoyage (manuels).
+    surchargeUrgent: row.surcharge_urgent ?? false,
+    surchargeWeekend: row.surcharge_weekend ?? false,
+    surchargeOversizePct: row.surcharge_oversize_pct ?? 0,
+    // Décomposition plateau. commissionAmount est le SEUL montant encaissé par
+    // SECOTO ; transportAmount est réglé en direct au transporteur.
+    commissionAmount: row.commission_amount ?? null,
+    transportAmount: row.transport_amount ?? null,
+    clientTotalDue: row.client_total_due ?? null,
+    paymentStatus: row.payment_status || "not_required",
+    commissionPaidAt: row.commission_paid_at || null,
+    cancelledAt: row.cancelled_at || null,
+    cancellationReason: row.cancellation_reason || null,
+    cancellationFee: row.cancellation_fee ?? 0,
     clientName: row.client_name,
     clientContact: row.client_contact,
     clientPhone: row.client_phone,
@@ -263,6 +282,13 @@ export function missionToDb(form, extra = {}) {
     price_mode: form.priceMode || "fixed",
     proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
     payment_method: form.paymentMethod || "virement",
+    // Les suppléments ne concernent que le convoyage : en plateau, le tarif
+    // est fixé librement par le transporteur et SECOTO ne majore rien.
+    surcharge_urgent: form.type === "convoyage" ? Boolean(form.surchargeUrgent) : false,
+    surcharge_weekend: form.type === "convoyage" ? Boolean(form.surchargeWeekend) : false,
+    surcharge_oversize_pct: form.type === "convoyage"
+      ? Math.min(Math.max(Number(form.surchargeOversizePct) || 0, 0), 40)
+      : 0,
     notes: form.notes || null,
     created_by_role: extra.createdByRole || "admin",
     client_account_id: extra.clientAccountId || null,

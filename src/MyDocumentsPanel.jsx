@@ -25,7 +25,14 @@ const STATUT_LABEL = {
   brouillon: "En preparation",
 };
 
-export default function MyDocumentsPanel({ account, focusMissionId = null }) {
+export default function MyDocumentsPanel({
+  account,
+  focusMissionId = null,
+  // Appelé après signature d'un DEVIS. Sur une mission plateau, l'appelant
+  // enchaîne immédiatement sur l'écran de paiement : le bon de mission ne
+  // partira au transporteur qu'après encaissement de la commission.
+  onDevisSigned = null,
+}) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,10 +71,13 @@ export default function MyDocumentsPanel({ account, focusMissionId = null }) {
   async function onSign(docId, signature) {
     setBusy(true); setError(""); setNotice("");
     try {
-      await signDocument(docId, signature);
+      const signed = await signDocument(docId, signature);
       setSigningId(null);
       setNotice("Document signe. Une copie reste disponible ici a tout moment.");
       await reload();
+      if (signed?.docType === "devis" && signed?.missionId) {
+        onDevisSigned?.(signed.missionId);
+      }
     } catch (e) {
       setError(e.message || "Signature impossible.");
     } finally {

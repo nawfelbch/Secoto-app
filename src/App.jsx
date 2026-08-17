@@ -28,7 +28,15 @@ import {
   initializePushListeners,
   pushSupported,
 } from "./push";
-import { computeClientPrice, computeCarrierPay, computeMargin, formatAmount } from "./lib/pricing";
+import {
+  computeClientPrice,
+  computeCarrierPay,
+  computeClientTotalDue,
+  computeCommission,
+  computeMargin,
+  computeTransportAmount,
+  formatAmount,
+} from "./lib/pricing";
 import {
   normalizePublicSignupMetadata,
   progressFromTrackingEvent,
@@ -81,6 +89,9 @@ import {
   persistPendingMissionClaim,
 } from "./lib/missionClaims";
 import NotificationConsentGate from "./NotificationConsentGate";
+import NotificationPreferencesPanel from "./NotificationPreferencesPanel";
+import LegalNoticesPanel from "./LegalNoticesPanel";
+import PaymentScreen from "./PaymentScreen";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
@@ -106,6 +117,10 @@ const MISSION_ADMIN_COLUMNS = [
   "client_name", "client_contact", "client_phone", "price_mode", "proposed_price",
   "payment_method", "notes", "created_by_role", "client_account_id",
   "assigned_transporter_id", "assigned_transporter_name", "source_request_id", "created_at",
+  "surcharge_urgent", "surcharge_weekend", "surcharge_oversize_pct",
+  "commission_amount", "transport_amount", "client_total_due",
+  "payment_status", "commission_paid_at", "cancelled_at", "cancellation_reason",
+  "cancellation_fee",
 ].join(",");
 const MISSION_CLIENT_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -114,6 +129,9 @@ const MISSION_CLIENT_COLUMNS = [
   "price_mode", "proposed_price", "payment_method", "notes", "created_by_role",
   "client_account_id", "assigned_transporter_id", "assigned_transporter_name",
   "source_request_id", "created_at",
+  "commission_amount", "transport_amount", "client_total_due",
+  "payment_status", "commission_paid_at", "cancelled_at", "cancellation_reason",
+  "cancellation_fee",
 ].join(",");
 const MISSION_TRANSPORTER_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -121,6 +139,9 @@ const MISSION_TRANSPORTER_COLUMNS = [
   "distance_km", "carrier_cost", "carrier_pay", "client_name", "client_contact",
   "client_phone", "payment_method", "notes", "assigned_transporter_id",
   "assigned_transporter_name", "created_at",
+  // Jamais client_price, margin, commission_amount ni client_total_due ici :
+  // le transporteur ne voit que sa propre rémunération.
+  "payment_status", "cancelled_at", "cancellation_reason",
 ].join(",");
 const PUBLIC_MISSION_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -398,13 +419,57 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
       <Field label="Distance km" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
       {form.type === "plateau" && (
         <Field
-          label="Coût transporteur €"
+          label="Tarif fixé par le transporteur €"
           name="carrierCost"
           value={form.carrierCost}
           onChange={update}
           type="number"
-          placeholder="Ce que SECOTO paie au transporteur"
+          placeholder="Montant que le transporteur a librement fixé"
         />
+      )}
+      {/* Suppléments convoyage : 100 % manuels. Rien n'est appliqué
+          automatiquement, rien n'est appliqué au plateau. */}
+      {form.type === "convoyage" && (
+        <>
+          <label className="field">
+            <span className="payment-waiver-row">
+              <input
+                type="checkbox"
+                name="surchargeUrgent"
+                checked={Boolean(form.surchargeUrgent)}
+                onChange={(e) => setForm((prev) => ({ ...prev, surchargeUrgent: e.target.checked }))}
+              />
+              <span>Urgence sous 24 h (+30 %)</span>
+            </span>
+          </label>
+          <label className="field">
+            <span className="payment-waiver-row">
+              <input
+                type="checkbox"
+                name="surchargeWeekend"
+                checked={Boolean(form.surchargeWeekend)}
+                onChange={(e) => setForm((prev) => ({ ...prev, surchargeWeekend: e.target.checked }))}
+              />
+              <span>Week-end (+20 %)</span>
+            </span>
+          </label>
+          <label className="field">
+            <span>Gros gabarit / véhicule premium</span>
+            <select
+              name="surchargeOversizePct"
+              value={String(form.surchargeOversizePct || 0)}
+              onChange={(e) => setForm((prev) => ({
+                ...prev,
+                surchargeOversizePct: Number(e.target.value) || 0,
+              }))}
+            >
+              <option value="0">Aucun supplément</option>
+              <option value="20">+20 %</option>
+              <option value="30">+30 %</option>
+              <option value="40">+40 %</option>
+            </select>
+          </label>
+        </>
       )}
       <Field label="Nom client" name="clientName" value={form.clientName} onChange={update} />
       <Field label="Contact client" name="clientContact" value={form.clientContact} onChange={update} />
@@ -430,20 +495,40 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
    rémunération transporteur et marge. Le calcul fait foi côté base (colonnes
    générées) ; ceci n'est qu'un aperçu. */
 function BaremeBox({ form }) {
-  const client = computeClientPrice(form);
+  const plateau = form.type === "plateau";
+  const encaisse = computeClientPrice(form);
   const carrier = computeCarrierPay(form);
   const margin = computeMargin(form);
-  const hint =
-    form.type === "plateau"
-      ? "Plateau : prix client = coût transporteur × 1,20 (marge 20 %, péages inclus)."
-      : "Convoyage : 1,00 €/km facturé client · 0,55 €/km au transporteur · frais réels remboursés au réel.";
+  const commission = computeCommission(form);
+  const transport = computeTransportAmount(form);
+  const totalClient = computeClientTotalDue(form);
+  const hint = plateau
+    ? "Intermédiation : le transporteur fixe librement son tarif. SECOTO "
+      + "n'encaisse que sa commission de 20 %, ajoutée au tarif. Le prix du "
+      + "transport ne transite jamais par SECOTO."
+    : "Sous-traitance : paliers cumulatifs 1,00 / 0,90 / 0,88 €/km, forfait "
+      + "minimum 115 €, suppléments manuels. Convoyeur : 0,55 €/km. Frais réels "
+      + "remboursés à l'euro près, sans marge, et refacturés à l'identique.";
   return (
     <div className="field field-full bareme-box">
-      <span>Tarification automatique — barème SECOTO</span>
+      <span>
+        Tarification — {plateau ? "commission de mise en relation" : "barème convoyage SECOTO"}
+      </span>
       <div className="bareme-lines">
-        <div><strong>Prix client</strong><b>{formatAmount(client)}</b></div>
-        <div><strong>Rémunération transporteur</strong><b>{formatAmount(carrier)}</b></div>
-        <div className="margin"><strong>Marge SECOTO</strong><b>{formatAmount(margin)}</b></div>
+        {plateau ? (
+          <>
+            <div><strong>Tarif du transporteur</strong><b>{formatAmount(transport)}</b></div>
+            <div><strong>Commission SECOTO (20 %)</strong><b>{formatAmount(commission)}</b></div>
+            <div><strong>Total déboursé par le client</strong><b>{formatAmount(totalClient)}</b></div>
+            <div className="margin"><strong>Encaissé par SECOTO</strong><b>{formatAmount(encaisse)}</b></div>
+          </>
+        ) : (
+          <>
+            <div><strong>Prix client</strong><b>{formatAmount(encaisse)}</b></div>
+            <div><strong>Rémunération convoyeur</strong><b>{formatAmount(carrier)}</b></div>
+            <div className="margin"><strong>Marge SECOTO</strong><b>{formatAmount(margin)}</b></div>
+          </>
+        )}
       </div>
       <small>{hint}</small>
     </div>
@@ -538,7 +623,17 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
           <p><strong>Marge SECOTO :</strong> {formatAmount(marginAmount)}</p>
         </>
       )}
-      {visiblePricing === "client" && <p><strong>Prix client :</strong> {formatAmount(clientAmount)}</p>}
+      {visiblePricing === "client" && (
+        mission.type === "plateau" ? (
+          <>
+            <p><strong>Prix du transport (réglé au transporteur) :</strong> {formatAmount(mission.transportAmount ?? computeTransportAmount(mission))}</p>
+            <p><strong>Frais de réservation SECOTO (20 %) :</strong> {formatAmount(mission.commissionAmount ?? computeCommission(mission))}</p>
+            <p><strong>Total :</strong> {formatAmount(mission.clientTotalDue ?? computeClientTotalDue(mission))}</p>
+          </>
+        ) : (
+          <p><strong>Prix de la prestation :</strong> {formatAmount(clientAmount)}</p>
+        )
+      )}
       {visiblePricing === "transporter" && <p><strong>Votre rémunération :</strong> {formatAmount(carrierAmount)}</p>}
       <p><strong>Notes internes :</strong> {mission.notes || "Aucune note"}</p>
     </div>
@@ -1157,6 +1252,8 @@ export default function App() {
   const [transporterTab, setTransporterTab] = useState("available");
   const [clientTab, setClientTab] = useState("post");
   const [transporterFilter, setTransporterFilter] = useState("all");
+  // Mission dont le paiement de commission est en cours (parcours plateau).
+  const [payingMissionId, setPayingMissionId] = useState(null);
 
   const [missions, setMissions] = useState([]);
   const [publicMissions, setPublicMissions] = useState([]);
@@ -1285,6 +1382,10 @@ export default function App() {
       else if (screen === "requests") setAdminTab("requests");
       else if (screen === "applications") setAdminTab("applications");
       else if (screen === "assigned") setAdminTab("assigned");
+      else if (screen === "transporters") setAdminTab("transporters");
+      else if (screen === "paiement") setAdminTab("assigned");
+      else if (screen === "notifications") setAdminTab("notifications");
+      else if (screen === "legal") setAdminTab("legal");
       else setAdminTab("published");
     } else if (currentAccount.role === "transporter") {
       if (screen === "documents") setTransporterTab("documents");
@@ -1294,12 +1395,19 @@ export default function App() {
       else if (screen === "assigned") setTransporterTab("assigned");
       else if (screen === "profile") setTransporterTab("profile");
       else if (screen === "contact") setTransporterTab("contact");
+      else if (screen === "notifications") setTransporterTab("notifications");
+      else if (screen === "legal") setTransporterTab("legal");
       else setTransporterTab("available");
     } else {
       if (screen === "documents") setClientTab("documents");
       else if (screen === "profile") setClientTab("profile");
       else if (screen === "contact") setClientTab("contact");
-      else setClientTab("courses");
+      else if (screen === "notifications") setClientTab("notifications");
+      else if (screen === "legal") setClientTab("legal");
+      else if (screen === "paiement") {
+        if (link.missionId) setPayingMissionId(link.missionId);
+        setClientTab("paiement");
+      } else setClientTab("courses");
     }
     if (link.missionId) setFocusMissionId(link.missionId);
     pendingDeepLinkRef.current = null;
@@ -1874,6 +1982,28 @@ export default function App() {
     () => missions.filter((m) => m.clientAccountId === account?.id),
     [missions, account?.id]
   );
+
+  // Mission dont la commission reste à régler : c'est ce qui bloque l'envoi du
+  // bon de mission au transporteur.
+  const payingMission = useMemo(
+    () => clientMissions.find((m) => m.id === payingMissionId) || null,
+    [clientMissions, payingMissionId]
+  );
+  const missionsAwaitingPayment = useMemo(
+    () => clientMissions.filter(
+      (m) => m.type === "plateau" && m.paymentStatus === "awaiting_payment" && !m.cancelledAt,
+    ),
+    [clientMissions]
+  );
+
+  // Après signature du devis : le plateau bascule sur le paiement, le
+  // convoyage poursuit son circuit documentaire sans aucun encaissement.
+  function handleDevisSigned(missionId) {
+    const mission = clientMissions.find((m) => m.id === missionId);
+    if (!mission || mission.type !== "plateau") return;
+    setPayingMissionId(missionId);
+    setClientTab("paiement");
+  }
 
   const assignedToCurrentTransporter = useMemo(
     () => missions.filter((m) => m.assignedTransporterId === account?.id && ["assigned", "completed"].includes(m.status)),
@@ -3077,9 +3207,12 @@ export default function App() {
             { key: "post", label: "Nouvelle course", icon: "plus" },
             { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
             { key: "documents", label: "Mes documents", icon: "inbox", count: docsToSignCount || undefined },
+            { key: "paiement", label: "Paiement", icon: "check", count: missionsAwaitingPayment.length || undefined },
           ] },
           { title: "Compte", items: [
             { key: "contact", label: "Contact SECOTO", icon: "phone" },
+            { key: "notifications", label: "Notifications", icon: "settings" },
+            { key: "legal", label: "Informations légales", icon: "inbox" },
             { key: "profile", label: "Profil", icon: "user" },
           ] },
         ],
@@ -3104,6 +3237,10 @@ export default function App() {
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
             { key: "clients", label: "Clients", icon: "user" },
           ] },
+          { title: "Réglages", items: [
+            { key: "notifications", label: "Notifications", icon: "settings" },
+            { key: "legal", label: "Informations légales", icon: "inbox" },
+          ] },
         ],
       };
     }
@@ -3123,6 +3260,8 @@ export default function App() {
         ] },
         { title: "Compte", items: [
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
+          { key: "notifications", label: "Notifications", icon: "settings" },
+          { key: "legal", label: "Informations légales", icon: "inbox" },
           { key: "profile", label: "Profil", icon: "user" },
         ] },
       ],
@@ -3178,7 +3317,14 @@ export default function App() {
             <button className="btn ghost small" onClick={() => { loadAllData(account); loadNotifications(account); setNavOpen(false); }}>Actualiser</button>
             {/* Toujours accessible : indispensable quand plusieurs comptes se
                 partagent le même téléphone. */}
-            {account.role === "transporter" && pushSupported() && (
+            {/* CAUSE RACINE du bug « l'admin ne reçoit aucune notification » :
+                ce bouton et l'écran de consentement plus bas étaient réservés
+                au rôle transporter. Un admin (comme un client) n'avait donc
+                aucun moyen d'appeler enablePush(), donc aucune ligne dans
+                device_push_tokens, donc 0 destinataire et un « succès »
+                silencieux côté dispatcher. Tous les rôles y ont désormais
+                accès. */}
+            {pushSupported() && (
               <button
                 className={`btn ${pushState === "enabled" ? "ghost" : "primary"} small`}
                 onClick={() => { handleEnablePush(); setNavOpen(false); }}
@@ -3248,7 +3394,7 @@ export default function App() {
         ))}
       </div>
 
-      {isTransporter && pushSupported() && pushState === "idle" && (
+      {pushSupported() && pushState === "idle" && (
         <NotificationConsentGate
           busy={pushDecisionBusy}
           onEnable={handleEnablePush}
@@ -3399,7 +3545,73 @@ export default function App() {
 
           {clientTab === "documents" && (
             <section className="layout">
-              <MyDocumentsPanel account={account} focusMissionId={focusMissionId} />
+              <MyDocumentsPanel
+                account={account}
+                focusMissionId={focusMissionId}
+                onDevisSigned={handleDevisSigned}
+              />
+            </section>
+          )}
+
+          {clientTab === "paiement" && (
+            <section className="layout">
+              {payingMission ? (
+                <PaymentScreen
+                  mission={payingMission}
+                  account={account}
+                  onDone={() => { loadAllData(account); }}
+                  onClose={() => { setPayingMissionId(null); setClientTab("courses"); }}
+                />
+              ) : missionsAwaitingPayment.length > 0 ? (
+                <div className="panel panel-full">
+                  <h2>Réservations à régler</h2>
+                  <p className="muted">
+                    Tant que les frais de réservation ne sont pas réglés, le bon de
+                    mission n’est pas transmis au transporteur et votre créneau
+                    n’est pas bloqué.
+                  </p>
+                  <div className="cards">
+                    {missionsAwaitingPayment.map((mission) => (
+                      <article className="mission-card is-focused" key={mission.id}>
+                        <div className="card-top">
+                          <span className="badge">{mission.publicRef}</span>
+                          <span className="status status-pending">À régler</span>
+                        </div>
+                        <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
+                        <p><strong>Frais de réservation SECOTO (20 %) :</strong> {formatAmount(mission.commissionAmount ?? computeCommission(mission))}</p>
+                        <button className="btn primary" type="button" onClick={() => setPayingMissionId(mission.id)}>
+                          Réserver mon créneau
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="panel panel-full">
+                  <h2>Paiement</h2>
+                  <p className="muted">
+                    Aucun règlement en attente. Les frais de réservation ne
+                    concernent que le transport par plateau ou moto ; en
+                    convoyage, le règlement intervient à la livraison.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {clientTab === "notifications" && (
+            <section className="layout">
+              <NotificationPreferencesPanel
+                account={account}
+                pushState={pushState}
+                onEnablePush={handleEnablePush}
+              />
+            </section>
+          )}
+
+          {clientTab === "legal" && (
+            <section className="layout">
+              <LegalNoticesPanel />
             </section>
           )}
 
@@ -3639,6 +3851,22 @@ export default function App() {
               <ClientsPanel />
             </section>
           )}
+
+          {adminTab === "notifications" && (
+            <section className="layout">
+              <NotificationPreferencesPanel
+                account={account}
+                pushState={pushState}
+                onEnablePush={handleEnablePush}
+              />
+            </section>
+          )}
+
+          {adminTab === "legal" && (
+            <section className="layout">
+              <LegalNoticesPanel />
+            </section>
+          )}
         </>
       )}
 
@@ -3673,6 +3901,16 @@ export default function App() {
                       <div className="private-locked">Détails client, immatriculation et consignes visibles uniquement après attribution par SECOTO.</div>
                       {!isAdmin && (
                         <>
+                          {/* Seule formulation autorisée envers le transporteur.
+                              Ne JAMAIS écrire qu'il doit « répercuter les 20 %
+                              au client » : l'application ne suggère, n'impose
+                              et ne recommande aucun prix. */}
+                          {mission.type === "plateau" && (
+                            <p className="muted">
+                              Vous fixez librement votre tarif. SECOTO prélève une
+                              commission de 20 % sur le montant de la mission.
+                            </p>
+                          )}
                           <input className="message-box" type="number" min="1" step="1" placeholder="Votre tarif proposé (€) — obligatoire" value={applicationPrices[mission.id] || ""} onChange={(e) => setApplicationPrices((prev) => ({ ...prev, [mission.id]: e.target.value }))} />
                           <textarea className="message-box" placeholder="Message optionnel pour SECOTO…" value={applicationMessages[mission.id] || ""} onChange={(e) => setApplicationMessages((prev) => ({ ...prev, [mission.id]: e.target.value }))} />
                           <button className="btn primary" disabled={hasCurrentTransporterApplied(mission.id) || !account.isVerified} onClick={() => applyToMission(mission.id)}>
@@ -3830,6 +4068,22 @@ export default function App() {
           {transporterTab === "contact" && (
             <section className="layout">
               <div className="panel-full"><ContactPanel /></div>
+            </section>
+          )}
+
+          {transporterTab === "notifications" && (
+            <section className="layout">
+              <NotificationPreferencesPanel
+                account={account}
+                pushState={pushState}
+                onEnablePush={handleEnablePush}
+              />
+            </section>
+          )}
+
+          {transporterTab === "legal" && (
+            <section className="layout">
+              <LegalNoticesPanel />
             </section>
           )}
 

@@ -8,6 +8,16 @@ import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
 
 const {
+  // ⚠ NE PAS « corriger » cette valeur en fr.secototransport.app.
+  // Les deux plateformes n'ont PAS le même identifiant :
+  //   iOS     PRODUCT_BUNDLE_IDENTIFIER = fr.secoto.app        (project.pbxproj,
+  //           et bundle_identifier dans codemagic.yaml)
+  //   Android applicationId             = fr.secototransport.app
+  //   Capacitor appId                   = fr.secototransport.app (côté Android)
+  // L'en-tete apns-topic doit valoir le bundle iOS, donc fr.secoto.app.
+  // Y mettre l'identifiant Android provoquerait un 400 DeviceTokenNotForTopic,
+  // classé « stale » plus bas, ce qui DÉSACTIVERAIT définitivement le token de
+  // l'appareil dès le premier essai.
   APNS_BUNDLE_ID = "fr.secoto.app",
   APNS_KEY_ID,
   APNS_PRIVATE_KEY_BASE64,
@@ -23,7 +33,10 @@ const {
 } = process.env;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ALLOWED_SCREENS = new Set(["courses", "documents", "frais", "available", "assigned", "applications", "requests"]);
+const ALLOWED_SCREENS = new Set([
+  "courses", "documents", "frais", "available", "assigned",
+  "applications", "requests", "paiement", "transporters",
+]);
 let firebaseTokenCache = null;
 
 function response(statusCode, body) {
@@ -60,6 +73,11 @@ export function genericPushCopy(type) {
     frais_status: "Le statut d’un frais a été mis à jour.",
     document: "Un document SECOTO est disponible.",
     account: "Une action concernant votre compte SECOTO est disponible.",
+    payment: "Un paiement SECOTO vient d’être encaissé.",
+    payment_failed: "Un paiement SECOTO n’a pas abouti.",
+    cancellation: "Une mission SECOTO a été annulée.",
+    new_account: "Une nouvelle inscription attend une vérification dans SECOTO.",
+    transporter_status: "Le statut d’un compte SECOTO a été mis à jour.",
   };
   return {
     title: "SECOTO",
@@ -74,7 +92,9 @@ export function notificationRoute(notification) {
       ? "documents"
       : notification.type?.startsWith("frais")
         ? "frais"
-        : "courses";
+        : notification.type?.startsWith("payment")
+          ? "paiement"
+          : "courses";
   const params = new URLSearchParams({ ecran: screen });
   if (notification.mission_id) params.set("mission", notification.mission_id);
   return `/?${params.toString()}`;
@@ -452,6 +472,25 @@ export const dispatchMissionNotifications = async (event) => {
   }
 
   const sent = results.filter((result) => result.status === "fulfilled").length;
+  // Un compte sans aucun appareil enregistré produisait jusqu'ici un « succès »
+  // parfaitement silencieux : 0 envoi, 0 erreur, 0 trace. C'était la signature
+  // exacte du bug « l'admin ne reçoit aucune notification ». On trace désormais
+  // l'anomalie dans push_outbox.last_error, où elle est directement requêtable.
+  if (allTargets.length === 0) {
+    await admin.rpc("secoto_complete_push_outbox", {
+      p_outbox_id: outboxId,
+      p_success: true,
+      p_error: "no_active_device_for_account",
+    });
+    return response(200, {
+      sent: 0,
+      attempted: 0,
+      total: 0,
+      stale: 0,
+      pending: false,
+      warning: "no_active_device_for_account",
+    });
+  }
   const { data: finalDeliveries, error: finalDeliveryError } = await admin
     .from("push_deliveries")
     .select("status,last_error")

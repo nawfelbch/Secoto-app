@@ -1399,3 +1399,61 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
 .luxury-requirement {
   color: var(--accent);
 }
+/* ============================================================================
+   SECOTO 009 — Écran de paiement, cases de renonciation, préférences.
+   ========================================================================== */
+
+.payment-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, rgba(148, 163, 184, 0.25));
+}
+
+.payment-line:last-child {
+  border-bottom: none;
+}
+
+.payment-line b {
+  white-space: nowrap;
+  font-size: 1.05rem;
+}
+
+.payment-line p {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.payment-total b {
+  font-size: 1.25rem;
+}
+
+/* La case n'est jamais pré-cochée : les deux mentions doivent rester lisibles
+   et distinctes l'une de l'autre. */
+.payment-waiver-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.payment-waiver-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.payment-waiver-mention {
+  display: block;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.payment-waiver-mention + .payment-waiver-mention {
+  margin-top: 8px;
+}

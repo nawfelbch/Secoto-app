@@ -13,6 +13,13 @@ export const ALLOWED_APP_SCREENS = Object.freeze([
   "requests",
   "profile",
   "contact",
+  // Écrans ajoutés par la migration 009. Ils doivent rester alignés sur la
+  // liste blanche SQL (secoto_private.notify_one) et sur ALLOWED_SCREENS de
+  // netlify/functions/send-mission-notifications.js.
+  "paiement",
+  "transporters",
+  "notifications",
+  "legal",
 ]);
 
 const MISSION_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;

@@ -1,31 +1,66 @@
 // ============================================================================
 // SECOTO — Module de tarification centralise (source unique de verite).
 // ----------------------------------------------------------------------------
-// Regles metier (non negociables) :
-//  - Plateau   : prix client = cout transporteur x 1,20 (marge 20 %),
-//                marge LINEAIRE, SANS plancher minimum.
-//  - Convoyage : tarif UNIQUE impose. Client 1,00 EUR/km, remuneration
-//                0,55 EUR/km, marge 0,45 EUR/km.
-//  - Les frais essence/peage sont NEUTRES pour la marge : refactures au
-//    client a l'identique du montant rembourse au convoyeur.
+// SECOTO exerce DEUX activites juridiquement distinctes. Elles ne doivent
+// jamais etre melangees, ni dans l'app, ni dans les documents, ni en compta.
 //
-// Le meme calcul existe cote base (fonctions SQL secoto_compute_*) via des
-// colonnes generees, pour que le prix client ne puisse pas etre falsifie
-// depuis le front. Ne JAMAIS dupliquer une constante tarifaire ailleurs.
+//  CONVOYAGE AUTO — SECOTO est PRESTATAIRE (sous-traitance).
+//    Prix impose par la grille SECOTO, paliers CUMULATIFS :
+//      forfait minimum      115,00 EUR
+//      0 - 300 km           1,00 EUR/km
+//      301 - 600 km         0,90 EUR/km
+//      au-dela de 600 km    0,88 EUR/km
+//    Chaque tarif ne s'applique QU'AUX KILOMETRES DE SA PROPRE TRANCHE.
+//    Ne JAMAIS appliquer un tarif unique a la distance totale.
+//    Supplements multiplicateurs cumulables, coches manuellement par l'admin :
+//      urgence sous 24 h  +30 %   week-end  +20 %   gabarit/premium  0 a +40 %
+//    Remuneration convoyeur : 0,55 EUR/km. Frais de retour a sa charge.
+//    Carburant et peages a la charge de SECOTO, rembourses a l'euro pres,
+//    sans aucune marge, et refactures au client a l'identique.
+//    SECOTO encaisse la TOTALITE du prix client, a la livraison.
+//
+//  PLATEAU / MOTO — SECOTO est INTERMEDIAIRE (mise en relation).
+//    Le transporteur fixe LIBREMENT son tarif : l'application ne suggere,
+//    n'impose et ne recommande aucun prix.
+//    SECOTO n'encaisse QUE la commission de 20 %, ajoutee au tarif du
+//    transporteur et reglee a la reservation.
+//    Le prix du transport ne transite JAMAIS par SECOTO.
+//      transportAmount  = tarif du transporteur (regle en direct)
+//      commission       = 20 % de ce tarif (seul montant encaisse par SECOTO)
+//      clientTotalDue   = transportAmount + commission
+//
+// Le meme calcul existe cote base (secoto_compute_*, colonnes generees), pour
+// que le prix client ne puisse pas etre falsifie depuis le front. Ne JAMAIS
+// dupliquer une constante tarifaire ailleurs.
 // ============================================================================
 
-/** Bareme convoyage automobile (EUR/km), impose. */
-export const CONVOYAGE_RATES = { client: 1.0, carrier: 0.55, margin: 0.45 };
+/** Forfait minimum convoyage, applique avant les suppléments. */
+export const CONVOYAGE_MINIMUM = 115.0;
 
-/** Coefficient de marge plateau : prix client = cout x ce coefficient. */
-export const PLATEAU_MARGIN_COEF = 1.2; // +20 %, sans plancher
+/** Paliers cumulatifs du convoyage : [borne haute de la tranche, EUR/km]. */
+export const CONVOYAGE_TIERS = Object.freeze([
+  { upTo: 300, rate: 1.0 },
+  { upTo: 600, rate: 0.9 },
+  { upTo: Infinity, rate: 0.88 },
+]);
 
-/** Arrondi a 2 decimales, sur vis-a-vis des flottants. */
+/** Rémunération du convoyeur, par kilomètre parcouru. */
+export const CONVOYEUR_RATE = 0.55;
+
+/** Suppléments convoyage (multiplicateurs cumulables). */
+export const SURCHARGE_URGENT_PCT = 30;
+export const SURCHARGE_WEEKEND_PCT = 20;
+export const SURCHARGE_OVERSIZE_MAX_PCT = 40;
+
+/** Taux de commission SECOTO sur les missions plateau / moto. */
+export const PLATEAU_COMMISSION_PCT = 20;
+
+/** Arrondi à 2 décimales, sûr vis-à-vis des flottants. */
 export function round2(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-/** Format documentaire SECOTO : "XX.00 EUR" (sans HT/TTC, TVA non applicable). */
+/** Format documentaire SECOTO : « XX.00 € » (TVA non applicable, art. 293 B). */
 export function formatAmount(value) {
   return `${round2(value).toFixed(2)} €`;
 }
@@ -35,51 +70,120 @@ function num(v) {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function bool(v) {
+  return v === true || v === "true" || v === 1 || v === "1";
+}
+
 /**
- * Prix de la prestation facture au client (hors frais reels refactures, qui
- * figurent sur une ligne distincte). Seul montant visible par le client.
- * @param {{type:string, distanceKm?:number|string, carrierCost?:number|string}} m
+ * Prix de base du convoyage : somme des paliers cumulatifs, plancher 115 €.
+ * 80 km -> 115,00 · 400 km -> 390,00 · 935 km -> 864,80
+ */
+export function computeConvoyageBase(distanceKm) {
+  const distance = num(distanceKm);
+  let remaining = distance;
+  let previous = 0;
+  let total = 0;
+  for (const tier of CONVOYAGE_TIERS) {
+    if (remaining <= 0) break;
+    const span = tier.upTo - previous;
+    const inTier = Math.min(remaining, span);
+    total += inTier * tier.rate;
+    remaining -= inTier;
+    previous = tier.upTo;
+  }
+  return Math.max(CONVOYAGE_MINIMUM, round2(total));
+}
+
+/** Coefficient multiplicateur des suppléments, cumulables entre eux. */
+export function computeSurchargeCoefficient(m) {
+  const oversize = Math.min(
+    Math.max(num(m && m.surchargeOversizePct), 0),
+    SURCHARGE_OVERSIZE_MAX_PCT,
+  );
+  return (
+    (bool(m && m.surchargeUrgent) ? 1 + SURCHARGE_URGENT_PCT / 100 : 1)
+    * (bool(m && m.surchargeWeekend) ? 1 + SURCHARGE_WEEKEND_PCT / 100 : 1)
+    * (1 + oversize / 100)
+  );
+}
+
+/**
+ * Montant réellement ENCAISSÉ PAR SECOTO auprès du client.
+ *  - convoyage : la totalité de la prestation (barème + suppléments)
+ *  - plateau   : uniquement la commission de 20 %
  */
 export function computeClientPrice(m) {
   if (!m) return 0;
-  if (m.type === 'plateau') return round2(num(m.carrierCost) * PLATEAU_MARGIN_COEF);
-  if (m.type === 'convoyage') return round2(num(m.distanceKm) * CONVOYAGE_RATES.client);
+  if (m.type === "plateau") {
+    return round2(num(m.carrierCost) * (PLATEAU_COMMISSION_PCT / 100));
+  }
+  if (m.type === "convoyage") {
+    return round2(computeConvoyageBase(m.distanceKm) * computeSurchargeCoefficient(m));
+  }
   return 0;
+}
+
+/** Commission SECOTO. Nulle en convoyage : SECOTO y est prestataire. */
+export function computeCommission(m) {
+  if (!m || m.type !== "plateau") return 0;
+  return round2(num(m.carrierCost) * (PLATEAU_COMMISSION_PCT / 100));
+}
+
+/** Prix du transport plateau, réglé DIRECTEMENT au transporteur. Hors SECOTO. */
+export function computeTransportAmount(m) {
+  if (!m || m.type !== "plateau") return 0;
+  return round2(num(m.carrierCost));
+}
+
+/** Total déboursé par le client, toutes lignes confondues. */
+export function computeClientTotalDue(m) {
+  return round2(computeClientPrice(m) + computeTransportAmount(m));
 }
 
 /**
- * Remuneration de la prestation reversee au transporteur (hors remboursement
- * des frais reels). Seul montant visible par le transporteur.
+ * Rémunération de la prestation revenant au prestataire.
+ *  - convoyage : 0,55 €/km, versés par SECOTO
+ *  - plateau   : son tarif intégral, que SECOTO ne verse PAS (réglé en direct)
  */
 export function computeCarrierPay(m) {
   if (!m) return 0;
-  if (m.type === 'plateau') return round2(num(m.carrierCost));
-  if (m.type === 'convoyage') return round2(num(m.distanceKm) * CONVOYAGE_RATES.carrier);
+  if (m.type === "plateau") return round2(num(m.carrierCost));
+  if (m.type === "convoyage") return round2(num(m.distanceKm) * CONVOYEUR_RATE);
   return 0;
 }
 
-/** Marge SECOTO = prix client - remuneration transporteur (frais exclus). */
+/** Marge nette SECOTO. En plateau, c'est la commission (SECOTO ne verse rien). */
 export function computeMargin(m) {
+  if (!m) return 0;
+  if (m.type === "plateau") return computeCommission(m);
   return round2(computeClientPrice(m) - computeCarrierPay(m));
 }
 
-/** Frais reels refactures au client (= rembourses au convoyeur). Neutres. */
+/** Frais réels refacturés au client (= remboursés au convoyeur). Neutres. */
 export function computeReinvoicedExpenses(m) {
   return round2(num(m && m.reinvoicedExpenses));
 }
 
-/** Total encaisse aupres du client = prestation + frais refactures. */
+/** Total encaissé auprès du client = prestation + frais refacturés. */
 export function computeClientTotal(m) {
   return round2(computeClientPrice(m) + computeReinvoicedExpenses(m));
 }
 
-/** Total verse au transporteur = remuneration + remboursement des frais. */
+/** Total versé au transporteur = rémunération + remboursement des frais. */
 export function computeCarrierTotal(m) {
   return round2(computeCarrierPay(m) + computeReinvoicedExpenses(m));
 }
 
-/** Vue client : jamais le cout transporteur ni la marge. */
+/** Vue client : jamais le coût transporteur en convoyage, jamais la marge. */
 export function clientView(m) {
+  if (m && m.type === "plateau") {
+    return {
+      commission: computeCommission(m),
+      transport: computeTransportAmount(m),
+      fraisRefactures: 0,
+      total: computeClientTotalDue(m),
+    };
+  }
   return {
     prestation: computeClientPrice(m),
     fraisRefactures: computeReinvoicedExpenses(m),
@@ -87,7 +191,7 @@ export function clientView(m) {
   };
 }
 
-/** Vue transporteur : uniquement sa remuneration, jamais le prix client. */
+/** Vue transporteur : uniquement sa rémunération, jamais le prix client. */
 export function carrierView(m) {
   return {
     remuneration: computeCarrierPay(m),

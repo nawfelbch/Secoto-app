@@ -68,23 +68,23 @@ test("les identifiants natifs et les liens Auth restent cohérents", async () =>
   assert.match(entitlements, /aps-environment/);
 });
 
-test("la branche SECOTO 1.2 ne peut produire aucune IPA 1.1", async () => {
+test("la branche SECOTO 1.3 ne peut produire aucune IPA 1.2", async () => {
   const [yaml, plist, project] = await Promise.all([
     source("../codemagic.yaml"),
     source("../ios/App/App/Info.plist"),
     source("../ios/App/App.xcodeproj/project.pbxproj"),
   ]);
 
-  assert.match(yaml, /IOS_MARKETING_VERSION:\s+"1\.2"/);
-  assert.match(yaml, /Archive IPA SECOTO 1\.2/);
+  assert.match(yaml, /IOS_MARKETING_VERSION:\s+"1\.3"/);
+  assert.match(yaml, /Archive IPA SECOTO 1\.3/);
   assert.match(yaml, /get-latest-testflight-build-number/);
   assert.match(yaml, /PROJECT_BUILD_NUMBER/);
   assert.match(yaml, /IOS_BUILD_NUMBER"\s+-lt 21/);
-  assert.match(plist, /CFBundleShortVersionString[\s\S]*?<string>1\.2<\/string>/);
+  assert.match(plist, /CFBundleShortVersionString[\s\S]*?<string>1\.3<\/string>/);
 
-  const projectVersions = project.match(/MARKETING_VERSION = 1\.2;/g) || [];
+  const projectVersions = project.match(/MARKETING_VERSION = 1\.3;/g) || [];
   assert.equal(projectVersions.length, 2);
 
-  assert.doesNotMatch(yaml, /IOS_MARKETING_VERSION:\s+"1\.1"/);
-  assert.doesNotMatch(project, /MARKETING_VERSION = 1\.1;/);
+  assert.doesNotMatch(yaml, /IOS_MARKETING_VERSION:\s+"1\.2"/);
+  assert.doesNotMatch(project, /MARKETING_VERSION = 1\.2;/);
 });

@@ -7,12 +7,23 @@
 # client. On les exclut du scanner de secrets Netlify. Ne JAMAIS ajouter ici une
 # vraie cle secrete (SUPABASE_SERVICE_ROLE_KEY, VAPID_PRIVATE_KEY).
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,SUPABASE_URL"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,SUPABASE_URL,VITE_APPLE_PAY_MERCHANT_ID"
 
 [functions."retry-push-outbox"]
   schedule = "* * * * *"
 
 [functions."retry-account-deletions"]
+  schedule = "*/5 * * * *"
+
+# Doublon e-mail des evenements critiques (paiement, annulation) : support
+# durable exige par la confirmation de commande et la renonciation au droit de
+# retractation. La notification push ne suffit pas.
+[functions."send-transactional-email"]
+  schedule = "* * * * *"
+
+# Remboursement integral de la commission lorsque le TRANSPORTEUR se desiste.
+# Une annulation par le client ne cree jamais de ligne a rembourser.
+[functions."retry-refunds"]
   schedule = "*/5 * * * *"
 
 [[redirects]]
