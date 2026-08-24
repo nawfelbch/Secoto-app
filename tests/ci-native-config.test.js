@@ -15,7 +15,7 @@ test("le workflow iOS utilise le projet SPM réel, Node 24 et Xcode 26", async (
   assert.match(yaml, /submit_to_testflight:\s+true/);
 });
 
-test("iOS couvre la zone de la Dynamic Island sans doubler les marges sûres", async () => {
+test("iOS place la WebView sous la barre d’état et conserve les marges sûres", async () => {
   const [configRaw, html, css] = await Promise.all([
     source("../capacitor.config.json"),
     source("../index.html"),
@@ -25,26 +25,26 @@ test("iOS couvre la zone de la Dynamic Island sans doubler les marges sûres", a
   const config = JSON.parse(configRaw);
 
   assert.equal(config.ios?.contentInset, "never");
-  assert.equal(config.plugins?.StatusBar?.overlaysWebView, true);
+  assert.equal(config.plugins?.StatusBar?.overlaysWebView, false);
   assert.match(html, /viewport-fit=cover/);
   assert.match(css, /env\(safe-area-inset-top/);
   assert.match(css, /env\(safe-area-inset-bottom/);
 });
 
-test("le runtime iOS conserve la WebView derrière la Dynamic Island", async () => {
+test("le runtime iOS empêche la barre d’état de recouvrir la WebView", async () => {
   const runtime = await source("../src/platform/runtime.js");
 
   assert.match(
     runtime,
-    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*true\s*\}\)/,
+    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*false\s*\}\)/,
   );
   assert.doesNotMatch(
     runtime,
-    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*false\s*\}\)/,
+    /StatusBar\.setOverlaysWebView\(\{\s*overlay:\s*true\s*\}\)/,
   );
   assert.match(
     runtime,
-    /StatusBar\.setStyle\(\{\s*style:\s*Style\.Dark\s*\}\)/,
+    /StatusBar\.setStyle\(\{\s*style:\s*Style\.Light\s*\}\)/,
   );
 });
 

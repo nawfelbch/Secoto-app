@@ -193,8 +193,11 @@ export async function initializePlatform({
     ]);
 
     try {
-      await StatusBar.setOverlaysWebView({ overlay: true });
-      await StatusBar.setStyle({ style: Style.Dark });
+      // La WebView reste sous la barre d'état : certains appareils iOS
+      // renvoient des safe-area-inset à zéro dans une WebView superposée,
+      // ce qui faisait passer le titre et le contenu sous l'heure.
+      await StatusBar.setOverlaysWebView({ overlay: false });
+      await StatusBar.setStyle({ style: Style.Light });
     } catch {
       // Certains environnements WebView de test n'exposent pas la barre système.
     }

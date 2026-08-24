@@ -23,7 +23,7 @@
       "resize": "native"
     },
     "StatusBar": {
-      "overlaysWebView": true
+      "overlaysWebView": false
     }
   }
 }
