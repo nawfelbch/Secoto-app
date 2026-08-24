@@ -41,7 +41,7 @@ function bearer(event) {
   return raw.startsWith("Bearer ") ? raw.slice(7) : "";
 }
 
-export const handler = async (event) => {
+const handler = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!STRIPE_SECRET_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
     return response(503, { error: "server_not_configured" });

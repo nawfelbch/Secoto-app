@@ -41,7 +41,7 @@ export function mapStripeEvent(type) {
   return null;
 }
 
-export const handler = async (event) => {
+const handler = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return response(503, { error: "server_not_configured" });
