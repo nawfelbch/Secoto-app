@@ -87,6 +87,7 @@ import {
   createMissionClaimForAdmin,
   getPendingMissionClaim,
   persistPendingMissionClaim,
+  signInWithMissionAccess,
 } from "./lib/missionClaims";
 import NotificationConsentGate from "./NotificationConsentGate";
 import NotificationPreferencesPanel from "./NotificationPreferencesPanel";
@@ -178,11 +179,11 @@ const TRACKING_PHOTO_COLUMNS = [
   "file_name", "file_path", "created_at",
 ].join(",");
 
-function Field({ label, name, value, onChange, type = "text", placeholder = "", required = false }) {
+function Field({ label, name, value, onChange, type = "text", placeholder = "", required = false, ...inputProps }) {
   return (
     <label className="field">
       <span>{label}{required ? " *" : ""}</span>
-      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} aria-label={label} required={required} />
+      <input type={type} name={name} value={value ?? ""} placeholder={placeholder} onChange={onChange} aria-label={label} required={required} {...inputProps} />
     </label>
   );
 }
@@ -434,42 +435,9 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
           placeholder="Montant que le transporteur a librement fixé"
         />
       )}
-      {/* L'urgence est désactivée par pricing_flags en migration 010 et ne doit
-          plus être proposée. Les deux autres suppléments restent manuels. */}
-      {form.type === "convoyage" && (
-        <>
-          <label className="field">
-            <span className="payment-waiver-row">
-              <input
-                type="checkbox"
-                name="surchargeWeekend"
-                checked={Boolean(form.surchargeWeekend)}
-                onChange={(e) => setForm((prev) => ({ ...prev, surchargeWeekend: e.target.checked }))}
-              />
-              <span>Week-end (+20 %)</span>
-            </span>
-          </label>
-          <label className="field">
-            <span>Gros gabarit / véhicule premium</span>
-            <select
-              name="surchargeOversizePct"
-              value={String(form.surchargeOversizePct || 0)}
-              onChange={(e) => setForm((prev) => ({
-                ...prev,
-                surchargeOversizePct: Number(e.target.value) || 0,
-              }))}
-            >
-              <option value="0">Aucun supplément</option>
-              <option value="20">+20 %</option>
-              <option value="30">+30 %</option>
-              <option value="40">+40 %</option>
-            </select>
-          </label>
-        </>
-      )}
       <Field label="Nom client" name="clientName" value={form.clientName} onChange={update} />
       <Field label="Contact client" name="clientContact" value={form.clientContact} onChange={update} />
-      <Field label="Téléphone client" name="clientPhone" value={form.clientPhone} onChange={update} />
+      <Field label="Téléphone client" name="clientPhone" value={form.clientPhone} onChange={update} type="tel" autoComplete="tel" required />
       <label className="field">
         <span>Mode de règlement</span>
         <select name="paymentMethod" value={form.paymentMethod} onChange={update}>
@@ -804,9 +772,9 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
-function AuthScreen({ onBack, claimInvite = null }) {
+function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
   const claimMode = Boolean(claimInvite?.token || claimInvite?.code);
-  const [authMode, setAuthMode] = useState("login");
+  const [authMode, setAuthMode] = useState(claimMode ? "mission" : "login");
   const [role, setRole] = useState("client");
   const effectiveRole = claimMode ? "client" : role;
 
@@ -821,6 +789,7 @@ function AuthScreen({ onBack, claimInvite = null }) {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
+  const [missionCode, setMissionCode] = useState(claimInvite?.code || "");
   const [city, setCity] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -838,6 +807,23 @@ function AuthScreen({ onBack, claimInvite = null }) {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (error) setError(error.message);
     setLoading(false);
+  }
+
+  async function handleMissionAccess(e) {
+    e.preventDefault();
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const result = await signInWithMissionAccess({
+        phone,
+        code: missionCode,
+      });
+      clearPendingMissionClaim();
+      onMissionAccessComplete?.(result);
+    } catch (accessError) {
+      setError(accessError.message || "Connexion client impossible.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleResetPassword(e) {
@@ -926,10 +912,16 @@ function AuthScreen({ onBack, claimInvite = null }) {
         <Tabs
           active={authMode}
           onChange={setAuthMode}
-          items={[
-            { value: "login", label: "Connexion" },
-            { value: "signup", label: "Créer un compte" },
-          ]}
+          items={claimMode
+            ? [
+                { value: "mission", label: "Accès client" },
+                { value: "login", label: "Compte existant" },
+              ]
+            : [
+                { value: "login", label: "Connexion" },
+                { value: "mission", label: "Accès client" },
+                { value: "signup", label: "Créer un compte" },
+              ]}
         />
       )}
 
@@ -946,6 +938,43 @@ function AuthScreen({ onBack, claimInvite = null }) {
                 </button>
                 <button className="btn ghost field-full" type="button" onClick={() => setAuthMode("login")}>
                   Retour à la connexion
+                </button>
+              </form>
+            </>
+          ) : authMode === "mission" ? (
+            <>
+              <h2>Accéder à mon transport</h2>
+              <p className="muted">
+                Saisissez votre téléphone et le code transmis par SECOTO. Votre
+                espace client sera créé automatiquement si nécessaire.
+              </p>
+              {claimInvite?.publicRef && (
+                <div className="claim-auth-intro">
+                  <p className="eyebrow">Transport concerné</p>
+                  <strong>{claimInvite.publicRef}</strong>
+                </div>
+              )}
+              <form className="form-grid" onSubmit={handleMissionAccess}>
+                <Field
+                  label="Numéro de téléphone"
+                  name="missionPhone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  type="tel"
+                  autoComplete="tel"
+                  required
+                />
+                <Field
+                  label="Code SECOTO"
+                  name="missionCode"
+                  value={missionCode}
+                  onChange={(e) => setMissionCode(e.target.value.toUpperCase())}
+                  placeholder="ABCD-EF12-34"
+                  autoComplete="one-time-code"
+                  required
+                />
+                <button className="btn primary field-full" type="submit" disabled={loading}>
+                  {loading ? "Vérification…" : "Accéder à mon espace client"}
                 </button>
               </form>
             </>
@@ -1321,7 +1350,7 @@ function PasswordRecoveryScreen({ onDone }) {
   );
 }
 
-function PublicEntry({ pendingClaim }) {
+function PublicEntry({ pendingClaim, onMissionAccessComplete }) {
   const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
   const [view, setView] = useState(claimMode ? "auth" : "landing");
   const effectiveView = claimMode ? "auth" : view;
@@ -1330,6 +1359,7 @@ function PublicEntry({ pendingClaim }) {
     return (
       <AuthScreen
         claimInvite={pendingClaim}
+        onMissionAccessComplete={onMissionAccessComplete}
         onBack={claimMode ? null : () => setView("landing")}
       />
     );
@@ -2057,7 +2087,7 @@ export default function App() {
         setNotice("La boîte de notifications SECOTO reste active dans l’application.");
       } else if (res.reason === "denied") {
         setPushState("dismissed");
-        setError("Notifications refusées. Vous pourrez les autoriser plus tard dans les réglages de votre téléphone.");
+        setError("Notifications non autorisées. Sur iPhone, ouvrez Réglages > Notifications > SECOTO pour les activer si la demande avait déjà été refusée.");
       } else if (res.reason === "save_failed") {
         setPushState("idle");
         setError("L’appareil n’a pas pu être rattaché au compte. Réessayez avec une connexion stable.");
@@ -3489,7 +3519,18 @@ export default function App() {
     return <PasswordRecoveryScreen onDone={() => setPasswordRecovery(false)} />;
   }
 
-  if (!session) return <PublicEntry pendingClaim={pendingClaim} />;
+  if (!session) return (
+    <PublicEntry
+      pendingClaim={pendingClaim}
+      onMissionAccessComplete={({ missionId, publicRef }) => {
+        setPendingClaim(null);
+        setClaimStatus("claimed");
+        setClientTab("courses");
+        setFocusMissionId(missionId || null);
+        setNotice(`Le transport ${publicRef || "SECOTO"} a été ajouté à votre espace client.`);
+      }}
+    />
+  );
 
   if (!account) {
     // Tant que le profil n'a pas fini d'etre verifie, on montre un chargement

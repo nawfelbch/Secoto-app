@@ -8,6 +8,7 @@ import {
   watchPayment,
 } from "./lib/payments";
 import { formatAmount } from "./lib/pricing";
+import { currentLegalCopy, LEGAL_COPY } from "./lib/legalCopy";
 
 // ============================================================================
 // SECOTO — Écran de paiement PLATEAU / MOTO (« Réservation de votre créneau »).
@@ -26,28 +27,8 @@ import { formatAmount } from "./lib/pricing";
 // case ne leur est pas affichée du tout.
 // ============================================================================
 
-const FALLBACK_LEGAL = {
-  commission_label: "Réservation de votre créneau",
-  commission_notice:
-    "Ce montant règle la mise en relation et bloque votre créneau auprès du "
-    + "transporteur. Il rémunère SECOTO et n'est pas déduit du prix du transport.",
-  transport_notice:
-    "Prix du transport, réglé directement au transporteur. Ce montant n'est pas "
-    + "encaissé par SECOTO.",
-  waiver_execution:
-    "Je demande expressément l'exécution immédiate de la prestation de mise en "
-    + "relation, avant la fin du délai de rétractation.",
-  waiver_withdrawal:
-    "Je reconnais renoncer à mon droit de rétractation de 14 jours pour cette "
-    + "prestation, qui sera intégralement exécutée dès sa demande.",
-  refund_policy:
-    "La commission de mise en relation n'est pas remboursable en cas "
-    + "d'annulation par le client. Elle est intégralement remboursée si le "
-    + "transporteur se désiste.",
-};
-
 export default function PaymentScreen({ mission, account, onDone, onClose }) {
-  const [legal, setLegal] = useState(FALLBACK_LEGAL);
+  const [legal, setLegal] = useState(LEGAL_COPY);
   const [payment, setPayment] = useState(null);
   const [waiverChecked, setWaiverChecked] = useState(false); // JAMAIS pré-coché.
   const [busy, setBusy] = useState(false);
@@ -65,7 +46,7 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
       .eq("key", "legal_texts")
       .maybeSingle()
       .then(({ data }) => {
-        if (alive && data?.value) setLegal({ ...FALLBACK_LEGAL, ...data.value });
+        if (alive && data?.value) setLegal(currentLegalCopy(data.value));
       });
     return () => { alive = false; };
   }, []);
@@ -188,8 +169,8 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
 
       {!waiverRequired && !paid && (
         <p className="muted">
-          En tant que client professionnel, vous ne bénéficiez pas du droit de
-          rétractation de 14 jours réservé aux consommateurs.
+          Le droit de rétractation de 14 jours est réservé aux consommateurs,
+          sous réserve des cas d’extension prévus par la loi.
         </p>
       )}
 

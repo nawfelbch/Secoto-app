@@ -18,8 +18,7 @@ export const emptyMissionForm = {
   priceMode: "fixed",
   proposedPrice: "",
   paymentMethod: "virement",
-  // Suppléments convoyage : 100 % manuels, cochés par l'admin. Aucune
-  // détection automatique, aucun supplément appliqué à l'insu de personne.
+  // Champs historiques neutralisés. Conservés pour lire les anciennes lignes.
   surchargeUrgent: false,
   surchargeWeekend: false,
   surchargeOversizePct: 0,
@@ -287,13 +286,10 @@ export function missionToDb(form, extra = {}) {
     price_mode: form.priceMode || "fixed",
     proposed_price: form.proposedPrice ? Number(form.proposedPrice) : null,
     payment_method: form.paymentMethod || "virement",
-    // Les suppléments ne concernent que le convoyage : en plateau, le tarif
-    // est fixé librement par le transporteur et SECOTO ne majore rien.
+    // Les anciens suppléments week-end et gabarit/premium sont neutralisés.
     surcharge_urgent: form.type === "convoyage" ? Boolean(form.surchargeUrgent) : false,
-    surcharge_weekend: form.type === "convoyage" ? Boolean(form.surchargeWeekend) : false,
-    surcharge_oversize_pct: form.type === "convoyage"
-      ? Math.min(Math.max(Number(form.surchargeOversizePct) || 0, 0), 40)
-      : 0,
+    surcharge_weekend: false,
+    surcharge_oversize_pct: 0,
     notes: form.notes || null,
     created_by_role: extra.createdByRole || "admin",
     client_account_id: extra.clientAccountId || null,

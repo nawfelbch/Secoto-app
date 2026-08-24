@@ -56,8 +56,19 @@ function urlBase64ToUint8Array(base64String) {
 async function registerNativeToken() {
   const { PushNotifications } = await import("@capacitor/push-notifications");
   let permission = await PushNotifications.checkPermissions();
-  if (permission.receive === "prompt") permission = await PushNotifications.requestPermissions();
-  if (permission.receive !== "granted") return { ok: false, reason: "denied" };
+  // Sur iOS la demande doit partir directement du bouton de consentement.
+  // Certains bridges renvoient "prompt-with-rationale" au lieu de "prompt" :
+  // demander pour tout état non accordé garantit l'appel à la boîte native.
+  if (permission.receive !== "granted") {
+    permission = await PushNotifications.requestPermissions();
+  }
+  if (permission.receive !== "granted") {
+    return {
+      ok: false,
+      reason: "denied",
+      permission: permission.receive || "denied",
+    };
+  }
 
   if (Capacitor.getPlatform() === "android") {
     await PushNotifications.createChannel({

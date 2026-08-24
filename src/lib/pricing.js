@@ -12,8 +12,7 @@
 //      au-dela de 600 km    0,88 EUR/km
 //    Chaque tarif ne s'applique QU'AUX KILOMETRES DE SA PROPRE TRANCHE.
 //    Ne JAMAIS appliquer un tarif unique a la distance totale.
-//    Supplements multiplicateurs cumulables, coches manuellement par l'admin :
-//      urgence sous 24 h  +30 %   week-end  +20 %   gabarit/premium  0 a +40 %
+//    Aucun supplément week-end ou gabarit/premium n'est appliqué.
 //    Remuneration convoyeur : 0,55 EUR/km. Frais de retour a sa charge.
 //    Carburant et peages a la charge de SECOTO, rembourses a l'euro pres,
 //    sans aucune marge, et refactures au client a l'identique.
@@ -47,10 +46,8 @@ export const CONVOYAGE_TIERS = Object.freeze([
 /** Rémunération du convoyeur, par kilomètre parcouru. */
 export const CONVOYEUR_RATE = 0.55;
 
-/** Suppléments convoyage (multiplicateurs cumulables). */
+/** Ancien supplément urgence, conservé uniquement pour la compatibilité. */
 export const SURCHARGE_URGENT_PCT = 30;
-export const SURCHARGE_WEEKEND_PCT = 20;
-export const SURCHARGE_OVERSIZE_MAX_PCT = 40;
 
 /** Taux de commission SECOTO sur les missions plateau / moto. */
 export const PLATEAU_COMMISSION_PCT = 20;
@@ -94,17 +91,9 @@ export function computeConvoyageBase(distanceKm) {
   return Math.max(CONVOYAGE_MINIMUM, round2(total));
 }
 
-/** Coefficient multiplicateur des suppléments, cumulables entre eux. */
+/** Coefficient historique : week-end et gabarit/premium sont neutralisés. */
 export function computeSurchargeCoefficient(m) {
-  const oversize = Math.min(
-    Math.max(num(m && m.surchargeOversizePct), 0),
-    SURCHARGE_OVERSIZE_MAX_PCT,
-  );
-  return (
-    (bool(m && m.surchargeUrgent) ? 1 + SURCHARGE_URGENT_PCT / 100 : 1)
-    * (bool(m && m.surchargeWeekend) ? 1 + SURCHARGE_WEEKEND_PCT / 100 : 1)
-    * (1 + oversize / 100)
-  );
+  return bool(m && m.surchargeUrgent) ? 1 + SURCHARGE_URGENT_PCT / 100 : 1;
 }
 
 /**

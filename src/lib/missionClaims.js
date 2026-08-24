@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { getServerFunctionUrl } from "../platform/runtime";
 
 const WEB_APP_URL = "https://app.secoto-transport.fr";
 const PENDING_CLAIM_KEY = "secoto-pending-mission-claim-v2";
@@ -146,4 +147,47 @@ export async function claimMissionInvite(invite) {
   const row = firstRow(data);
   if (!row?.mission_id) throw new Error("Le transport n'a pas pu être ajouté.");
   return row;
+}
+
+export async function signInWithMissionAccess({ phone, code }) {
+  const cleanPhone = String(phone || "").trim();
+  const cleanAccessCode = cleanCode(code);
+  if (cleanPhone.replace(/\D/g, "").length < 8) {
+    throw new Error("Saisissez le numéro de téléphone communiqué à SECOTO.");
+  }
+  if (!cleanAccessCode) {
+    throw new Error("Le code SECOTO doit contenir 10 caractères.");
+  }
+
+  const response = await fetch(getServerFunctionUrl("client-mission-access"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: cleanPhone, code: cleanAccessCode }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const messages = {
+      rate_limited: "Trop de tentatives. Patientez 15 minutes avant de réessayer.",
+      invalid_access: "Numéro de téléphone ou code SECOTO incorrect.",
+      access_expired: "Ce code a expiré. Demandez un nouvel accès à SECOTO.",
+      access_used: "Ce code a déjà été utilisé. Connectez-vous à votre compte ou demandez un nouvel accès.",
+    };
+    throw new Error(messages[payload.error] || "Connexion client momentanément indisponible.");
+  }
+
+  const tokenHash = String(payload.tokenHash || "");
+  if (!tokenHash) throw new Error("La session client n’a pas pu être créée.");
+  const { data, error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "email",
+  });
+  if (error || !data?.session) {
+    throw new Error("Le code a été validé, mais la session n’a pas pu être ouverte.");
+  }
+
+  return {
+    missionId: payload.missionId || null,
+    publicRef: payload.publicRef || null,
+    session: data.session,
+  };
 }

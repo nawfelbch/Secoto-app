@@ -45,17 +45,16 @@ test("les bornes exactes des tranches sont respectées", () => {
   assert.equal(computeConvoyageBase(0), 115);
 });
 
-test("les suppléments sont des multiplicateurs cumulables", () => {
+test("les suppléments week-end et gabarit/premium sont neutralisés", () => {
   const base = { type: "convoyage", distanceKm: 400 }; // 390,00
   assert.equal(computeClientPrice({ ...base, surchargeUrgent: true }), 507);   // x1,30
-  assert.equal(computeClientPrice({ ...base, surchargeWeekend: true }), 468);  // x1,20
+  assert.equal(computeClientPrice({ ...base, surchargeWeekend: true }), 390);
   assert.equal(
     computeClientPrice({ ...base, surchargeUrgent: true, surchargeWeekend: true }),
-    608.4, // 390 x 1,30 x 1,20
+    507,
   );
-  assert.equal(computeClientPrice({ ...base, surchargeOversizePct: 40 }), 546); // x1,40
-  // Le supplément gabarit est borné à 40 % même si la valeur saisie déborde.
-  assert.equal(computeClientPrice({ ...base, surchargeOversizePct: 200 }), 546);
+  assert.equal(computeClientPrice({ ...base, surchargeOversizePct: 40 }), 390);
+  assert.equal(computeClientPrice({ ...base, surchargeOversizePct: 200 }), 390);
   assert.equal(computeClientPrice({ ...base, surchargeOversizePct: -10 }), 390);
 });
 

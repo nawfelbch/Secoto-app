@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const FUNCTIONS = [
+  "client-mission-access.js",
   "create-payment-intent.js",
   "request-account-deletion.js",
   "retry-account-deletions.js",
