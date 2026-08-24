@@ -547,6 +547,32 @@ input:focus, select:focus, textarea:focus {
 
 .message-box { margin-top: 10px; }
 
+.application-offer-form {
+  display: grid; gap: 10px; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+.application-availability-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.application-availability-summary {
+  display: grid; gap: 4px; margin: 8px 0; padding: 10px 12px;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  background: var(--glass-soft); color: var(--text-soft); font-size: 0.84rem;
+}
+.application-availability-summary p { margin: 0; }
+.application-availability-summary strong { color: var(--text); }
+
+.bank-account-summary {
+  display: grid; gap: 5px; margin: 16px 0; padding: 14px;
+  border: 1px solid var(--success); border-radius: var(--radius-md);
+  background: var(--success-soft); color: var(--text-soft);
+}
+.bank-account-summary .status { justify-self: start; margin-bottom: 4px; }
+.bank-account-summary p { margin: 0; }
+.bank-account-summary strong { color: var(--text); }
+.bank-account-form { margin-top: 16px; }
+
 /* ============================================================
    CARTES MISSION
 ============================================================ */
@@ -610,6 +636,10 @@ input:focus, select:focus, textarea:focus {
 .actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 .muted { color: var(--muted); font-size: 0.88rem; }
+
+@media (max-width: 640px) {
+  .application-availability-grid { grid-template-columns: 1fr; }
+}
 
 /* ============================================================
    STATUTS

@@ -95,7 +95,12 @@ import PaymentScreen from "./PaymentScreen";
 import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
+import BankAccountPanel from "./BankAccountPanel";
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
+import {
+  buildApplicationRpcPayload,
+  EMPTY_APPLICATION_OFFER,
+} from "./lib/applicationOffer";
 import "./index.css";
 
 /* ============================================================
@@ -149,7 +154,9 @@ const PUBLIC_MISSION_COLUMNS = [
 ].join(",");
 const APPLICATION_COLUMNS = [
   "id", "mission_id", "transporter_id", "transporter_name", "transporter_company",
-  "transporter_status", "message", "proposed_price", "price_note", "status", "created_at",
+  "transporter_status", "message", "proposed_price", "proposed_price_grouped",
+  "pickup_earliest_at", "pickup_latest_at", "delivery_earliest_at", "delivery_latest_at",
+  "price_note", "status", "created_at",
 ].join(",");
 const REQUEST_COLUMNS = [
   "id", "public_ref", "status", "requester_id", "requester_name", "requester_company",
@@ -427,21 +434,10 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
           placeholder="Montant que le transporteur a librement fixé"
         />
       )}
-      {/* Suppléments convoyage : 100 % manuels. Rien n'est appliqué
-          automatiquement, rien n'est appliqué au plateau. */}
+      {/* L'urgence est désactivée par pricing_flags en migration 010 et ne doit
+          plus être proposée. Les deux autres suppléments restent manuels. */}
       {form.type === "convoyage" && (
         <>
-          <label className="field">
-            <span className="payment-waiver-row">
-              <input
-                type="checkbox"
-                name="surchargeUrgent"
-                checked={Boolean(form.surchargeUrgent)}
-                onChange={(e) => setForm((prev) => ({ ...prev, surchargeUrgent: e.target.checked }))}
-              />
-              <span>Urgence sous 24 h (+30 %)</span>
-            </span>
-          </label>
           <label className="field">
             <span className="payment-waiver-row">
               <input
@@ -488,6 +484,116 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
       </label>
       <button className="btn primary field-full" type="submit" disabled={disabled}>{submitLabel}</button>
     </form>
+  );
+}
+
+function ApplicationOfferEditor({
+  offer,
+  onChange,
+  onSubmit,
+  disabled,
+  alreadyApplied,
+}) {
+  function update(event) {
+    const { name, value } = event.target;
+    onChange({ [name]: value });
+  }
+
+  return (
+    <div className="application-offer-form">
+      <div className="form-grid application-availability-grid">
+        <Field
+          label="Enlèvement possible — au plus tôt"
+          name="pickupEarliestAt"
+          value={offer.pickupEarliestAt}
+          onChange={update}
+          type="datetime-local"
+          required
+        />
+        <Field
+          label="Enlèvement possible — au plus tard"
+          name="pickupLatestAt"
+          value={offer.pickupLatestAt}
+          onChange={update}
+          type="datetime-local"
+          required
+        />
+        <Field
+          label="Livraison possible — au plus tôt"
+          name="deliveryEarliestAt"
+          value={offer.deliveryEarliestAt}
+          onChange={update}
+          type="datetime-local"
+          required
+        />
+        <Field
+          label="Livraison possible — au plus tard"
+          name="deliveryLatestAt"
+          value={offer.deliveryLatestAt}
+          onChange={update}
+          type="datetime-local"
+          required
+        />
+        <Field
+          label="Votre tarif proposé (€)"
+          name="proposedPrice"
+          value={offer.proposedPrice}
+          onChange={update}
+          type="number"
+          placeholder="Obligatoire"
+          required
+        />
+        <Field
+          label="Votre tarif si groupé (€)"
+          name="proposedPriceGrouped"
+          value={offer.proposedPriceGrouped}
+          onChange={update}
+          type="number"
+          placeholder="Facultatif"
+        />
+      </div>
+      <textarea
+        className="message-box"
+        name="message"
+        placeholder="Message optionnel pour SECOTO…"
+        value={offer.message}
+        onChange={update}
+      />
+      <button
+        className="btn primary"
+        type="button"
+        disabled={disabled || alreadyApplied}
+        onClick={onSubmit}
+      >
+        {alreadyApplied ? "Candidature envoyée" : "Candidater"}
+      </button>
+    </div>
+  );
+}
+
+function ApplicationAvailabilitySummary({ application }) {
+  const complete = application.pickupEarliestAt
+    && application.pickupLatestAt
+    && application.deliveryEarliestAt
+    && application.deliveryLatestAt;
+
+  if (!complete) {
+    return <p className="muted">Disponibilités non renseignées.</p>;
+  }
+
+  return (
+    <div className="application-availability-summary">
+      <p>
+        <strong>Enlèvement :</strong>{" "}
+        {formatDateTime(application.pickupEarliestAt)} →{" "}
+        {formatDateTime(application.pickupLatestAt)}
+      </p>
+      <p>
+        <strong>Livraison :</strong>{" "}
+        {formatDateTime(application.deliveryEarliestAt)} →{" "}
+        {formatDateTime(application.deliveryLatestAt)}
+      </p>
+    </div>
   );
 }
 
@@ -1268,8 +1374,7 @@ export default function App() {
   const [missionForm, setMissionForm] = useState(emptyMissionForm);
   const [requestForm, setRequestForm] = useState(emptyMissionForm);
   const [clientForm, setClientForm] = useState(emptyMissionForm);
-  const [applicationMessages, setApplicationMessages] = useState({});
-  const [applicationPrices, setApplicationPrices] = useState({});
+  const [applicationOffers, setApplicationOffers] = useState({});
   const [documentType, setDocumentType] = useState("assurance_rc_pro");
   const [documentFiles, setDocumentFiles] = useState([]);
   const [documentOperationId, setDocumentOperationId] = useState(() => randomIdempotencyKey());
@@ -2262,20 +2367,24 @@ export default function App() {
         if (!account?.isVerified) throw new Error("Votre compte transporteur doit être vérifié par SECOTO pour candidater.");
         const alreadyApplied = applications.some((a) => a.missionId === missionId && a.transporterId === account.id);
         if (alreadyApplied) throw new Error("Vous avez déjà candidaté à cette mission.");
-        const rawPrice = applicationPrices[missionId];
-        const proposedPrice = Number(rawPrice);
-        if (!rawPrice || Number.isNaN(proposedPrice) || proposedPrice <= 0) throw new Error("Veuillez indiquer un tarif proposé valide.");
-        const { data, error } = await supabase.rpc("secoto_apply_to_mission", {
-          p_mission_id: missionId,
-          p_proposed_price: proposedPrice,
-          p_message: applicationMessages[missionId] || null,
-          p_idempotency_key: randomIdempotencyKey(),
+        const offer = applicationOffers[missionId] || EMPTY_APPLICATION_OFFER;
+        const payload = buildApplicationRpcPayload({
+          missionId,
+          idempotencyKey: randomIdempotencyKey(),
+          ...offer,
         });
+        const { data, error } = await supabase.rpc(
+          "secoto_apply_to_mission",
+          payload,
+        );
         if (error) throw error;
         const created = applicationFromDb(Array.isArray(data) ? data[0] : data);
         setApplications((prev) => [created, ...prev.filter((application) => application.id !== created.id)]);
-        setApplicationMessages((prev) => ({ ...prev, [missionId]: "" }));
-        setApplicationPrices((prev) => ({ ...prev, [missionId]: "" }));
+        setApplicationOffers((previous) => {
+          const next = { ...previous };
+          delete next[missionId];
+          return next;
+        });
         setNotice("Candidature envoyée avec votre tarif.");
         setTransporterTab("applications");
       });
@@ -2930,6 +3039,7 @@ export default function App() {
     if (owner) await clearEncryptedAccountData(owner).catch(() => {});
     setSession(null); setAccount(null);
     setMissions([]); setPublicMissions([]); setRequests([]); setApplications([]);
+    setApplicationOffers({});
     setTransporters([]); setDocuments([]); setTrackingEvents([]); setTrackingPhotos([]);
     setTrackingForms({}); setNotifications([]);
     setPushState("idle");
@@ -2980,6 +3090,21 @@ export default function App() {
     return applications.some((a) => a.missionId === missionId && a.transporterId === account?.id);
   }
 
+  function getApplicationOffer(missionId) {
+    return applicationOffers[missionId] || EMPTY_APPLICATION_OFFER;
+  }
+
+  function updateApplicationOffer(missionId, patch) {
+    setApplicationOffers((previous) => ({
+      ...previous,
+      [missionId]: {
+        ...EMPTY_APPLICATION_OFFER,
+        ...(previous[missionId] || {}),
+        ...patch,
+      },
+    }));
+  }
+
   function renderMissionCard(mission, options = {}) {
     const missionApplications = getMissionApplications(mission.id);
     // La liste est déjà triée du moins cher au plus cher : la 1re ligne avec un
@@ -3018,6 +3143,13 @@ export default function App() {
                   {application.id === bestApplicationId && <span className="best-price-badge">Meilleur prix</span>}
                   <p className="muted">{application.transporterCompany} — {application.transporterStatus}</p>
                   <p className="price-line"><strong>Tarif proposé :</strong> {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}</p>
+                  {application.proposedPriceGrouped && (
+                    <p className="price-line">
+                      <strong>Tarif si groupé :</strong>{" "}
+                      {Number(application.proposedPriceGrouped).toFixed(0)} €
+                    </p>
+                  )}
+                  <ApplicationAvailabilitySummary application={application} />
                   {application.message && <p>{application.message}</p>}
                   <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                 </div>
@@ -3189,6 +3321,7 @@ export default function App() {
       inbox: "M22 12h-6l-2 3h-4l-2-3H2M5 5h14l3 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6l3-7z",
       hand: "M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8",
       settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+      bank: "M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M2 20h20M12 3l9 5H3l9-5z",
       phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z",
     }[name] || "M12 5v14M5 12h14";
     return (
@@ -3259,6 +3392,9 @@ export default function App() {
           { key: "documents", label: "Mes documents", icon: "check", count: docsToSignCount || undefined },
         ] },
         { title: "Compte", items: [
+          ...(account.role === "transporter"
+            ? [{ key: "bank", label: "Coordonnées bancaires", icon: "bank" }]
+            : []),
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
           { key: "notifications", label: "Notifications", icon: "settings" },
           { key: "legal", label: "Informations légales", icon: "inbox" },
@@ -3911,11 +4047,13 @@ export default function App() {
                               commission de 20 % sur le montant de la mission.
                             </p>
                           )}
-                          <input className="message-box" type="number" min="1" step="1" placeholder="Votre tarif proposé (€) — obligatoire" value={applicationPrices[mission.id] || ""} onChange={(e) => setApplicationPrices((prev) => ({ ...prev, [mission.id]: e.target.value }))} />
-                          <textarea className="message-box" placeholder="Message optionnel pour SECOTO…" value={applicationMessages[mission.id] || ""} onChange={(e) => setApplicationMessages((prev) => ({ ...prev, [mission.id]: e.target.value }))} />
-                          <button className="btn primary" disabled={hasCurrentTransporterApplied(mission.id) || !account.isVerified} onClick={() => applyToMission(mission.id)}>
-                            {hasCurrentTransporterApplied(mission.id) ? "Candidature envoyée" : "Candidater"}
-                          </button>
+                          <ApplicationOfferEditor
+                            offer={getApplicationOffer(mission.id)}
+                            onChange={(patch) => updateApplicationOffer(mission.id, patch)}
+                            onSubmit={() => applyToMission(mission.id)}
+                            disabled={!account.isVerified || actionLoading}
+                            alreadyApplied={hasCurrentTransporterApplied(mission.id)}
+                          />
                         </>
                       )}
                     </article>
@@ -3941,6 +4079,13 @@ export default function App() {
                           <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                         </div>
                         <p className="price-line"><strong>Tarif proposé :</strong> {application.proposedPrice ? `${Number(application.proposedPrice).toFixed(0)} €` : "Non renseigné"}</p>
+                        {application.proposedPriceGrouped && (
+                          <p className="price-line">
+                            <strong>Tarif si groupé :</strong>{" "}
+                            {Number(application.proposedPriceGrouped).toFixed(0)} €
+                          </p>
+                        )}
+                        <ApplicationAvailabilitySummary application={application} />
                         {mission ? (<><h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3><PublicMissionInfo mission={mission} /></>) : <p>Mission introuvable.</p>}
                       </article>
                     );
@@ -4062,6 +4207,12 @@ export default function App() {
           {transporterTab === "documents" && (
             <section className="layout">
               <MyDocumentsPanel account={account} focusMissionId={focusMissionId} />
+            </section>
+          )}
+
+          {transporterTab === "bank" && !isAdmin && (
+            <section className="layout">
+              <BankAccountPanel account={account} />
             </section>
           )}
 
