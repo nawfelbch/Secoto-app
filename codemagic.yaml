@@ -62,23 +62,23 @@ workflows:
           # assets/notification-sound/PROVENANCE.md). Son empreinte est
           # vérifiée ici : remplacer le son sans mettre à jour la provenance
           # ni le canal Android arrête le build.
-          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  ios/App/App/secoto_cash_register.wav" | shasum -a 256 -c -
+          # shasum est présent sur macOS ET sur les images Linux ; sha256sum
+          # n'existe PAS sur macOS, où tournent nos deux workflows.
+          check_sha() {
+            if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c -
+            else sha256sum -c -; fi
+          }
+          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  ios/App/App/secoto_cash_register.wav" | check_sha
           grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
 
           # Les deux plateformes doivent recevoir exactement le même fichier.
           cmp ios/App/App/secoto_cash_register.wav \
               android/app/src/main/res/raw/secoto_cash_register.wav
 
-          # Contraintes APNs : PCM linéaire, 30 secondes maximum.
-          python3 - <<'PY'
-          import sys, wave
-          with wave.open("ios/App/App/secoto_cash_register.wav") as w:
-              seconds = w.getnframes() / w.getframerate()
-              assert w.getcomptype() == "NONE", "APNs exige du PCM lineaire"
-              assert w.getsampwidth() == 2, "16 bits attendus"
-              assert seconds <= 30, f"APNs refuse un son de {seconds:.1f}s"
-              print(f"son de caisse : {seconds:.2f}s, PCM {w.getsampwidth()*8} bits, OK")
-          PY
+          # Le format APNs (PCM linéaire, 16 bits, 30 s maximum) est vérifié
+          # par « npm test », exécuté à l'étape précédente : inutile de le
+          # refaire ici, et cela éviterait de dépendre de python3, dont la
+          # présence n'est pas garantie sur l'image de build.
 
           # Référencé dans le projet Xcode, sinon il n'entre pas dans le bundle
           # et iOS retombe silencieusement sur le son par défaut.
@@ -326,7 +326,12 @@ workflows:
           printf '%s' "$FIREBASE_ANDROID_CONFIG_B64" | base64 --decode > android/app/google-services.json
       - name: Son de notification natif — contrôle Android
         script: |
-          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  android/app/src/main/res/raw/secoto_cash_register.wav" | sha256sum -c -
+          # Ce workflow tourne sur mac_mini_m2 : sha256sum n'y existe pas.
+          check_sha() {
+            if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c -
+            else sha256sum -c -; fi
+          }
+          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  android/app/src/main/res/raw/secoto_cash_register.wav" | check_sha
           grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
 
           # res/raw n'accepte que minuscules, chiffres et underscores : un nom

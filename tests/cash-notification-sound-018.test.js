@@ -235,10 +235,24 @@ test("le CI vérifie l'empreinte du son sur les deux plateformes", () => {
     (ci.match(new RegExp(SOUND_SHA256, "g")) || []).length >= 2,
     "l'empreinte doit être contrôlée dans les deux workflows",
   );
-  assert.match(ci, /shasum -a 256 -c -/);
-  assert.match(ci, /sha256sum -c -/);
   assert.match(ci, /grep -q "secoto_cash_register\.wav in Resources"/);
-  assert.match(ci, /seconds <= 30/);
   // Les deux plateformes doivent recevoir le même octet.
   assert.match(ci, /cmp ios\/App\/App\/secoto_cash_register\.wav/);
+});
+
+test("les commandes du CI existent sur les machines de build", () => {
+  // Les DEUX workflows tournent sur mac_mini_m2. macOS ne fournit pas
+  // sha256sum : l'appeler directement ferait échouer le build Android.
+  for (const step of ci.matchAll(/check_sha\(\) \{[\s\S]*?\}/g)) {
+    assert.match(step[0], /command -v shasum/);
+    assert.match(step[0], /shasum -a 256 -c -/);
+    assert.match(step[0], /sha256sum -c -/);
+  }
+  assert.equal([...ci.matchAll(/check_sha\(\) \{/g)].length, 2);
+  // Aucune commande sha256sum nue, hors du repli portable.
+  assert.doesNotMatch(ci, /\| sha256sum/);
+  // python3 n'est pas garanti sur l'image de build : le format du WAV est
+  // déjà validé par « npm test », exécuté à l'étape précédente. On interdit
+  // l'INVOCATION, pas la mention en commentaire.
+  assert.doesNotMatch(ci, /^\s*python3\b/m);
 });
