@@ -9,6 +9,10 @@ const migration = readFileSync(
   new URL("../supabase/migrations/202608250015_reliability_guards.sql", import.meta.url),
   "utf8",
 );
+const repair = readFileSync(
+  new URL("../supabase/repair/2026-08-25-reparation-candidature.sql", import.meta.url),
+  "utf8",
+);
 
 test("les erreurs PostgREST de cache de schéma ne sont jamais affichées brutes", () => {
   const raw = {
@@ -89,6 +93,32 @@ test("la migration 015 supprime toutes les surcharges puis n'en recrée qu'une",
   assert.match(migration, /create or replace function public\.secoto_apply_to_mission\(/);
   assert.match(migration, /having count\(\*\) > 1/);
   assert.match(migration, /notify pgrst, 'reload schema'/);
+});
+
+test("l'audit des surcharges signale mais ne bloque JAMAIS la migration", () => {
+  // Régression du 25/08/2026 : une garde fatale annulait toute la transaction
+  // — donc la réparation — dès qu'une fonction secoto_% avait une surcharge,
+  // même parfaitement légitime.
+  const audit = migration.slice(migration.indexOf("$audit$"));
+  assert.match(audit, /raise warning/);
+  assert.doesNotMatch(audit, /raise exception/);
+  // Seules les surcharges aux MÊMES noms de paramètres sont ambiguës.
+  assert.match(migration, /proargnames/);
+  assert.match(migration, /group by s\.proname, s\.argnames/);
+});
+
+test("le script de réparation immédiate ne conserve qu'une signature et recharge le cache", () => {
+  assert.match(repair, /drop function %s/);
+  assert.match(repair, /grant execute on function %s to authenticated/);
+  assert.match(repair, /notify pgrst, 'reload schema'/);
+  // Il ne doit rien pouvoir annuler : aucune transaction explicite englobante,
+  // et une seule exception possible — la migration 013 jamais appliquée.
+  assert.doesNotMatch(repair, /^begin;/m);
+  const exceptions = repair.match(/raise exception/g) || [];
+  assert.equal(exceptions.length, 1);
+  assert.match(repair, /raise exception\s*\n?\s*'secoto_apply_to_mission est absente/);
+  // L'audit final est un simple SELECT : il ne peut rien faire échouer.
+  assert.match(repair, /having count\(\*\) > 1;?\s*$/);
 });
 
 test("la migration 015 rend l'encaissement définitif face aux webhooks en désordre", () => {

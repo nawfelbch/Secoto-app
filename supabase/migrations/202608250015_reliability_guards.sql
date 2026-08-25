@@ -305,28 +305,47 @@ grant execute on function public.secoto_settle_payment(uuid, text, text, text, t
   to service_role;
 
 -- ----------------------------------------------------------------------------
--- 3. Garde de déploiement : zéro doublon de fonction exposée
+-- 3. AUDIT de déploiement — rapport, JAMAIS un blocage
 -- ----------------------------------------------------------------------------
+-- Correction du 25/08/2026 : la première version de cette garde levait une
+-- exception dès qu'une fonction public.secoto_% existait en plusieurs
+-- exemplaires. Or une surcharge n'est dangereuse QUE si les deux versions
+-- portent les MÊMES noms de paramètres : c'est là que PostgREST ne sait plus
+-- laquelle appeler. Des surcharges aux paramètres différents sont légitimes.
+-- La garde annulait donc la transaction — et la réparation avec elle.
+-- Elle signale désormais, sans jamais faire échouer la migration.
 
-do $guard$
+do $audit$
 declare
   v_dup record;
+  v_found boolean := false;
 begin
   for v_dup in
-    select p.proname, count(*) as copies
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname like 'secoto\_%'
-    group by p.proname
+    select s.proname, count(*) as copies,
+           string_agg(s.signature, '  |  ') as signatures
+    from (
+      select p.proname,
+             (select array_agg(x order by x)
+                from unnest(coalesce(p.proargnames, '{}'::text[])) x) as argnames,
+             p.oid::regprocedure::text as signature
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname like 'secoto\_%'
+    ) s
+    group by s.proname, s.argnames
     having count(*) > 1
   loop
-    raise exception
-      'Fonction public.% présente en % exemplaires : surcharge ambiguë pour PostgREST, dédoublonner avant de continuer.',
-      v_dup.proname, v_dup.copies;
+    v_found := true;
+    raise warning
+      'AMBIGUITE POSTGREST — public.% existe en % exemplaires avec les memes noms de parametres (%). Tout appel RPC de cette fonction echouera : dedoublonner.',
+      v_dup.proname, v_dup.copies, v_dup.signatures;
   end loop;
+
+  if not v_found then
+    raise notice 'Audit des surcharges : aucune ambiguite PostgREST detectee.';
+  end if;
 end
-$guard$;
+$audit$;
 
 notify pgrst, 'reload schema';
 
