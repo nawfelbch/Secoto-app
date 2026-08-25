@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { pushSupported } from "./push";
+import { humanizeError } from "./lib/humanError";
 
 // ============================================================================
 // SECOTO — Préférences de notification, par compte et donc par rôle.
@@ -17,6 +18,17 @@ const DEFAULTS = {
   mute_missions: false,
   mute_documents: false,
   mute_frais: false,
+  cash_sound_enabled: true,
+};
+
+// Le son de caisse ne concerne que les rôles qui gagnent de l'argent sur un
+// événement : le transporteur et l'administration. Un client n'a rien à
+// encaisser, l'option ne lui est donc même pas affichée.
+const CASH_SOUND_ROLES = new Set(["transporter", "admin"]);
+
+const CASH_SOUND_DETAIL = {
+  transporter: "Nouvelle course disponible, mission attribuée et paiement reçu.",
+  admin: "Paiement encaissé et nouvelle demande.",
 };
 
 export default function NotificationPreferencesPanel({ account, onEnablePush, pushState }) {
@@ -29,7 +41,7 @@ export default function NotificationPreferencesPanel({ account, onEnablePush, pu
     let alive = true;
     supabase
       .from("notification_preferences")
-      .select("push_enabled,email_enabled,mute_missions,mute_documents,mute_frais")
+      .select("push_enabled,email_enabled,mute_missions,mute_documents,mute_frais,cash_sound_enabled")
       .eq("account_id", account.id)
       .maybeSingle()
       .then(({ data }) => { if (alive && data) setPrefs({ ...DEFAULTS, ...data }); });
@@ -45,12 +57,13 @@ export default function NotificationPreferencesPanel({ account, onEnablePush, pu
         p_mute_missions: next.mute_missions,
         p_mute_documents: next.mute_documents,
         p_mute_frais: next.mute_frais,
+        p_cash_sound_enabled: next.cash_sound_enabled,
       });
       if (rpcError) throw rpcError;
       setPrefs(next);
       setNotice("Préférences enregistrées.");
     } catch (e) {
-      setError(e.message || "Enregistrement impossible.");
+      setError(humanizeError(e, "Enregistrement impossible."));
     } finally {
       setBusy(false);
     }
@@ -103,6 +116,33 @@ export default function NotificationPreferencesPanel({ account, onEnablePush, pu
           </span>
         </label>
       </div>
+
+      {CASH_SOUND_ROLES.has(account.role) && (
+        <div className="card-section">
+          <h3>Son des notifications</h3>
+          <label className="field">
+            <span className="payment-waiver-row">
+              <input
+                type="checkbox"
+                checked={prefs.cash_sound_enabled}
+                onChange={() => toggle("cash_sound_enabled")}
+                disabled={busy}
+              />
+              <span>
+                Son de caisse enregistreuse sur les notifications qui rapportent
+                <br />
+                <span className="muted">{CASH_SOUND_DETAIL[account.role]}</span>
+              </span>
+            </span>
+          </label>
+          <p className="muted">
+            Décoché, ces notifications reprennent le son standard de votre
+            téléphone. Toutes les autres notifications SECOTO gardent toujours
+            le son standard. Sur Android, le changement s’applique à la
+            prochaine notification reçue.
+          </p>
+        </div>
+      )}
 
       <div className="card-section">
         <h3>Ce que je ne souhaite pas recevoir</h3>

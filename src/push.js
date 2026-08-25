@@ -7,7 +7,55 @@ import { buildMissionPath } from "./lib/deepLinks";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 const INSTALLATION_KEY = "secoto-installation-id-v1";
-const CHANNEL_ID = "secoto-missions";
+
+// ----------------------------------------------------------------------------
+// Canaux de notification Android.
+// ----------------------------------------------------------------------------
+// Un canal Android est IMMUABLE une fois créé : modifier le son d'un canal
+// existant n'a aucun effet, y compris après réinstallation de l'application.
+// Le son de caisse vit donc dans un canal DISTINCT et VERSIONNÉ. Si son
+// contenu devait changer, il faudra incrémenter le suffixe (-v2), jamais
+// modifier le canal en place.
+//
+// iOS n'a pas de canaux : le son y est choisi message par message dans la
+// charge utile APNs (cf. netlify/functions/send-mission-notifications.js).
+// ----------------------------------------------------------------------------
+export const DEFAULT_CHANNEL_ID = "secoto-missions";
+export const CASH_CHANNEL_ID = "secoto-cash-register-v1";
+export const CASH_SOUND_FILE = "secoto_cash_register.wav";
+
+export const NATIVE_NOTIFICATION_CHANNELS = Object.freeze([
+  {
+    id: DEFAULT_CHANNEL_ID,
+    name: "Missions SECOTO",
+    description: "Avancement de vos missions et actions SECOTO",
+  },
+  {
+    id: CASH_CHANNEL_ID,
+    name: "Encaissements et nouvelles courses",
+    description: "Son de caisse : nouvelle course, mission attribuée, paiement reçu",
+    // Android référence le fichier de res/raw SANS son extension.
+    sound: CASH_SOUND_FILE.replace(/\.wav$/, ""),
+  },
+]);
+
+async function ensureNativeNotificationChannels(PushNotifications) {
+  if (Capacitor.getPlatform() !== "android") return;
+  await Promise.all(
+    NATIVE_NOTIFICATION_CHANNELS.map((channel) =>
+      PushNotifications.createChannel({
+        ...channel,
+        importance: 4,
+        visibility: 0,
+        vibration: true,
+        lights: true,
+      }).catch(() => {
+        // Un canal déjà présent fait échouer certaines implémentations : ce
+        // n'est pas une erreur, et cela ne doit jamais bloquer l'inscription.
+      }),
+    ),
+  );
+}
 
 function installationId() {
   try {
@@ -70,17 +118,7 @@ async function registerNativeToken() {
     };
   }
 
-  if (Capacitor.getPlatform() === "android") {
-    await PushNotifications.createChannel({
-      id: CHANNEL_ID,
-      name: "Missions SECOTO",
-      description: "Avancement de vos missions et actions SECOTO",
-      importance: 4,
-      visibility: 0,
-      vibration: true,
-      lights: true,
-    });
-  }
+  await ensureNativeNotificationChannels(PushNotifications);
 
   const token = await new Promise((resolve, reject) => {
     let registrationHandle;
@@ -160,6 +198,11 @@ export async function enablePush() {
 export async function initializePushListeners({ onNotification, onOpen } = {}) {
   if (!Capacitor.isNativePlatform()) return async () => {};
   const { PushNotifications } = await import("@capacitor/push-notifications");
+  // Les canaux sont recréés à chaque démarrage, de façon idempotente : un
+  // transporteur déjà inscrit aux notifications AVANT cette mise à jour
+  // obtient ainsi le canal du son de caisse sans avoir à désactiver puis
+  // réactiver les notifications sur son téléphone.
+  await ensureNativeNotificationChannels(PushNotifications);
   const received = await PushNotifications.addListener("pushNotificationReceived", (notification) => {
     onNotification?.({
       title: notification.title || "SECOTO",

@@ -85,6 +85,54 @@ export function genericPushCopy(type) {
   };
 }
 
+// ----------------------------------------------------------------------------
+// Son de caisse enregistreuse.
+// ----------------------------------------------------------------------------
+// Il est réservé aux notifications qui représentent de l'argent, afin qu'il
+// garde sa valeur de signal : entendre la caisse doit vouloir dire « il y a
+// quelque chose à gagner », jamais « SECOTO a quelque chose à dire ».
+//
+//   transporteur : nouvelle course, mission attribuée, paiement reçu
+//   admin        : paiement encaissé, nouvelle demande
+//
+// Toute autre notification (documents, suivi, frais, comptes) garde le son
+// standard du téléphone.
+// ----------------------------------------------------------------------------
+export const CASH_SOUND_FILE = "secoto_cash_register.wav";
+export const CASH_CHANNEL_ID = "secoto-cash-register-v1";
+export const DEFAULT_CHANNEL_ID = "secoto-missions";
+
+const CASH_EVENTS = {
+  transporter: new Set(["new_course", "course_assigned", "payment"]),
+  admin: new Set(["payment", "new_request"]),
+};
+
+export function isCashEvent(notification = {}) {
+  const events = CASH_EVENTS[notification.audience];
+  return Boolean(events && events.has(notification.type));
+}
+
+/**
+ * @param notification ligne public.notifications (type + audience)
+ * @param preferences  ligne public.notification_preferences du destinataire.
+ *                     Absente = préférence par défaut, donc son de caisse actif.
+ */
+export function nativeNotificationPresentation(notification = {}, preferences = null) {
+  const wantsCash = preferences?.cash_sound_enabled !== false;
+  if (wantsCash && isCashEvent(notification)) {
+    return {
+      iosSound: CASH_SOUND_FILE,
+      androidSound: CASH_SOUND_FILE.replace(/\.wav$/, ""),
+      androidChannelId: CASH_CHANNEL_ID,
+    };
+  }
+  return {
+    iosSound: "default",
+    androidSound: "default",
+    androidChannelId: DEFAULT_CHANNEL_ID,
+  };
+}
+
 export function notificationRoute(notification) {
   const screen = ALLOWED_SCREENS.has(notification.push_screen)
     ? notification.push_screen
@@ -147,7 +195,7 @@ async function firebaseAccessToken() {
   return firebaseTokenCache.value;
 }
 
-async function sendFcm(token, push, route, missionId) {
+async function sendFcm(token, push, route, missionId, presentation) {
   const credentials = parseFirebaseCredentials();
   if (!credentials) throw new Error("FCM_NOT_CONFIGURED");
   const accessToken = await firebaseAccessToken();
@@ -171,7 +219,8 @@ async function sendFcm(token, push, route, missionId) {
           android: {
             priority: "high",
             notification: {
-              channel_id: "secoto-missions",
+              channel_id: presentation.androidChannelId,
+              sound: presentation.androidSound,
               notification_priority: "PRIORITY_HIGH",
               visibility: "PRIVATE",
               tag: missionId ? `mission-${missionId}` : "secoto",
@@ -205,7 +254,7 @@ function apnsProviderToken() {
   return `${signingInput}.${signature}`;
 }
 
-function sendApns(token, push, route, missionId) {
+function sendApns(token, push, route, missionId, presentation) {
   const origin = APNS_USE_SANDBOX === "true"
     ? "https://api.sandbox.push.apple.com"
     : "https://api.push.apple.com";
@@ -246,7 +295,7 @@ function sendApns(token, push, route, missionId) {
     request.end(JSON.stringify({
       aps: {
         alert: { title: push.title, body: push.body },
-        sound: "default",
+        sound: presentation.iosSound,
         badge: 1,
         "thread-id": missionId ? `mission-${missionId}` : "secoto",
       },
@@ -281,9 +330,13 @@ async function sendWebPush(device, push, route, missionId) {
   }
 }
 
-async function sendToDevice(device, push, route, missionId) {
-  if (device.provider === "fcm") return sendFcm(device.token, push, route, missionId);
-  if (device.provider === "apns") return sendApns(device.token, push, route, missionId);
+async function sendToDevice(device, push, route, missionId, presentation) {
+  if (device.provider === "fcm") {
+    return sendFcm(device.token, push, route, missionId, presentation);
+  }
+  if (device.provider === "apns") {
+    return sendApns(device.token, push, route, missionId, presentation);
+  }
   if (device.provider === "webpush") return sendWebPush(device, push, route, missionId);
   throw new Error("UNKNOWN_PUSH_PROVIDER");
 }
@@ -321,7 +374,7 @@ export const dispatchMissionNotifications = async (event) => {
 
   const { data: notification, error: notificationError } = await admin
     .from("notifications")
-    .select("id,account_id,type,mission_id,push_screen")
+    .select("id,account_id,type,mission_id,push_screen,audience")
     .eq("id", outbox.notification_id)
     .single();
   if (notificationError || !notification) {
@@ -422,8 +475,25 @@ export const dispatchMissionNotifications = async (event) => {
 
   const push = genericPushCopy(notification.type);
   const route = notificationRoute(notification);
+
+  // Le son de caisse est une préférence du destinataire. Une lecture absente
+  // ou en erreur ne doit jamais empêcher l'envoi : on retombe alors sur la
+  // valeur par défaut (son de caisse actif), comme pour un compte qui n'a
+  // jamais ouvert l'écran Notifications.
+  let preferences = null;
+  if (isCashEvent(notification)) {
+    const { data } = await admin
+      .from("notification_preferences")
+      .select("cash_sound_enabled")
+      .eq("account_id", notification.account_id)
+      .maybeSingle();
+    preferences = data || null;
+  }
+  const presentation = nativeNotificationPresentation(notification, preferences);
+
   const results = await Promise.allSettled(
-    targets.map(({ device }) => sendToDevice(device, push, route, notification.mission_id)),
+    targets.map(({ device }) =>
+      sendToDevice(device, push, route, notification.mission_id, presentation)),
   );
 
   const staleIds = [];

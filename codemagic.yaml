@@ -56,6 +56,30 @@ workflows:
           npm run lint
           npm test
           npm run build
+      - name: Son de notification natif — génération et contrôle iOS
+        script: |
+          # Le WAV est versionné dans le dépôt ; on le régénère et on exige
+          # qu'il soit IDENTIQUE. Le générateur est déterministe : une
+          # différence signifie que le fichier committé n'est plus le reflet
+          # de sa source, et le build doit s'arrêter là.
+          cp ios/App/App/secoto_cash_register.wav /tmp/secoto_sound_committed.wav
+          npm run sounds
+          cmp /tmp/secoto_sound_committed.wav ios/App/App/secoto_cash_register.wav
+
+          # Contraintes APNs : PCM linéaire, 30 secondes maximum.
+          python3 - <<'PY'
+          import sys, wave
+          with wave.open("ios/App/App/secoto_cash_register.wav") as w:
+              seconds = w.getnframes() / w.getframerate()
+              assert w.getcomptype() == "NONE", "APNs exige du PCM lineaire"
+              assert w.getsampwidth() == 2, "16 bits attendus"
+              assert seconds <= 30, f"APNs refuse un son de {seconds:.1f}s"
+              print(f"son de caisse : {seconds:.2f}s, PCM {w.getsampwidth()*8} bits, OK")
+          PY
+
+          # Référencé dans le projet Xcode, sinon il n'entre pas dans le bundle
+          # et iOS retombe silencieusement sur le son par défaut.
+          grep -q "secoto_cash_register.wav in Resources" "$XCODE_PROJECT/project.pbxproj"
       - name: Synchronisation Capacitor iOS (Swift Package Manager)
         script: |
           npx cap sync ios
@@ -63,6 +87,7 @@ workflows:
           test ! -f ios/App/Podfile
           test -f ios/App/App/PrivacyInfo.xcprivacy
           test -f ios/App/App/App.entitlements
+          test -f ios/App/App/secoto_cash_register.wav
           grep -q "merchant.fr.secoto.app" ios/App/App/App.entitlements
       - name: Résolution Swift Package Manager
         script: |
@@ -296,8 +321,19 @@ workflows:
         script: |
           test -n "$FIREBASE_ANDROID_CONFIG_B64"
           printf '%s' "$FIREBASE_ANDROID_CONFIG_B64" | base64 --decode > android/app/google-services.json
+      - name: Son de notification natif — génération et contrôle Android
+        script: |
+          cp android/app/src/main/res/raw/secoto_cash_register.wav /tmp/secoto_sound_committed.wav
+          npm run sounds
+          cmp /tmp/secoto_sound_committed.wav android/app/src/main/res/raw/secoto_cash_register.wav
+
+          # res/raw n'accepte que minuscules, chiffres et underscores : un nom
+          # invalide fait échouer aapt2 très loin dans le build Gradle.
+          ls android/app/src/main/res/raw/ | grep -Eq '^secoto_cash_register\.wav$'
       - name: Synchronisation Capacitor Android
-        script: npx cap sync android
+        script: |
+          npx cap sync android
+          test -f android/app/src/main/res/raw/secoto_cash_register.wav
       - name: Tests, lint et APK debug
         script: |
           cd android

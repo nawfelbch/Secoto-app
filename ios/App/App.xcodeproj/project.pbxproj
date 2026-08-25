@@ -16,6 +16,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A1C0F0012F00000100000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1C0F0022F00000100000001 /* PrivacyInfo.xcprivacy */; };
+		A1C0F0202F00000100000001 /* secoto_cash_register.wav in Resources */ = {isa = PBXBuildFile; fileRef = A1C0F0212F00000100000001 /* secoto_cash_register.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		A1C0F0022F00000100000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A1C0F0212F00000100000001 /* secoto_cash_register.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = secoto_cash_register.wav; sourceTree = "<group>"; };
 		A1C0F0032F00000100000001 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -73,6 +75,7 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				A1C0F0032F00000100000001 /* App.entitlements */,
 				A1C0F0022F00000100000001 /* PrivacyInfo.xcprivacy */,
+				A1C0F0212F00000100000001 /* secoto_cash_register.wav */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -151,6 +154,7 @@
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				A1C0F0012F00000100000001 /* PrivacyInfo.xcprivacy in Resources */,
+				A1C0F0202F00000100000001 /* secoto_cash_register.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
