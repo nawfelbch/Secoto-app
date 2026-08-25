@@ -79,32 +79,73 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
     });
   }, [payment?.id, onDone]);
 
+  // Le temps réel peut être momentanément coupé (réseau mobile, reprise de
+  // l'app). Un contrôle serveur périodique garantit que l'écran retrouve tout
+  // de même la confirmation du webhook, sans demander au client de repayer.
+  useEffect(() => {
+    if (
+      !busy
+      || !payment?.id
+      || !["pending", "processing"].includes(payment.status)
+    ) return undefined;
+    let alive = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const updated = await fetchPayment(payment.id);
+        if (!alive) return;
+        setPayment(updated);
+        if (updated.status === "paid") {
+          setBusy(false);
+          setNotice("Paiement confirmé. Le bon de mission part au transporteur.");
+          onDone?.(updated);
+        } else if (updated.status === "failed" || updated.status === "cancelled") {
+          setBusy(false);
+          setError("Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
+        }
+      } catch {
+        // La prochaine tentative ou le canal temps réel prendra le relais.
+      }
+    }, 2500);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [busy, payment?.id, payment?.status, onDone]);
+
   const handlePay = useCallback(async () => {
     if (!payment) return;
     setBusy(true); setError(""); setNotice("");
     try {
+      let activePayment = payment;
+      if (["failed", "cancelled"].includes(activePayment.status)) {
+        const prepared = await prepareCommissionPayment(mission.id);
+        activePayment = await fetchPayment(prepared.payment_id);
+        setPayment(activePayment);
+      }
       if (waiverRequired) {
         if (!waiverChecked) {
           setError("Cochez la case ci-dessus pour poursuivre.");
           setBusy(false);
           return;
         }
-        await acceptPaymentWaiver(payment.id);
+        await acceptPaymentWaiver(activePayment.id);
       }
-      const outcome = await payNow(payment.id);
+      const outcome = await payNow(activePayment.id);
       if (outcome.cancelled) {
         setBusy(false);
         setNotice("Paiement abandonné. Votre créneau n'est pas réservé.");
         return;
       }
       if (outcome.pending) {
+        const refreshed = await fetchPayment(activePayment.id);
+        setPayment(refreshed);
         setNotice("Paiement en cours de confirmation…");
       }
     } catch (e) {
       setBusy(false);
       setError(e.message || "Paiement impossible.");
     }
-  }, [payment, waiverChecked, waiverRequired]);
+  }, [mission.id, payment, waiverChecked, waiverRequired]);
 
   const commission = payment ? payment.amount : (mission.commissionAmount ?? 0);
   const transport = mission.transportAmount ?? mission.carrierCost ?? 0;

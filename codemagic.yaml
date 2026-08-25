@@ -30,6 +30,7 @@ workflows:
           test -n "$VITE_SUPABASE_URL"
           test -n "$VITE_SUPABASE_ANON_KEY"
           test -n "$VITE_SECOTO_FUNCTIONS_BASE_URL"
+          test -n "$VITE_APPLE_PAY_MERCHANT_ID"
 
           case "$VITE_SUPABASE_URL" in
             https://*.supabase.co) ;;
@@ -46,6 +47,10 @@ workflows:
             *) echo "VITE_SECOTO_FUNCTIONS_BASE_URL invalid"; exit 1 ;;
           esac
 
+          if [ "$VITE_APPLE_PAY_MERCHANT_ID" != "merchant.fr.secoto.app" ]; then
+            echo "VITE_APPLE_PAY_MERCHANT_ID invalid"; exit 1
+          fi
+
       - name: Lint, tests et build Web
         script: |
           npm run lint
@@ -58,6 +63,7 @@ workflows:
           test ! -f ios/App/Podfile
           test -f ios/App/App/PrivacyInfo.xcprivacy
           test -f ios/App/App/App.entitlements
+          grep -q "merchant.fr.secoto.app" ios/App/App/App.entitlements
       - name: Résolution Swift Package Manager
         script: |
           xcodebuild \

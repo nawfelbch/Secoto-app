@@ -12,6 +12,13 @@ const mappers = readFileSync(
   new URL("../src/lib/mappers.js", import.meta.url),
   "utf8",
 );
+const reliabilityMigration = readFileSync(
+  new URL(
+    "../supabase/migrations/202608250013_release_reliability.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 test("l'urgence désactivée n'est plus proposée dans le formulaire mission", () => {
   assert.doesNotMatch(app, /Urgence sous 24 h/);
@@ -56,6 +63,15 @@ test("les disponibilités et le tarif groupé remontent jusqu'à l'administratio
   ]);
   assert.equal(payload.p_pickup_earliest_at, "2026-08-25T06:00:00.000Z");
   assert.equal(payload.p_proposed_price_grouped, 790);
+});
+
+test("la RPC Supabase accepte réellement tous les champs envoyés par le front", () => {
+  assert.match(
+    reliabilityMigration,
+    /create or replace function public\.secoto_apply_to_mission\([\s\S]*?p_pickup_earliest_at timestamptz[\s\S]*?p_proposed_price_grouped numeric/,
+  );
+  assert.match(reliabilityMigration, /grant execute on function public\.secoto_apply_to_mission/);
+  assert.match(reliabilityMigration, /notify pgrst, 'reload schema'/);
 });
 
 test("les coordonnées bancaires utilisent uniquement les RPC sécurisées", () => {

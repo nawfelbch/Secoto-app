@@ -193,10 +193,10 @@ export async function initializePlatform({
     ]);
 
     try {
-      // La WebView reste sous la barre d'état : certains appareils iOS
-      // renvoient des safe-area-inset à zéro dans une WebView superposée,
-      // ce qui faisait passer le titre et le contenu sous l'heure.
-      await StatusBar.setOverlaysWebView({ overlay: false });
+      // Véritable affichage bord à bord. Le contenu interactif reste hors de
+      // la Dynamic Island grâce aux safe-area CSS (viewport-fit=cover), tandis
+      // que le fond se prolonge bien derrière la barre système.
+      await StatusBar.setOverlaysWebView({ overlay: true });
       await StatusBar.setStyle({ style: Style.Light });
     } catch {
       // Certains environnements WebView de test n'exposent pas la barre système.

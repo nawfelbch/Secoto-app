@@ -812,6 +812,23 @@ input:focus, select:focus, textarea:focus {
   .mission-card p, .card-section p, .card-section { overflow-wrap: anywhere; word-break: break-word; }
 }
 
+/* Capacitor iOS/Android : le fond touche réellement les quatre bords. Les
+   safe areas ne sont appliquées qu'au contenu, donc aucun titre/bouton ne
+   passe sous la Dynamic Island ni sous l'indicateur d'accueil. */
+html[data-native-platform] .app-shell {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding-top: max(18px, calc(env(safe-area-inset-top, 0px) + 12px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  box-shadow: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

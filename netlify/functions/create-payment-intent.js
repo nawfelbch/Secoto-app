@@ -59,6 +59,9 @@ const handler = async (event) => {
   const paymentId = payload.paymentId;
   const platform = ALLOWED_PLATFORMS.has(payload.platform) ? payload.platform : "web";
   if (!UUID_PATTERN.test(paymentId || "")) return response(400, { error: "invalid_payment_id" });
+  if (platform !== "web" && !STRIPE_PUBLISHABLE_KEY) {
+    return response(503, { error: "server_not_configured" });
+  }
 
   // 1. Identité réelle de l'appelant, vérifiée par Supabase, jamais déduite
   //    d'un champ du corps de la requête.
@@ -102,11 +105,14 @@ const handler = async (event) => {
 
   let customerId = account?.stripe_customer_id || null;
   if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: account?.email || undefined,
-      name: account?.full_name || undefined,
-      metadata: { secoto_account_id: userId },
-    });
+    const customer = await stripe.customers.create(
+      {
+        email: account?.email || undefined,
+        name: account?.full_name || undefined,
+        metadata: { secoto_account_id: userId },
+      },
+      { idempotencyKey: `secoto-customer-${userId}` },
+    );
     customerId = customer.id;
     await admin.from("accounts").update({ stripe_customer_id: customerId }).eq("id", userId);
   }

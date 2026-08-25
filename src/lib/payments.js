@@ -21,8 +21,7 @@
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "../supabaseClient";
 import { randomIdempotencyKey } from "./fileSafety";
-
-const INTENT_ENDPOINT = "/.netlify/functions/create-payment-intent";
+import { getServerFunctionUrl } from "../platform/runtime";
 
 export const PAYMENT_STATUS_LABEL = {
   not_required: "Aucun paiement requis",
@@ -30,6 +29,7 @@ export const PAYMENT_STATUS_LABEL = {
   paid: "Payé",
   failed: "Paiement échoué",
   refunded: "Remboursé",
+  cancelled: "Annulé",
 };
 
 function platform() {
@@ -116,7 +116,7 @@ async function requestIntent(paymentId) {
   const accessToken = sessionData?.session?.access_token;
   if (!accessToken) throw new Error("Session expirée. Reconnectez-vous puis réessayez.");
 
-  const result = await fetch(INTENT_ENDPOINT, {
+  const result = await fetch(getServerFunctionUrl("create-payment-intent"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -125,18 +125,22 @@ async function requestIntent(paymentId) {
     body: JSON.stringify({ paymentId, platform: platform() }),
   });
 
-  if (result.status === 428) {
+  const body = await result.json().catch(() => ({}));
+  if (result.status === 428 || body.error === "waiver_required") {
     throw new Error(
       "Cochez la case de demande d'exécution immédiate avant de régler.",
     );
   }
-  if (result.status === 409) {
+  if (result.status === 409 && body.error === "already_paid") {
     return { alreadyPaid: true };
+  }
+  if (result.status === 409 && body.error === "payment_not_payable") {
+    throw new Error("Ce paiement n’est plus actif. Rechargez la mission pour réessayer.");
   }
   if (!result.ok) {
     throw new Error("Le service de paiement est momentanément indisponible.");
   }
-  return result.json();
+  return body;
 }
 
 /**
@@ -165,10 +169,16 @@ export async function payNow(paymentId) {
     enableGooglePay: platform() === "android",
   });
 
+  const customerOptions = intent.ephemeralKey
+    ? {
+        customerId: intent.customerId,
+        customerEphemeralKeySecret: intent.ephemeralKey,
+      }
+    : {};
+
   await StripePlugin.createPaymentSheet({
     paymentIntentClientSecret: intent.clientSecret,
-    customerId: intent.customerId,
-    customerEphemeralKeySecret: intent.ephemeralKey,
+    ...customerOptions,
     merchantDisplayName: "SECOTO",
     countryCode: "FR",
     // Apple Pay exige un merchant identifier déclaré dans le compte développeur
