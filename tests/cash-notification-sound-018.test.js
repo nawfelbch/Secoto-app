@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import {
   isCashEvent,
   nativeNotificationPresentation,
@@ -20,6 +20,15 @@ const migration = readFileSync(
   "utf8",
 );
 const ci = readFileSync(new URL("../codemagic.yaml", import.meta.url), "utf8");
+const provenance = readFileSync(
+  new URL("../assets/notification-sound/PROVENANCE.md", import.meta.url),
+  "utf8",
+);
+
+// Empreinte de l'enregistrement livré. Elle est répétée dans PROVENANCE.md et
+// dans codemagic.yaml : remplacer le son sans mettre à jour les trois endroits
+// — et sans incrémenter le canal Android — fait échouer ces tests.
+const SOUND_SHA256 = "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042";
 const pbxproj = readFileSync(
   new URL("../ios/App/App.xcodeproj/project.pbxproj", import.meta.url),
   "utf8",
@@ -142,12 +151,34 @@ test("le son n'est ni silencieux ni écrêté", () => {
   assert.ok(rms > 0.02, `son quasi silencieux (RMS ${rms.toFixed(4)})`);
 });
 
-test("le générateur est déterministe : rejouer ne change pas le fichier", () => {
-  const before = readFileSync(IOS_SOUND);
-  execFileSync(process.execPath, [
-    new URL("../scripts/generate-notification-sounds.mjs", import.meta.url).pathname,
-  ]);
-  assert.deepEqual(readFileSync(IOS_SOUND), before);
+test("l'enregistrement livré est exactement celui décrit par la provenance", () => {
+  for (const url of [IOS_SOUND, ANDROID_SOUND]) {
+    const digest = createHash("sha256").update(readFileSync(url)).digest("hex");
+    assert.equal(digest, SOUND_SHA256);
+  }
+  assert.ok(
+    provenance.includes(SOUND_SHA256),
+    "PROVENANCE.md ne décrit plus le fichier réellement livré",
+  );
+});
+
+test("la source et sa licence restent traçables", () => {
+  // L'application est distribuée sur l'App Store et Google Play : la licence
+  // du son doit autoriser l'usage commercial, et rester vérifiable.
+  const source = readFileSync(
+    new URL("../assets/notification-sound/source-cash-register-kaching.mp3", import.meta.url),
+  );
+  assert.ok(source.length > 1000, "le fichier source doit rester versionné");
+  assert.match(provenance, /Licence/);
+  assert.match(provenance, /commercial/i);
+});
+
+test("la marche à suivre pour changer de son rappelle le canal Android", () => {
+  // Piège coûteux : remplacer le WAV sans changer d'identifiant de canal
+  // n'a aucun effet sur les téléphones déjà installés.
+  const howto = provenance.slice(provenance.indexOf("Remplacer le son"));
+  assert.match(howto, /secoto-cash-register-v2/);
+  assert.match(howto, /immuable/);
 });
 
 /* -------------------------------------------------------------------------- */
@@ -199,9 +230,15 @@ test("la migration ajoute le paramètre EN DERNIER et supprime l'ancienne signat
   assert.match(migration, /notify pgrst, 'reload schema'/);
 });
 
-test("le CI vérifie le son sur les deux plateformes", () => {
-  assert.match(ci, /cmp \/tmp\/secoto_sound_committed\.wav ios\/App\/App\/secoto_cash_register\.wav/);
-  assert.match(ci, /cmp \/tmp\/secoto_sound_committed\.wav android\/app\/src\/main\/res\/raw\/secoto_cash_register\.wav/);
+test("le CI vérifie l'empreinte du son sur les deux plateformes", () => {
+  assert.ok(
+    (ci.match(new RegExp(SOUND_SHA256, "g")) || []).length >= 2,
+    "l'empreinte doit être contrôlée dans les deux workflows",
+  );
+  assert.match(ci, /shasum -a 256 -c -/);
+  assert.match(ci, /sha256sum -c -/);
   assert.match(ci, /grep -q "secoto_cash_register\.wav in Resources"/);
   assert.match(ci, /seconds <= 30/);
+  // Les deux plateformes doivent recevoir le même octet.
+  assert.match(ci, /cmp ios\/App\/App\/secoto_cash_register\.wav/);
 });

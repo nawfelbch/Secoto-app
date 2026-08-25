@@ -56,15 +56,18 @@ workflows:
           npm run lint
           npm test
           npm run build
-      - name: Son de notification natif — génération et contrôle iOS
+      - name: Son de notification natif — contrôle iOS
         script: |
-          # Le WAV est versionné dans le dépôt ; on le régénère et on exige
-          # qu'il soit IDENTIQUE. Le générateur est déterministe : une
-          # différence signifie que le fichier committé n'est plus le reflet
-          # de sa source, et le build doit s'arrêter là.
-          cp ios/App/App/secoto_cash_register.wav /tmp/secoto_sound_committed.wav
-          npm run sounds
-          cmp /tmp/secoto_sound_committed.wav ios/App/App/secoto_cash_register.wav
+          # Le WAV est un ENREGISTREMENT versionné (cf.
+          # assets/notification-sound/PROVENANCE.md). Son empreinte est
+          # vérifiée ici : remplacer le son sans mettre à jour la provenance
+          # ni le canal Android arrête le build.
+          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  ios/App/App/secoto_cash_register.wav" | shasum -a 256 -c -
+          grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
+
+          # Les deux plateformes doivent recevoir exactement le même fichier.
+          cmp ios/App/App/secoto_cash_register.wav \
+              android/app/src/main/res/raw/secoto_cash_register.wav
 
           # Contraintes APNs : PCM linéaire, 30 secondes maximum.
           python3 - <<'PY'
@@ -321,11 +324,10 @@ workflows:
         script: |
           test -n "$FIREBASE_ANDROID_CONFIG_B64"
           printf '%s' "$FIREBASE_ANDROID_CONFIG_B64" | base64 --decode > android/app/google-services.json
-      - name: Son de notification natif — génération et contrôle Android
+      - name: Son de notification natif — contrôle Android
         script: |
-          cp android/app/src/main/res/raw/secoto_cash_register.wav /tmp/secoto_sound_committed.wav
-          npm run sounds
-          cmp /tmp/secoto_sound_committed.wav android/app/src/main/res/raw/secoto_cash_register.wav
+          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  android/app/src/main/res/raw/secoto_cash_register.wav" | sha256sum -c -
+          grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
 
           # res/raw n'accepte que minuscules, chiffres et underscores : un nom
           # invalide fait échouer aapt2 très loin dans le build Gradle.
