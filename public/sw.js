@@ -1,5 +1,5 @@
 /* SECOTO — Service Worker (PWA + Web Push) */
-const CACHE = "secoto-shell-v3";
+const CACHE = "secoto-shell-v4";
 const OFFLINE_SHELL = [
   "/",
   "/manifest.json",
@@ -34,7 +34,9 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           const copy = response.clone();
           const cacheKey = url.pathname === "/" ? "/" : request;
-          caches.open(CACHE).then((cache) => cache.put(cacheKey, copy));
+          caches.open(CACHE)
+            .then((cache) => cache.put(cacheKey, copy))
+            .catch(() => {});
           return response;
         })
         .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
@@ -46,7 +48,17 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((cached) => {
       const refresh = fetch(request)
         .then((response) => {
-          if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
+          // Le clone DOIT être pris tout de suite : `caches.open` est
+          // asynchrone, et si l'on attend sa résolution le navigateur a déjà
+          // commencé à lire le corps de la réponse renvoyée à la page.
+          // C'est ce qui provoquait « Failed to execute 'clone' on 'Response':
+          // Response body is already used » à chaque chargement.
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE)
+              .then((cache) => cache.put(request, copy))
+              .catch(() => {});
+          }
           return response;
         })
         .catch(() => cached);
