@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
+import { humanizeError } from "./lib/humanError";
 import {
   emptyMissionForm,
   TRANSPORTER_TYPES,
@@ -805,7 +806,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
     e.preventDefault();
     setLoading(true); setError("");
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) setError(error.message);
+    if (error) setError(humanizeError(error));
     setLoading(false);
   }
 
@@ -820,7 +821,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       clearPendingMissionClaim();
       onMissionAccessComplete?.(result);
     } catch (accessError) {
-      setError(accessError.message || "Connexion client impossible.");
+      setError(humanizeError(accessError, "Connexion client impossible."));
     } finally {
       setLoading(false);
     }
@@ -838,7 +839,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       if (resetError) throw resetError;
       setNotice("Un lien sécurisé de réinitialisation vient de vous être envoyé.");
     } catch (resetError) {
-      setError(resetError.message || "Envoi du lien impossible.");
+      setError(humanizeError(resetError, "Envoi du lien impossible."));
     } finally {
       setLoading(false);
     }
@@ -875,7 +876,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       },
     });
 
-    if (error) { setError(error.message); setLoading(false); return; }
+    if (error) { setError(humanizeError(error)); setLoading(false); return; }
 
     if (!data.user) {
       setNotice("Compte créé. Vérifiez votre email si une confirmation est demandée.");
@@ -1181,7 +1182,7 @@ function PublicLanding({ onShowAuth }) {
       setForm(emptyGuestForm);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setError(err.message || "Une erreur est survenue. Réessayez ou appelez-nous.");
+      setError(humanizeError(err, "Une erreur est survenue. Réessayez ou appelez-nous."));
     } finally {
       setLoading(false);
     }
@@ -1322,7 +1323,7 @@ function PasswordRecoveryScreen({ onDone }) {
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (updateError) {
-      setError(updateError.message || "Mise à jour impossible.");
+      setError(humanizeError(updateError, "Mise à jour impossible."));
       return;
     }
     onDone();
@@ -1572,7 +1573,7 @@ export default function App() {
       if (link.code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(link.code);
         if (exchangeError) {
-          setError(exchangeError.message || "Lien d’authentification invalide ou expiré.");
+          setError(humanizeError(exchangeError, "Lien d’authentification invalide ou expiré."));
           return;
         }
       }
@@ -1620,7 +1621,7 @@ export default function App() {
       if (alive) dispose = cleanup;
       else cleanup();
     }).catch((platformError) => {
-      if (alive) setError(platformError.message || "Initialisation native incomplète.");
+      if (alive) setError(humanizeError(platformError, "Initialisation native incomplète."));
     });
     return () => {
       alive = false;
@@ -1707,10 +1708,7 @@ export default function App() {
         if (!alive) return;
         setClaimStatus("error");
         setShowClaimRecovery(true);
-        setClaimError(
-          claimFailure.message
-          || "Impossible d’ajouter ce transport. Vérifiez le code ou le compte utilisé.",
-        );
+        setClaimError(humanizeError(claimFailure, "Impossible d’ajouter ce transport. Vérifiez le code ou le compte utilisé."));
       }
     }
 
@@ -1751,7 +1749,7 @@ export default function App() {
       } catch (err) {
         if (mounted) {
           clearTimeout(timer);
-          setError(err.message || "Erreur au chargement de la session Supabase.");
+          setError(humanizeError(err, "Erreur au chargement de la session Supabase."));
           setSession(null); setAccount(null); setBootLoading(false);
         }
       }
@@ -1817,7 +1815,7 @@ export default function App() {
       setAccount(loadedAccount);
     } catch (err) {
       if (await isCurrentAccountLoad()) {
-        setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
+        setError(humanizeError(err, "Profil SECOTO introuvable ou bloqué par RLS."));
         setAccount(null);
       }
     } finally {
@@ -2008,7 +2006,7 @@ export default function App() {
     if (account?.role !== "admin") return;
     let alive = true;
     syncDocTemplates()
-      .catch((e) => { if (alive) setError(e.message || "Maquettes de documents non synchronisées."); });
+      .catch((e) => { if (alive) setError(humanizeError(e, "Maquettes de documents non synchronisées.")); });
     return () => { alive = false; };
   }, [account?.role]);
 
@@ -2283,7 +2281,7 @@ export default function App() {
       }
     } catch (err) {
       if (isCurrentLoad() && !silent) {
-        setError(err.message || "Erreur lors du chargement Supabase.");
+        setError(humanizeError(err, "Erreur lors du chargement Supabase."));
       }
     } finally {
       if (isCurrentLoad() && !silent) setLoading(false);
@@ -2298,7 +2296,7 @@ export default function App() {
       setNotice(`Mission ${claim.publicRef} publiée. Envoyez maintenant le lien sécurisé au client.`);
       return claim;
     } catch (claimError) {
-      setError(claimError.message || "Mission publiée, mais le lien client n’a pas pu être généré.");
+      setError(humanizeError(claimError, "Mission publiée, mais le lien client n’a pas pu être généré."));
       return null;
     }
   }
@@ -2331,7 +2329,7 @@ export default function App() {
         setAdminTab("published");
         await createOrRenewMissionClaim(created);
       });
-    } catch (err) { setError(err.message || "Erreur lors de la création de mission."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la création de mission.")); }
   }
 
   /* ---------- Actions CLIENT ---------- */
@@ -2363,7 +2361,7 @@ export default function App() {
         setNotice("Votre course est publiée et visible par les transporteurs.");
         setClientTab("courses");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la publication de la course."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la publication de la course.")); }
   }
 
   async function createMissionRequest(e) {
@@ -2387,7 +2385,7 @@ export default function App() {
         setNotice("Demande envoyée à SECOTO pour validation.");
         setTransporterTab("requests");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la demande de mise en ligne."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la demande de mise en ligne.")); }
   }
 
   async function applyToMission(missionId) {
@@ -2418,7 +2416,7 @@ export default function App() {
         setNotice("Candidature envoyée avec votre tarif.");
         setTransporterTab("applications");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la candidature."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la candidature.")); }
   }
 
   async function assignMission(missionId, application) {
@@ -2435,7 +2433,7 @@ export default function App() {
         setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
         setAdminTab("assigned");
       });
-    } catch (err) { setError(err.message || "Erreur lors de l’attribution."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de l’attribution.")); }
   }
 
   async function markMissionCompleted(missionId) {
@@ -2452,7 +2450,7 @@ export default function App() {
         setNotice("Mission marquée comme terminée.");
         setAdminTab("completed");
       });
-    } catch (err) { setError(err.message || "Erreur lors du changement de statut."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors du changement de statut.")); }
   }
 
   async function deleteMission(missionId, { confirmLabel = "Supprimer définitivement cette annonce ?" } = {}) {
@@ -2469,7 +2467,7 @@ export default function App() {
         setNotice("Annonce supprimée.");
       });
     } catch (err) {
-      setError(err.message || "Erreur lors de la suppression de l’annonce.");
+      setError(humanizeError(err, "Erreur lors de la suppression de l’annonce."));
     }
   }
 
@@ -2486,7 +2484,7 @@ export default function App() {
         setNotice("Demande validée et mission publiée.");
         setAdminTab("published");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la validation de la demande."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la validation de la demande.")); }
   }
 
   async function rejectRequest(requestId) {
@@ -2501,7 +2499,7 @@ export default function App() {
         await loadAllData(account);
         setNotice("Demande refusée.");
       });
-    } catch (err) { setError(err.message || "Erreur lors du refus de la demande."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors du refus de la demande.")); }
   }
 
   async function updateTransporterStatus(transporterId, updates) {
@@ -2519,7 +2517,7 @@ export default function App() {
         await loadAllData(account);
         setNotice("Statut transporteur mis à jour.");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la mise à jour du transporteur."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la mise à jour du transporteur.")); }
   }
 
   async function reviewLuxuryCapacity(transporterId, status) {
@@ -2538,10 +2536,7 @@ export default function App() {
         setNotice("Capacité camion fermé mise à jour.");
       });
     } catch (err) {
-      setError(
-        err.message
-        || "Erreur lors de la validation de la capacité camion fermé.",
-      );
+      setError(humanizeError(err, "Erreur lors de la validation de la capacité camion fermé."));
     }
   }
 
@@ -2563,7 +2558,7 @@ export default function App() {
         setNotice("Préférences de missions enregistrées.");
       });
     } catch (err) {
-      setError(err.message || "Impossible d’enregistrer vos préférences.");
+      setError(humanizeError(err, "Impossible d’enregistrer vos préférences."));
     }
   }
 
@@ -2580,7 +2575,7 @@ export default function App() {
         await loadAllData(account);
         setNotice("Document mis à jour.");
       });
-    } catch (err) { setError(err.message || "Erreur lors de la mise à jour du document."); }
+    } catch (err) { setError(humanizeError(err, "Erreur lors de la mise à jour du document.")); }
   }
 
   async function uploadTransporterDocument() {
@@ -2636,7 +2631,7 @@ export default function App() {
         setNotice("Pièce justificative envoyée.");
       });
     } catch (err) {
-      setError(err.message || "Erreur lors de l’envoi du document. Vous pouvez réessayer sans créer de doublon.");
+      setError(humanizeError(err, "Erreur lors de l’envoi du document. Vous pouvez réessayer sans créer de doublon."));
     }
   }
 
@@ -2827,7 +2822,7 @@ export default function App() {
         setNotice("Envoi interrompu : les éléments restent chiffrés sur l’appareil et seront réessayés.");
         if (!fromQueue) setError("");
       } else {
-        setError(err.message || "Erreur lors de l’envoi du suivi mission.");
+        setError(humanizeError(err, "Erreur lors de l’envoi du suivi mission."));
       }
       return false;
     }
@@ -3053,7 +3048,7 @@ export default function App() {
         text: "Document SECOTO — lien temporaire sécurisé",
         url: signedUrl,
       });
-    } catch (err) { setError(err.message || "Impossible d’ouvrir le document sécurisé."); }
+    } catch (err) { setError(humanizeError(err, "Impossible d’ouvrir le document sécurisé.")); }
   }
 
   async function signOut() {
@@ -3109,7 +3104,7 @@ export default function App() {
       await signOut();
       window.alert("Votre demande est enregistrée. Les données non soumises à conservation sont supprimées ; les pièces légales sont anonymisées et conservées selon la durée annoncée.");
     } catch (e) {
-      setError(e.message || "Suppression du compte impossible. Réessayez ou contactez le support.");
+      setError(humanizeError(e, "Suppression du compte impossible. Réessayez ou contactez le support."));
     }
   }
 
@@ -3232,7 +3227,7 @@ export default function App() {
       setNotice(await emitMissionDocuments(mission.id));
       await loadAllData(account);
     } catch (e) {
-      setError(e.message || "Envoi des documents impossible.");
+      setError(humanizeError(e, "Envoi des documents impossible."));
     } finally { setActionLoading(false); }
   }
 
@@ -3244,7 +3239,7 @@ export default function App() {
       setNotice(await emitFacture(mission.id));
       await loadAllData(account);
     } catch (e) {
-      setError(e.message || "Envoi de la facture impossible.");
+      setError(humanizeError(e, "Envoi de la facture impossible."));
     } finally { setActionLoading(false); }
   }
 

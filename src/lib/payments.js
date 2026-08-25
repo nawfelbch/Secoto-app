@@ -22,6 +22,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "../supabaseClient";
 import { randomIdempotencyKey } from "./fileSafety";
 import { getServerFunctionUrl } from "../platform/runtime";
+import { humanizeError } from "./humanError";
 
 export const PAYMENT_STATUS_LABEL = {
   not_required: "Aucun paiement requis",
@@ -204,10 +205,5 @@ export async function payNow(paymentId) {
 }
 
 function explain(error) {
-  const message = error?.message || String(error);
-  if (/could not find the function|does not exist/i.test(message)) {
-    return "La migration 009 n'a pas encore été appliquée dans Supabase.";
-  }
-  if (/tarif/i.test(message)) return message;
-  return message;
+  return humanizeError(error, "Le paiement est momentanément indisponible. Réessayez dans un instant.");
 }
