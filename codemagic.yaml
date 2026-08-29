@@ -15,7 +15,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6794878696"
-        IOS_MARKETING_VERSION: "1.3"
+        IOS_MARKETING_VERSION: "1.4"
       node: 24
       xcode: 26.0
     cache:
@@ -150,7 +150,7 @@ workflows:
       - name: Profils App Store
         script: xcode-project use-profiles
 
-      - name: Archive IPA SECOTO 1.3 et contrôle bloquant
+      - name: Archive IPA SECOTO et contrôle bloquant de version
         script: |
           set -euo pipefail
 

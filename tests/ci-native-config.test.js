@@ -70,23 +70,44 @@ test("les identifiants natifs et les liens Auth restent cohérents", async () =>
   assert.match(entitlements, /aps-environment/);
 });
 
-test("la branche SECOTO 1.3 ne peut produire aucune IPA 1.2", async () => {
+// App Store Connect ferme un « train » de version dès qu'il est approuvé :
+// republier la même version marketing est refusé (STATE_ERROR.VALIDATION_ERROR,
+// « The train version X is closed for new build submissions »). Le numéro de
+// build, lui, s'incrémente tout seul. Ce test ne fige donc AUCUNE version : il
+// vérifie que les trois endroits qui la déclarent disent la même chose, ce qui
+// est la seule erreur réellement dangereuse.
+test("la version marketing iOS est unique et cohérente partout", async () => {
   const [yaml, plist, project] = await Promise.all([
     source("../codemagic.yaml"),
     source("../ios/App/App/Info.plist"),
     source("../ios/App/App.xcodeproj/project.pbxproj"),
   ]);
 
-  assert.match(yaml, /IOS_MARKETING_VERSION:\s+"1\.3"/);
-  assert.match(yaml, /Archive IPA SECOTO 1\.3/);
+  const declared = yaml.match(/IOS_MARKETING_VERSION:\s+"(\d+\.\d+(?:\.\d+)?)"/);
+  assert.ok(declared, "codemagic.yaml doit déclarer IOS_MARKETING_VERSION");
+  const version = declared[1];
+  const escaped = version.replace(/\./g, "\\.");
+
+  assert.match(
+    plist,
+    new RegExp(`CFBundleShortVersionString[\\s\\S]*?<string>${escaped}</string>`),
+    `Info.plist doit annoncer ${version}`,
+  );
+
+  const projectVersions = project.match(/MARKETING_VERSION = ([^;]+);/g) || [];
+  assert.equal(projectVersions.length, 2, "les deux configurations Xcode doivent porter une version");
+  for (const line of projectVersions) {
+    assert.equal(line, `MARKETING_VERSION = ${version};`,
+      `Xcode doit préparer ${version}, pas ${line}`);
+  }
+
+  // Le pipeline doit conserver ses garde-fous de numérotation.
+  assert.match(yaml, /Archive IPA SECOTO/);
   assert.match(yaml, /get-latest-testflight-build-number/);
+  assert.match(yaml, /get-latest-app-store-build-number/);
   assert.match(yaml, /PROJECT_BUILD_NUMBER/);
   assert.match(yaml, /IOS_BUILD_NUMBER"\s+-lt 21/);
-  assert.match(plist, /CFBundleShortVersionString[\s\S]*?<string>1\.3<\/string>/);
 
-  const projectVersions = project.match(/MARKETING_VERSION = 1\.3;/g) || [];
-  assert.equal(projectVersions.length, 2);
-
-  assert.doesNotMatch(yaml, /IOS_MARKETING_VERSION:\s+"1\.2"/);
-  assert.doesNotMatch(project, /MARKETING_VERSION = 1\.2;/);
+  // Et le contrôle bloquant qui compare l'IPA produite à la version voulue.
+  assert.match(yaml, /ERREUR BLOQUANTE/);
 });
