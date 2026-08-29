@@ -18,6 +18,13 @@ export const emptyMissionForm = {
   priceMode: "fixed",
   proposedPrice: "",
   paymentMethod: "virement",
+  // Mission déjà signée par téléphone : pilotage manuel dès la création.
+  manualPricing: false,
+  manualCarrierPay: "",
+  manualMargin: "",
+  assignedTransporterId: "",
+  targetStatus: "",
+  targetProgressStatus: "",
   // Champs historiques neutralisés. Conservés pour lire les anciennes lignes.
   surchargeUrgent: false,
   surchargeWeekend: false,
@@ -100,6 +107,15 @@ export function missionFromDb(row) {
     priceMode: row.price_mode,
     proposedPrice: row.proposed_price,
     paymentMethod: row.payment_method || "virement",
+    // Pilotage manuel (vue compagnon secoto_mission_manual_v1, admin seul).
+    manualPricing: row.manual_pricing ?? false,
+    manualCarrierPay: row.manual_carrier_pay ?? null,
+    manualMargin: row.manual_margin ?? null,
+    offlineSigned: row.offline_signed ?? false,
+    offlineOrigin: row.offline_origin || null,
+    commissionSettledOffline: row.commission_settled_offline ?? false,
+    commissionSettledAt: row.commission_settled_at || null,
+    commissionSettlementNote: row.commission_settlement_note || null,
     notes: row.notes,
     createdByRole: row.created_by_role,
     clientAccountId: row.client_account_id || null,
@@ -379,6 +395,16 @@ export function labelStatus(status) {
 export function labelMissionType(type) {
   return type === "plateau" ? "Transport par plateau" : "Convoyage";
 }
+
+export const MISSION_STAGES = Object.freeze([
+  { status: "published", progressStatus: "assigned_pending", label: "Publiée — en recherche de transporteur" },
+  { status: "assigned", progressStatus: "assigned_pending", label: "Attribuée — en attente de prise en charge" },
+  { status: "assigned", progressStatus: "pickup_completed", label: "Véhicule pris en charge" },
+  { status: "assigned", progressStatus: "in_transit", label: "En route" },
+  { status: "assigned", progressStatus: "delivery_completed", label: "Livré" },
+  { status: "completed", progressStatus: "completed", label: "Terminée" },
+  { status: "cancelled", progressStatus: "assigned_pending", label: "Annulée" },
+]);
 
 export function labelProgress(progressStatus) {
   const labels = {

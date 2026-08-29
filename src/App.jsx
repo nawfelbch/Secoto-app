@@ -58,6 +58,7 @@ import {
 import {
   buildPrivateFilePath,
   randomIdempotencyKey,
+  safeFileName,
   validateFiles,
 } from "./lib/fileSafety";
 import {
@@ -98,6 +99,10 @@ import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
+import AdminMissionPilot, {
+  AssignmentPanel,
+  ManualPricingFields,
+} from "./AdminMissionControls";
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
 import {
   buildApplicationRpcPayload,
@@ -128,6 +133,13 @@ const MISSION_ADMIN_COLUMNS = [
   "commission_amount", "transport_amount", "client_total_due",
   "payment_status", "commission_paid_at", "cancelled_at", "cancellation_reason",
   "cancellation_fee",
+].join(",");
+// Vue compagnon réservée à l'administrateur : elle porte le pilotage manuel
+// sans toucher aux quatre vues cloisonnées existantes.
+const MISSION_MANUAL_COLUMNS = [
+  "mission_id", "manual_pricing", "manual_carrier_pay", "manual_margin",
+  "offline_signed", "offline_origin", "commission_settled_offline",
+  "commission_settled_at", "commission_settlement_note",
 ].join(",");
 const MISSION_CLIENT_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -389,7 +401,7 @@ function NotificationBell({ notifications, unreadCount, open, setOpen, onMarkAll
   );
 }
 
-function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false, disabled = false }) {
+function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false, disabled = false, extras = null }) {
   function update(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -451,8 +463,68 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
         <span>Notes internes</span>
         <textarea name="notes" value={form.notes} onChange={update} />
       </label>
+      {extras}
       <button className="btn primary field-full" type="submit" disabled={disabled}>{submitLabel}</button>
     </form>
+  );
+}
+
+/**
+ * Mission recue PAR TELEPHONE : le transporteur est deja trouve, le devis
+ * deja signe, le tarif deja negocie. L'administrateur saisit tout ici, puis
+ * poursuit la mission normalement dans l'application.
+ */
+function PhoneMissionExtras({ form, setForm, transporters, disabled }) {
+  const active = Boolean(form.offlineMission);
+  return (
+    <div className="applications-box field-full" style={{ marginTop: 4 }}>
+      <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={active}
+          disabled={disabled}
+          onChange={(event) => setForm((prev) => ({ ...prev, offlineMission: event.target.checked }))}
+        />
+        <span style={{ margin: 0 }}>Mission déjà signée (reçue par téléphone)</span>
+      </label>
+
+      {active && (
+        <div className="form-grid" style={{ marginTop: 8 }}>
+          <label className="field field-full">
+            <span>Transporteur attribué par SECOTO</span>
+            <select
+              value={form.assignedTransporterId || ""}
+              disabled={disabled}
+              onChange={(event) => setForm((prev) => ({ ...prev, assignedTransporterId: event.target.value }))}
+            >
+              <option value="">— Sélectionner —</option>
+              {(transporters || []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {(t.fullName || t.companyName || "Transporteur")}
+                  {t.companyName && t.fullName ? ` — ${t.companyName}` : ""}
+                  {t.isVerified ? "" : " (non vérifié)"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ManualPricingFields
+            draft={{ carrierPay: form.manualCarrierPay || "", margin: form.manualMargin || "" }}
+            onChange={(patch) => setForm((prev) => {
+              const next = { ...prev };
+              if (patch && patch.carrierPay !== undefined) next.manualCarrierPay = patch.carrierPay;
+              if (patch && patch.margin !== undefined) next.manualMargin = patch.margin;
+              return next;
+            })}
+            type={form.type}
+            disabled={disabled}
+          />
+          <p className="muted field-full" style={{ margin: 0 }}>
+            La mission sera créée, attribuée à ce transporteur et passée en « attribuée ».
+            Le devis signé se dépose ensuite depuis la fiche, dans « Piloter cette mission ».
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1386,6 +1458,8 @@ export default function App() {
 
   const [mode, setMode] = useState("admin");
   const [adminTab, setAdminTab] = useState("create");
+  // Candidature dont le panneau d'attribution (tarif + marge) est ouvert.
+  const [openAssignApplicationId, setOpenAssignApplicationId] = useState(null);
   const [transporterTab, setTransporterTab] = useState("available");
   const [clientTab, setClientTab] = useState("post");
   const [transporterFilter, setTransporterFilter] = useState("all");
@@ -2210,8 +2284,9 @@ export default function App() {
 
     try {
       if (currentAccount.role === "admin") {
-        const [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
+        const [missionsResult, manualResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
           supabase.from("secoto_missions_admin_v2").select(MISSION_ADMIN_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("secoto_mission_manual_v1").select(MISSION_MANUAL_COLUMNS).limit(DATA_PAGE_SIZE),
           supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("accounts").select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,created_at").eq("role", "transporter").order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
@@ -2222,12 +2297,23 @@ export default function App() {
         for (const r of [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult]) {
           if (r.error) throw r.error;
         }
+        // `secoto_mission_manual_v1` n'existe qu'après la migration 021 : son
+        // absence ne doit jamais empêcher l'espace admin de se charger.
+        const manualByMission = new Map(
+          (manualResult?.error ? [] : (manualResult?.data || []))
+            .map((row) => [row.mission_id, row]),
+        );
         const [signedDocuments, signedPhotos] = await Promise.all([
           signDocuments(documentsResult.data),
           hydrateSignedFileUrls((trackingPhotosResult.data || []).map(trackingPhotoFromDb), "mission-photos", 120),
         ]);
         if (!isCurrentLoad()) return;
-        setMissions((missionsResult.data || []).map(missionFromDb));
+        setMissions(
+          (missionsResult.data || []).map((row) => missionFromDb({
+            ...row,
+            ...(manualByMission.get(row.id) || {}),
+          })),
+        );
         setPublicMissions([]);
         setRequests((requestsResult.data || []).map(requestFromDb));
         setApplications((applicationsResult.data || []).map(applicationFromDb));
@@ -2325,6 +2411,32 @@ export default function App() {
         if (error) throw error;
         const created = missionFromDb(Array.isArray(data) ? data[0] : data);
         setMissions((prev) => [created, ...prev.filter((mission) => mission.id !== created.id)]);
+
+        // Mission reçue par téléphone : elle est attribuée dans la foulée, avec
+        // la rémunération et la marge saisies par l'administrateur.
+        if (missionForm.offlineMission && missionForm.assignedTransporterId) {
+          const carrierPay = Number(String(missionForm.manualCarrierPay).replace(",", "."));
+          const margin = Number(String(missionForm.manualMargin).replace(",", "."));
+          const manual = Number.isFinite(carrierPay) && Number.isFinite(margin);
+          const { error: assignError } = await supabase.rpc("secoto_admin_assign_mission_direct", {
+            p_mission_id: created.id,
+            p_transporter_id: missionForm.assignedTransporterId,
+            p_manual_pricing: manual,
+            p_carrier_pay: manual ? carrierPay : null,
+            p_margin: manual ? margin : null,
+            p_idempotency_key: randomIdempotencyKey(),
+          });
+          if (assignError) throw assignError;
+          setMissionForm(emptyMissionForm);
+          await loadAllData(account);
+          setAdminTab("assigned");
+          setNotice(
+            "Mission créée et attribuée. Déposez le devis signé et prévenez le client "
+            + "depuis « Piloter cette mission ».",
+          );
+          return;
+        }
+
         setMissionForm(emptyMissionForm);
         setAdminTab("published");
         await createOrRenewMissionClaim(created);
@@ -2419,10 +2531,41 @@ export default function App() {
     } catch (err) { setError(humanizeError(err, "Erreur lors de la candidature.")); }
   }
 
-  async function assignMission(missionId, application) {
+  /**
+   * Fixe (ou libère) la rémunération du transporteur et la marge SECOTO.
+   * Sans appel à cette fonction, le barème historique s'applique tel quel.
+   */
+  async function applyMissionPricing(missionId, { manualPricing, carrierPay, margin }) {
+    const { error } = await supabase.rpc("secoto_admin_set_mission_pricing", {
+      p_mission_id: missionId,
+      p_manual_pricing: Boolean(manualPricing),
+      p_carrier_pay: manualPricing ? Number(carrierPay) : null,
+      p_margin: manualPricing ? Number(margin) : null,
+      p_idempotency_key: randomIdempotencyKey(),
+    });
+    if (error) throw error;
+  }
+
+  async function saveMissionPricing(missionId, values) {
+    setError(""); setNotice("");
+    try {
+      await runLocked(`mission:pricing:${missionId}`, async () => {
+        await applyMissionPricing(missionId, values);
+        await loadAllData(account);
+        setNotice(values.manualPricing
+          ? "Montants enregistrés : rémunération et marge SECOTO imposées."
+          : "Retour au barème automatique.");
+      });
+    } catch (err) { setError(humanizeError(err, "Erreur lors de l’enregistrement des montants.")); }
+  }
+
+  // Les montants sont posés AVANT l'attribution : le devis émis
+  // automatiquement à l'attribution reprend ainsi le bon montant.
+  async function assignMission(missionId, application, pricing = null) {
     setError(""); setNotice("");
     try {
       await runLocked(`mission:assign:${missionId}`, async () => {
+        if (pricing) await applyMissionPricing(missionId, pricing);
         const { error } = await supabase.rpc("secoto_assign_mission", {
           p_mission_id: missionId,
           p_application_id: application.id,
@@ -2430,10 +2573,114 @@ export default function App() {
         });
         if (error) throw error;
         await loadAllData(account);
-        setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
+        setNotice("Mission attribuée. Prévenez le client : le message SMS est prêt dans « Piloter cette mission ».");
         setAdminTab("assigned");
       });
     } catch (err) { setError(humanizeError(err, "Erreur lors de l’attribution.")); }
+  }
+
+  /** Attribution décidée par SECOTO, sans candidature (mission téléphonique). */
+  async function assignMissionDirect(missionId, { transporterId, manualPricing, carrierPay, margin }) {
+    setError(""); setNotice("");
+    if (!transporterId) { setError("Sélectionnez un transporteur."); return; }
+    try {
+      await runLocked(`mission:assign:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_admin_assign_mission_direct", {
+          p_mission_id: missionId,
+          p_transporter_id: transporterId,
+          p_manual_pricing: Boolean(manualPricing),
+          p_carrier_pay: manualPricing ? Number(carrierPay) : null,
+          p_margin: manualPricing ? Number(margin) : null,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice("Mission attribuée. Prévenez le client : le message SMS est prêt dans « Piloter cette mission ».");
+        setAdminTab("assigned");
+      });
+    } catch (err) { setError(humanizeError(err, "Erreur lors de l’attribution directe.")); }
+  }
+
+  /** Étape de la mission fixée à la main par SECOTO. */
+  async function setMissionStage(missionId, stage) {
+    setError(""); setNotice("");
+    if (!stage) return;
+    try {
+      await runLocked(`mission:stage:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_admin_set_mission_stage", {
+          p_mission_id: missionId,
+          p_status: stage.status,
+          p_progress_status: stage.progressStatus,
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice(`Étape mise à jour : ${stage.label}.`);
+      });
+    } catch (err) { setError(humanizeError(err, "Erreur lors du changement d’étape.")); }
+  }
+
+  /** Commission réglée hors application : libère le bon de mission plateau. */
+  async function settleCommissionOffline(mission) {
+    setError(""); setNotice("");
+    const note = typeof window !== "undefined"
+      ? window.prompt("Référence du règlement (virement, espèces, date…)", "")
+      : "";
+    if (note === null) return;
+    try {
+      await runLocked(`mission:settle:${mission.id}`, async () => {
+        const { data, error } = await supabase.rpc("secoto_admin_settle_commission_offline", {
+          p_mission_id: mission.id,
+          p_note: note || "Règlement hors application",
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice(data?.released || "Commission enregistrée comme encaissée.");
+      });
+    } catch (err) { setError(humanizeError(err, "Erreur lors de l’enregistrement du règlement.")); }
+  }
+
+  /** Dépôt du devis déjà signé par le client (mission prise par téléphone). */
+  async function uploadSignedDevis(mission, file) {
+    setError(""); setNotice("");
+    const validation = validateFiles([file], {
+      allowPdf: true, maxFiles: 1, minFiles: 1, maxSizeBytes: 12 * 1024 * 1024,
+    });
+    if (!validation.ok) { setError(validation.errors.join(" ")); return false; }
+    const operationId = randomIdempotencyKey();
+    // Chemin imposé par la RPC : {admin}/mission/{mission}/{fichier}.
+    const path = `${account.id}/mission/${mission.id}/${operationId}-${safeFileName(file.name)}`;
+    try {
+      let done = false;
+      await runLocked(`mission:devis:${mission.id}`, async () => {
+        setUploadProgress((previous) => ({ ...previous, signedDevis: 0 }));
+        await uploadPrivateFile({
+          bucket: "documents-pdf",
+          path,
+          file,
+          onProgress: (progress) => setUploadProgress((previous) => ({ ...previous, signedDevis: progress })),
+        });
+        const { error } = await supabase.rpc("secoto_admin_register_signed_devis", {
+          p_mission_id: mission.id,
+          p_file_name: file.name,
+          p_file_path: path,
+          p_mime_type: file.type,
+          p_size_bytes: file.size,
+          p_idempotency_key: operationId,
+        });
+        if (error) throw error;
+        setUploadProgress((previous) => ({ ...previous, signedDevis: null }));
+        await loadAllData(account);
+        setNotice("Devis signé enregistré sur la mission.");
+        done = true;
+      });
+      return done;
+    } catch (err) {
+      setUploadProgress((previous) => ({ ...previous, signedDevis: null }));
+      setError(humanizeError(err, "Envoi du devis signé impossible."));
+      return false;
+    }
   }
 
   async function markMissionCompleted(missionId) {
@@ -3162,7 +3409,8 @@ export default function App() {
             <h4>Candidatures {missionApplications.length > 1 && <span className="muted" style={{ fontWeight: 500 }}>· triées du moins cher au plus cher</span>}</h4>
             {missionApplications.length === 0 && <p className="muted">Aucune candidature.</p>}
             {missionApplications.map((application) => (
-              <div className={`application-row ${application.id === bestApplicationId ? "is-best" : ""}`} key={application.id}>
+              <div key={application.id}>
+              <div className={`application-row ${application.id === bestApplicationId ? "is-best" : ""}`}>
                 <div>
                   <strong>{application.transporterName}</strong>
                   {application.id === bestApplicationId && <span className="best-price-badge">Meilleur prix</span>}
@@ -3179,8 +3427,31 @@ export default function App() {
                   <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                 </div>
                 {mission.status === "published" && application.status === "pending" && (
-                  <button className="btn primary small" onClick={() => assignMission(mission.id, application)}>Attribuer</button>
+                  <button
+                    className="btn primary small"
+                    type="button"
+                    onClick={() => setOpenAssignApplicationId(
+                      openAssignApplicationId === application.id ? null : application.id,
+                    )}
+                  >
+                    {openAssignApplicationId === application.id ? "Annuler" : "Attribuer"}
+                  </button>
                 )}
+              </div>
+              {mission.status === "published"
+                && application.status === "pending"
+                && openAssignApplicationId === application.id && (
+                <AssignmentPanel
+                  mission={mission}
+                  transporters={transporters}
+                  application={application}
+                  busy={actionLoading}
+                  onAssign={async (values) => {
+                    setOpenAssignApplicationId(null);
+                    await assignMission(mission.id, application, values.manualPricing ? values : null);
+                  }}
+                />
+              )}
               </div>
             ))}
           </div>
@@ -3197,6 +3468,22 @@ export default function App() {
             <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
             <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
           </div>
+        )}
+        {isAdmin && options.showPrivate && (
+            <AdminMissionPilot
+              mission={mission}
+              transporters={transporters}
+              busy={actionLoading}
+              uploadProgress={uploadProgress.signedDevis ?? null}
+              trackingUrl={claimShare && claimShare.missionId === mission.id ? claimShare.url : ""}
+              onAssignDirect={(values) => assignMissionDirect(mission.id, values)}
+              onSavePricing={(values) => saveMissionPricing(mission.id, values)}
+              onSetStage={(stage) => setMissionStage(mission.id, stage)}
+              onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
+              onSettleCommission={settleCommissionOffline}
+              onNotice={setNotice}
+              onError={setError}
+            />
         )}
       </article>
     );
@@ -3325,6 +3612,22 @@ export default function App() {
                 Envoyer la facture au client
               </button>
             </div>
+          )}
+          {isAdmin && (
+            <AdminMissionPilot
+              mission={mission}
+              transporters={transporters}
+              busy={actionLoading}
+              uploadProgress={uploadProgress.signedDevis ?? null}
+              trackingUrl={claimShare && claimShare.missionId === mission.id ? claimShare.url : ""}
+              onAssignDirect={(values) => assignMissionDirect(mission.id, values)}
+              onSavePricing={(values) => saveMissionPricing(mission.id, values)}
+              onSetStage={(stage) => setMissionStage(mission.id, stage)}
+              onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
+              onSettleCommission={settleCommissionOffline}
+              onNotice={setNotice}
+              onError={setError}
+            />
           )}
           {!delivered && mission.status === "assigned" && (
             <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>Marquer terminée</button>
@@ -3823,7 +4126,22 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Créer une mission</h2>
-                <MissionForm form={missionForm} setForm={setMissionForm} onSubmit={createMission} submitLabel="Publier la mission" showPricing disabled={actionLoading} />
+                <MissionForm
+                  form={missionForm}
+                  setForm={setMissionForm}
+                  onSubmit={createMission}
+                  submitLabel={missionForm.offlineMission ? "Créer et attribuer la mission" : "Publier la mission"}
+                  showPricing
+                  disabled={actionLoading}
+                  extras={(
+                    <PhoneMissionExtras
+                      form={missionForm}
+                      setForm={setMissionForm}
+                      transporters={transporters}
+                      disabled={actionLoading}
+                    />
+                  )}
+                />
               </div>
             </section>
           )}

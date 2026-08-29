@@ -71,6 +71,35 @@ function bool(v) {
   return v === true || v === "true" || v === 1 || v === "1";
 }
 
+// ----------------------------------------------------------------------------
+// PILOTAGE MANUEL (missions prises par telephone, tarif negocie de gre a gre)
+// ----------------------------------------------------------------------------
+// Quand `manualPricing` est vrai, SECOTO impose les deux montants :
+//   manualCarrierPay = ce que touche le transporteur / convoyeur
+//   manualMargin     = la marge SECOTO (qui n'est alors PAS forcement 20 %)
+// Repartition, identique a celle appliquee par la base (trigger 021) :
+//   plateau   : SECOTO n'encaisse que sa marge, le transport est regle en
+//               direct au transporteur -> total client = tarif + marge
+//   convoyage : SECOTO encaisse la totalite -> prix client = tarif + marge
+// Quand `manualPricing` est faux, RIEN ne change : bareme historique.
+
+export function isManualPricing(m) {
+  return Boolean(m && (m.manualPricing === true || m.manualPricing === "true"));
+}
+
+function manualCarrier(m) {
+  return round2(num(m && m.manualCarrierPay));
+}
+
+function manualMarginAmount(m) {
+  return round2(num(m && m.manualMargin));
+}
+
+/** Marge SECOTO suggeree par defaut : 20 % du tarif transporteur. */
+export function suggestedMargin(carrierPay) {
+  return round2(num(carrierPay) * (PLATEAU_COMMISSION_PCT / 100));
+}
+
 /**
  * Prix de base du convoyage : somme des paliers cumulatifs, plancher 115 €.
  * 80 km -> 115,00 · 400 km -> 390,00 · 935 km -> 864,80
@@ -103,6 +132,11 @@ export function computeSurchargeCoefficient(m) {
  */
 export function computeClientPrice(m) {
   if (!m) return 0;
+  if (isManualPricing(m)) {
+    return m.type === "plateau"
+      ? manualMarginAmount(m)
+      : round2(manualCarrier(m) + manualMarginAmount(m));
+  }
   if (m.type === "plateau") {
     return round2(num(m.carrierCost) * (PLATEAU_COMMISSION_PCT / 100));
   }
@@ -115,12 +149,14 @@ export function computeClientPrice(m) {
 /** Commission SECOTO. Nulle en convoyage : SECOTO y est prestataire. */
 export function computeCommission(m) {
   if (!m || m.type !== "plateau") return 0;
+  if (isManualPricing(m)) return manualMarginAmount(m);
   return round2(num(m.carrierCost) * (PLATEAU_COMMISSION_PCT / 100));
 }
 
 /** Prix du transport plateau, réglé DIRECTEMENT au transporteur. Hors SECOTO. */
 export function computeTransportAmount(m) {
   if (!m || m.type !== "plateau") return 0;
+  if (isManualPricing(m)) return manualCarrier(m);
   return round2(num(m.carrierCost));
 }
 
@@ -136,6 +172,7 @@ export function computeClientTotalDue(m) {
  */
 export function computeCarrierPay(m) {
   if (!m) return 0;
+  if (isManualPricing(m)) return manualCarrier(m);
   if (m.type === "plateau") return round2(num(m.carrierCost));
   if (m.type === "convoyage") return round2(num(m.distanceKm) * CONVOYEUR_RATE);
   return 0;
@@ -144,6 +181,7 @@ export function computeCarrierPay(m) {
 /** Marge nette SECOTO. En plateau, c'est la commission (SECOTO ne verse rien). */
 export function computeMargin(m) {
   if (!m) return 0;
+  if (isManualPricing(m)) return manualMarginAmount(m);
   if (m.type === "plateau") return computeCommission(m);
   return round2(computeClientPrice(m) - computeCarrierPay(m));
 }
