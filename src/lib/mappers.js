@@ -205,6 +205,11 @@ export function trackingEventFromDb(row) {
     locationAccuracy: row.location_accuracy_m,
     locationRecordedAt: row.location_recorded_at,
     createdAt: row.created_at,
+    // Migration 024 : origine de l'etape et reouverture par SECOTO.
+    // Absentes tant que la migration n'est pas appliquee -> valeurs neutres.
+    source: row.source || "transporter",
+    supersededAt: row.superseded_at || null,
+    supersedeReason: row.supersede_reason || null,
   };
 }
 

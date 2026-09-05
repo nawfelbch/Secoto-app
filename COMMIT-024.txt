@@ -1,0 +1,61 @@
+fix(024): reparer les candidatures, le parcours terrain et l'organisation admin
+
+CANDIDATURE IMPOSSIBLE POUR TOUTE APPLICATION DEJA INSTALLEE
+La migration 013 avait ajoute cinq parametres a secoto_apply_to_mission SANS
+DEFAULT, et la 015 avait supprime les autres surcharges. La signature exposee
+exigeait donc neuf arguments nommes, alors qu'une application installee n'en
+envoie que quatre : PostgREST ne trouvait AUCUNE fonction correspondante et
+affichait « Could not find the function public.secoto_apply_to_mission(
+p_idempotency_key, p_message, p_mission_id, p_proposed_price) in schema cache ».
+Aucun transporteur pas a jour ne pouvait candidater, sans recours possible.
+
+- les cinq parametres portent un DEFAULT : toutes les versions installees
+  redeviennent capables de candidater immediatement, sans attendre une mise a
+  jour des stores
+- les disponibilites deviennent facultatives (tout ou rien, coherentes si
+  fournies) : un convoyeur se positionne avec son tarif en dix secondes
+- meme traitement pour secoto_update_notification_preferences
+- le front envoie desormais TOUJOURS les neuf cles, meme nulles : une charge
+  partielle changeait la signature demandee
+- garde de deploiement automatique : aucune surcharge, et tout parametre
+  ajoute apres la mise en production doit porter un DEFAULT (verifie par un
+  test et par la migration elle-meme)
+
+LE PILOTAGE MANUEL ADMIN (021) ENFERMAIT LE TRANSPORTEUR
+secoto_admin_set_mission_stage ecrivait status et progress_status sans creer
+d'evenement de suivi. La sequence stricte du terrain devenait impossible a
+satisfaire : etat des lieux refuse (403 au depot Storage), livraison refusee,
+impasse definitive.
+
+- le pilotage manuel cree une etape coherente, marquee source = 'admin'
+- la sequence terrain accepte une etape avancee par la direction
+- nouveau : secoto_admin_reopen_field_step — SECOTO rend la main au
+  transporteur en un geste ; les preuves deja transmises ne sont jamais
+  supprimees, elles sont marquees « remplacees »
+- la garde Storage n'exige plus le seul statut « assigned »
+- les six messages d'exception sont reecrits en francais lisible et actionnable
+
+PARCOURS TERRAIN
+- une seule action possible a la fois (etat des lieux de depart, puis
+  livraison) au lieu des trois formulaires affiches en permanence, qui
+  produisaient des rejets serveur incomprehensibles
+- envoi : delai maximum de 45 s, bouton « Annuler l'envoi », progression par
+  photo, deux envois en parallele. Plus d'application figee en zone blanche
+- photos : validation par MIME ou extension (fin des « format refuse » sur les
+  fichiers Android sans extension et les HEIC iPhone), transcodage JPEG
+  systematique, compression 1600 px / 0,75 — envois cinq a huit fois plus
+  rapides
+- brouillon chiffre scinde en texte / fichiers : les photos ne sont plus
+  rechiffrees a chaque frappe (l'interface gelait plusieurs secondes)
+- purge des brouillons de plus de 14 jours : fin des saturations IndexedDB
+- file d'attente hors ligne : compteur de tentatives, temporisation croissante,
+  abandon explicite apres 5 essais
+
+ORGANISATION
+- l'espace admin s'ouvre sur « A traiter » : missions sans candidature,
+  candidatures en attente, prises en charge et livraisons en retard, incidents
+  ouverts, avec la conduite a tenir pour chacune (vue secoto_admin_alertes_v1)
+- URL signees portees a 15 minutes : fin des vignettes cassees au bout de deux
+  minutes sur un ecran admin laisse ouvert
+
+21 tests de non-regression ajoutes. 152 tests au vert, lint et build propres.

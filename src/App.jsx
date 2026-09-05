@@ -65,15 +65,20 @@ import {
   createShortSignedUrl,
   hydrateSignedFileUrls,
   uploadPrivateFile,
+  uploadPrivateFiles,
 } from "./lib/privateFiles";
 import {
   clearEncryptedAccountData,
   listPendingActions,
   listTrackingDrafts,
+  listTrackingDraftFiles,
+  saveEncryptedRecord,
+  purgeStaleRecords,
   queueTrackingAction,
   removeEncryptedRecord,
   removeTrackingDraft,
   saveTrackingDraft,
+  saveTrackingDraftFiles,
 } from "./lib/resilienceStore";
 import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
@@ -107,6 +112,10 @@ import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFl
 import {
   buildApplicationRpcPayload,
   EMPTY_APPLICATION_OFFER,
+  AVAILABILITY_PRESETS,
+  applyAvailabilityPreset,
+  clearAvailability,
+  countAvailability,
 } from "./lib/applicationOffer";
 import "./index.css";
 
@@ -120,6 +129,52 @@ const DOC_LABEL_FR = {
   bon_de_mission: "Bon de mission",
   facture: "Facture",
 };
+
+const EMPTY_TRACKING_FORM = Object.freeze({
+  comment: "",
+  odometerKm: "",
+  fuelLevel: "unknown",
+  issueType: "autre",
+  issueSeverity: "moyen",
+  photoType: "general",
+  files: [],
+  location: null,
+  operationId: null,
+});
+
+// Au-dela, une etape en echec est abandonnee explicitement plutot que de faire
+// clignoter « envois en attente » indefiniment.
+const MAX_QUEUE_ATTEMPTS = 5;
+
+const ALERT_LABELS = {
+  sans_candidature: "Aucune candidature",
+  candidature_en_attente: "Candidature à trancher",
+  prise_en_charge_en_retard: "Prise en charge en retard",
+  livraison_en_retard: "Livraison en retard",
+  incident_ouvert: "Incident ouvert",
+};
+
+function labelAlert(code) {
+  return ALERT_LABELS[code] || "À vérifier";
+}
+
+// Une alerte doit dire quoi faire, pas seulement qu'il y a un probleme.
+function describeAlert(row) {
+  switch (row.alerte) {
+    case "sans_candidature":
+      return "Publiée depuis plus de 48 h sans aucune candidature. Relancez vos transporteurs, ou attribuez la mission directement depuis « Piloter cette mission ».";
+    case "candidature_en_attente":
+      return `${row.candidatures_en_attente} candidature(s) en attente depuis plus de 24 h. Le transporteur attend votre décision.`;
+    case "prise_en_charge_en_retard":
+      return "Attribuée depuis plus de 24 h sans état des lieux de départ. Appelez le transporteur, ou rouvrez l’étape s’il est bloqué.";
+    case "livraison_en_retard":
+      return "Aucun suivi depuis plus de 24 h alors que le véhicule est en route. Vérifiez auprès du transporteur avant que le client n’appelle.";
+    case "incident_ouvert":
+      return "Un incident a été signalé et n’a pas été suivi d’une livraison. À traiter en priorité.";
+    default:
+      return "Mission à vérifier.";
+  }
+}
 
 const DATA_PAGE_SIZE = 200;
 const MISSION_ADMIN_COLUMNS = [
@@ -182,11 +237,18 @@ const DOCUMENT_COLUMNS = [
   "id", "mission_id", "account_id", "recipient_id", "type", "file_name", "file_path",
   "status", "doc_type", "numero", "statut", "needs_signature", "signed_at", "emitted_at", "created_at",
 ].join(",");
-const TRACKING_EVENT_COLUMNS = [
+const TRACKING_EVENT_BASE_COLUMNS = [
   "id", "mission_id", "transporter_id", "event_type", "title", "comment", "odometer_km",
   "fuel_level", "issue_type", "issue_severity", "latitude", "longitude",
   "location_accuracy_m", "location_recorded_at", "created_at",
-].join(",");
+];
+// Colonnes apportees par la migration 024 (origine de l'etape, reouverture par
+// SECOTO). Tant qu'elle n'est pas appliquee, la requete retombe sur le socle :
+// l'application reste utilisable, elle perd seulement le detail « rouvert ».
+const TRACKING_EVENT_EXTRA_COLUMNS = ["source", "superseded_at", "supersede_reason"];
+const TRACKING_EVENT_COLUMNS = TRACKING_EVENT_BASE_COLUMNS
+  .concat(TRACKING_EVENT_EXTRA_COLUMNS).join(",");
+const TRACKING_EVENT_COLUMNS_FALLBACK = TRACKING_EVENT_BASE_COLUMNS.join(",");
 const TRACKING_PHOTO_COLUMNS = [
   "id", "tracking_event_id", "mission_id", "transporter_id", "photo_type",
   "file_name", "file_path", "created_at",
@@ -528,6 +590,17 @@ function PhoneMissionExtras({ form, setForm, transporters, disabled }) {
   );
 }
 
+/**
+ * Formulaire de candidature transporteur.
+ *
+ * Refonte 024 — ce qu'un convoyeur fait vraiment : il voit passer une mission,
+ * il annonce son prix, il candidate. Un mur de quatre selecteurs de date
+ * obligatoires le faisait renoncer, et une candidature partielle produisait une
+ * erreur technique incomprehensible. Desormais :
+ *   · le tarif est la seule information obligatoire, en gros, en premier ;
+ *   · les disponibilites sont facultatives et se posent en un clic ;
+ *   · le bouton dit ce qui manque au lieu d'echouer apres coup.
+ */
 function ApplicationOfferEditor({
   offer,
   onChange,
@@ -535,64 +608,124 @@ function ApplicationOfferEditor({
   disabled,
   alreadyApplied,
 }) {
+  const [showAvailability, setShowAvailability] = useState(
+    () => countAvailability(offer) > 0,
+  );
+
   function update(event) {
     const { name, value } = event.target;
     onChange({ [name]: value });
   }
 
+  const filled = countAvailability(offer);
+  const priceReady = Number(String(offer.proposedPrice || "").replace(",", ".")) > 0;
+  const availabilityIncomplete = filled > 0 && filled < 4;
+  const blocked = disabled || alreadyApplied || !priceReady || availabilityIncomplete;
+
+  let hint = "Vos disponibilités sont facultatives : SECOTO vous rappelle pour caler l’enlèvement.";
+  if (availabilityIncomplete) hint = "Complétez vos quatre créneaux, ou effacez-les pour rester flexible.";
+  else if (filled === 4) hint = "Vos créneaux seront transmis à SECOTO avec votre tarif.";
+  else if (!priceReady) hint = "Indiquez le tarif que vous demandez pour cette mission.";
+
   return (
     <div className="application-offer-form">
-      <div className="form-grid application-availability-grid">
+      <div className="offer-price-row">
         <Field
-          label="Enlèvement possible — au plus tôt"
-          name="pickupEarliestAt"
-          value={offer.pickupEarliestAt}
-          onChange={update}
-          type="datetime-local"
-          required
-        />
-        <Field
-          label="Enlèvement possible — au plus tard"
-          name="pickupLatestAt"
-          value={offer.pickupLatestAt}
-          onChange={update}
-          type="datetime-local"
-          required
-        />
-        <Field
-          label="Livraison possible — au plus tôt"
-          name="deliveryEarliestAt"
-          value={offer.deliveryEarliestAt}
-          onChange={update}
-          type="datetime-local"
-          required
-        />
-        <Field
-          label="Livraison possible — au plus tard"
-          name="deliveryLatestAt"
-          value={offer.deliveryLatestAt}
-          onChange={update}
-          type="datetime-local"
-          required
-        />
-        <Field
-          label="Votre tarif proposé (€)"
+          label="Votre tarif (€)"
           name="proposedPrice"
           value={offer.proposedPrice}
           onChange={update}
           type="number"
+          inputMode="decimal"
+          min="1"
+          step="1"
           placeholder="Obligatoire"
           required
         />
         <Field
-          label="Votre tarif si groupé (€)"
+          label="Tarif si groupé (€)"
           name="proposedPriceGrouped"
           value={offer.proposedPriceGrouped}
           onChange={update}
           type="number"
+          inputMode="decimal"
+          min="1"
+          step="1"
           placeholder="Facultatif"
         />
       </div>
+
+      <div className="offer-availability">
+        <div className="actions-row offer-presets">
+          <span className="offer-presets-label">Disponibilités</span>
+          {AVAILABILITY_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              className="btn ghost small"
+              title={preset.hint}
+              disabled={disabled || alreadyApplied}
+              onClick={() => {
+                onChange(applyAvailabilityPreset(preset.key));
+                setShowAvailability(true);
+              }}
+            >
+              {preset.label}
+            </button>
+          ))}
+          {filled > 0 && (
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={disabled || alreadyApplied}
+              onClick={() => { onChange(clearAvailability()); setShowAvailability(false); }}
+            >
+              Je m’adapte
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn ghost small"
+            onClick={() => setShowAvailability((open) => !open)}
+          >
+            {showAvailability ? "Masquer le détail" : "Choisir les dates"}
+          </button>
+        </div>
+
+        {showAvailability && (
+          <div className="form-grid application-availability-grid">
+            <Field
+              label="Enlèvement — au plus tôt"
+              name="pickupEarliestAt"
+              value={offer.pickupEarliestAt}
+              onChange={update}
+              type="datetime-local"
+            />
+            <Field
+              label="Enlèvement — au plus tard"
+              name="pickupLatestAt"
+              value={offer.pickupLatestAt}
+              onChange={update}
+              type="datetime-local"
+            />
+            <Field
+              label="Livraison — au plus tôt"
+              name="deliveryEarliestAt"
+              value={offer.deliveryEarliestAt}
+              onChange={update}
+              type="datetime-local"
+            />
+            <Field
+              label="Livraison — au plus tard"
+              name="deliveryLatestAt"
+              value={offer.deliveryLatestAt}
+              onChange={update}
+              type="datetime-local"
+            />
+          </div>
+        )}
+      </div>
+
       <textarea
         className="message-box"
         name="message"
@@ -600,13 +733,16 @@ function ApplicationOfferEditor({
         value={offer.message}
         onChange={update}
       />
+
+      <p className={`muted offer-hint${availabilityIncomplete ? " offer-hint-warn" : ""}`}>{hint}</p>
+
       <button
         className="btn primary"
         type="button"
-        disabled={disabled || alreadyApplied}
+        disabled={blocked}
         onClick={onSubmit}
       >
-        {alreadyApplied ? "Candidature envoyée" : "Candidater"}
+        {alreadyApplied ? "Candidature envoyée ✓" : "Candidater"}
       </button>
     </div>
   );
@@ -1457,7 +1593,10 @@ export default function App() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   const [mode, setMode] = useState("admin");
-  const [adminTab, setAdminTab] = useState("create");
+  // L'espace admin s'ouvre desormais sur « A traiter » et non sur un
+  // formulaire de creation : la premiere question du matin est « qu'est-ce qui
+  // est bloque ? », pas « quelle mission je cree ? ».
+  const [adminTab, setAdminTab] = useState("alertes");
   // Candidature dont le panneau d'attribution (tarif + marge) est ouvert.
   const [openAssignApplicationId, setOpenAssignApplicationId] = useState(null);
   const [transporterTab, setTransporterTab] = useState("available");
@@ -1484,11 +1623,16 @@ export default function App() {
   const [documentFiles, setDocumentFiles] = useState([]);
   const [documentOperationId, setDocumentOperationId] = useState(() => randomIdempotencyKey());
   const [uploadProgress, setUploadProgress] = useState({});
+  // Libelle lisible de l'envoi en cours (« photo 3 / 6 ») + moyen de l'annuler.
+  const [uploadStatus, setUploadStatus] = useState({});
+  const uploadAbortRef = useRef(new Map());
 
   // Fenêtre documents (devis / bon de mission / facture) : { kind, mission, transporter }
   const [docModal, setDocModal] = useState(null);
   // Mission mise en avant après clic sur une notification.
   const [focusMissionId, setFocusMissionId] = useState(null);
+  // Migration 024 : missions qui n'avanceront pas seules (vue admin dediee).
+  const [adminAlerts, setAdminAlerts] = useState([]);
   const [claimShare, setClaimShare] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
   const [claimStatus, setClaimStatus] = useState("idle");
@@ -1729,14 +1873,25 @@ export default function App() {
     Promise.all([
       listTrackingDrafts(account.id),
       listPendingActions(account.id),
-    ]).then(([drafts, pending]) => {
+      listTrackingDraftFiles(account.id).catch(() => []),
+    ]).then(([drafts, pending, draftFiles]) => {
       if (!alive) return;
       const restored = {};
       for (const draft of drafts) {
         const value = draft.value;
         if (!value?.missionId || !value?.eventType || !value?.form) continue;
-        restored[`${value.missionId}-${value.eventType}`] = value.form;
+        restored[`${value.missionId}-${value.eventType}`] = { ...EMPTY_TRACKING_FORM, ...value.form, files: [] };
       }
+      // Les photos sont stockees a part depuis la 024 : on les recolle ici.
+      for (const record of draftFiles || []) {
+        const value = record.value;
+        if (!value?.missionId || !value?.eventType) continue;
+        const key = `${value.missionId}-${value.eventType}`;
+        restored[key] = { ...EMPTY_TRACKING_FORM, ...(restored[key] || {}), files: value.files || [] };
+      }
+      // Purge des brouillons abandonnes : sans elle, le quota IndexedDB du
+      // WebView finit par saturer et plus rien ne se sauvegarde.
+      purgeStaleRecords(account.id, { maxAgeDays: 14 }).catch(() => {});
       if (Object.keys(restored).length) setTrackingForms((previous) => ({ ...previous, ...restored }));
       setPendingSyncCount(pending.length);
     }).catch(() => {
@@ -2269,6 +2424,23 @@ export default function App() {
     }));
   }
 
+  // Le suivi terrain est charge avec les colonnes de la migration 024 ; si elle
+  // n'est pas encore appliquee, on retombe sur le socle plutot que de faire
+  // echouer TOUT le chargement de l'espace (panne totale pour une colonne).
+  async function fetchTrackingEvents() {
+    const result = await supabase
+      .from("mission_tracking_events")
+      .select(TRACKING_EVENT_COLUMNS)
+      .order("created_at", { ascending: false })
+      .limit(DATA_PAGE_SIZE);
+    if (!result.error) return result;
+    return supabase
+      .from("mission_tracking_events")
+      .select(TRACKING_EVENT_COLUMNS_FALLBACK)
+      .order("created_at", { ascending: false })
+      .limit(DATA_PAGE_SIZE);
+  }
+
   async function loadAllData(currentAccount = account, { silent = false } = {}) {
     if (!currentAccount) return;
     const accountId = currentAccount.id;
@@ -2291,12 +2463,23 @@ export default function App() {
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("accounts").select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,created_at").eq("role", "transporter").order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("documents").select(DOCUMENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
-          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          fetchTrackingEvents(),
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [missionsResult, requestsResult, applicationsResult, transportersResult, documentsResult, trackingEventsResult, trackingPhotosResult]) {
           if (r.error) throw r.error;
         }
+        // Les alertes viennent de la migration 024 : leur absence ne doit pas
+        // empêcher l'espace admin de se charger.
+        const alertsResult = await supabase
+          .from("secoto_admin_alertes_v1")
+          .select("*")
+          .limit(DATA_PAGE_SIZE);
+        setAdminAlerts(
+          alertsResult?.error
+            ? []
+            : (alertsResult.data || []).filter((row) => row.alerte),
+        );
         // `secoto_mission_manual_v1` n'existe qu'après la migration 021 : son
         // absence ne doit jamais empêcher l'espace admin de se charger.
         const manualByMission = new Map(
@@ -2324,7 +2507,7 @@ export default function App() {
       } else if (currentAccount.role === "client") {
         const [missionsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
           supabase.from("secoto_missions_client_v2").select(MISSION_CLIENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
-          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          fetchTrackingEvents(),
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [missionsResult, trackingEventsResult, trackingPhotosResult]) { if (r.error) throw r.error; }
@@ -2345,7 +2528,7 @@ export default function App() {
           supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("documents").select(DOCUMENT_COLUMNS).eq("account_id", currentAccount.id).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
-          supabase.from("mission_tracking_events").select(TRACKING_EVENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          fetchTrackingEvents(),
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [publicResult, privateResult, requestsResult, applicationsResult, documentsResult, trackingEventsResult, trackingPhotosResult]) {
@@ -2618,6 +2801,38 @@ export default function App() {
         setNotice(`Étape mise à jour : ${stage.label}.`);
       });
     } catch (err) { setError(humanizeError(err, "Erreur lors du changement d’étape.")); }
+  }
+
+  /**
+   * Rouvre une etape terrain pour le transporteur (migration 024).
+   * Les preuves deja transmises ne sont pas supprimees : elles sont marquees
+   * « remplacees » et restent consultables.
+   */
+  async function reopenFieldStep(missionId, step) {
+    setError(""); setNotice("");
+    const labels = {
+      pickup: "l’état des lieux de départ",
+      delivery: "la livraison",
+      all: "toutes les étapes terrain",
+    };
+    const label = labels[step] || "cette étape";
+    if (!window.confirm(
+      `Rouvrir ${label} pour le transporteur ?\n\nLes photos déjà transmises sont conservées, `
+      + "mais elles ne bloqueront plus l’étape : le transporteur pourra la refaire.",
+    )) return;
+    try {
+      await runLocked(`mission:reopen:${missionId}`, async () => {
+        const { error } = await supabase.rpc("secoto_admin_reopen_field_step", {
+          p_mission_id: missionId,
+          p_step: step,
+          p_reason: "Réouverture demandée par SECOTO depuis l’espace administrateur.",
+          p_idempotency_key: randomIdempotencyKey(),
+        });
+        if (error) throw error;
+        await loadAllData(account);
+        setNotice(`Mission rouverte : le transporteur peut refaire ${label}. Il a été notifié.`);
+      });
+    } catch (err) { setError(humanizeError(err, "Impossible de rouvrir cette étape.")); }
   }
 
   /** Commission réglée hors application : libère le bon de mission plateau. */
@@ -2895,16 +3110,11 @@ export default function App() {
   function trackingKey(missionId, eventType) { return `${missionId}-${eventType}`; }
 
   function getTrackingForm(missionId, eventType) {
-    return trackingForms[trackingKey(missionId, eventType)] || {
-      comment: "",
-      odometerKm: "",
-      fuelLevel: "unknown",
-      issueType: "autre",
-      issueSeverity: "moyen",
-      photoType: "general",
-      files: [],
-      location: null,
-      operationId: null,
+    // Toujours fusionner avec les valeurs par defaut : un brouillon restaure
+    // peut ne contenir que les photos, ou que le texte (cf. migration 024).
+    return {
+      ...EMPTY_TRACKING_FORM,
+      ...(trackingForms[trackingKey(missionId, eventType)] || {}),
     };
   }
   function updateTrackingForm(missionId, eventType, patch) {
@@ -2914,19 +3124,29 @@ export default function App() {
       ...patch,
     };
     setTrackingForms((prev) => ({ ...prev, [key]: next }));
-    if (account?.id) {
-      const owner = account.id;
-      const previousTimer = draftTimersRef.current.get(key);
-      if (previousTimer) clearTimeout(previousTimer);
-      draftTimersRef.current.set(key, setTimeout(() => {
-        draftTimersRef.current.delete(key);
-        saveTrackingDraft(owner, missionId, eventType, next).catch(() => {
-          if (accountRef.current?.id === owner) {
-            setError("Le brouillon reste utilisable, mais sa sauvegarde chiffrée a échoué.");
-          }
-        });
-      }, 350));
+    if (!account?.id) return;
+    const owner = account.id;
+
+    // Les photos ne sont ecrites QUE quand elles changent (cf. resilienceStore) :
+    // c'est ce qui supprimait le gel de l'interface pendant la saisie.
+    if (Object.prototype.hasOwnProperty.call(patch || {}, "files")) {
+      saveTrackingDraftFiles(owner, missionId, eventType, next.files || []).catch(() => {
+        if (accountRef.current?.id === owner) {
+          setError("Les photos restent utilisables, mais leur sauvegarde chiffrée a échoué.");
+        }
+      });
     }
+
+    const previousTimer = draftTimersRef.current.get(key);
+    if (previousTimer) clearTimeout(previousTimer);
+    draftTimersRef.current.set(key, setTimeout(() => {
+      draftTimersRef.current.delete(key);
+      saveTrackingDraft(owner, missionId, eventType, next).catch(() => {
+        if (accountRef.current?.id === owner) {
+          setError("Le brouillon reste utilisable, mais sa sauvegarde chiffrée a échoué.");
+        }
+      });
+    }, 350));
   }
 
   async function captureTrackingLocation(missionId, eventType) {
@@ -2979,41 +3199,53 @@ export default function App() {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       await queueTrackingAction(account.id, mission.id, eventType, operationId);
       await saveTrackingDraft(account.id, mission.id, eventType, { ...form, operationId });
+      await saveTrackingDraftFiles(account.id, mission.id, eventType, form.files || []);
       await refreshPendingSyncCount();
       setNotice("Hors ligne : l’étape et ses photos sont chiffrées sur l’appareil et seront reprises au retour du réseau.");
       return false;
     }
 
+    const progressKey = `${mission.id}:${eventType}`;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    if (controller) uploadAbortRef.current.set(progressKey, controller);
+
     try {
       const result = await runLocked(`tracking:${mission.id}:${eventType}`, async () => {
-        const progressKey = `${mission.id}:${eventType}`;
-        const uploadedFiles = [];
-        for (let index = 0; index < files.length; index += 1) {
-          const file = files[index];
-          const path = await buildPrivateFilePath({
+        // Envoi deux par deux, avec un delai maximum par photo et une
+        // progression lisible. Avant : dix envois en serie, sans delai, sans
+        // sortie possible en zone blanche.
+        const uploaded = await uploadPrivateFiles({
+          bucket: "mission-photos",
+          files,
+          signal: controller?.signal,
+          buildPath: (file, index) => buildPrivateFilePath({
             accountId: account.id,
             missionId: mission.id,
             operationId,
             index,
             file,
-          });
-          await uploadPrivateFile({
-            bucket: "mission-photos",
-            path,
-            file,
-            onProgress: (fileProgress) => {
-              const aggregate = Math.round(((index + fileProgress / 100) / Math.max(files.length, 1)) * 100);
-              setUploadProgress((previous) => ({ ...previous, [progressKey]: aggregate }));
-            },
-          });
-          uploadedFiles.push({
+          }),
+          onFileProgress: ({ percent, done, total }) => {
+            const aggregate = Math.round(((done + percent / 100) / Math.max(total, 1)) * 100);
+            setUploadProgress((previous) => ({ ...previous, [progressKey]: Math.min(99, aggregate) }));
+            setUploadStatus((previous) => ({
+              ...previous,
+              [progressKey]: `Envoi de la photo ${Math.min(done + 1, total)} sur ${total}…`,
+            }));
+          },
+        });
+        const uploadedFiles = uploaded
+          .slice()
+          .sort((a, b) => a.index - b.index)
+          .map(({ file, path }) => ({
             file_name: file.name,
             file_path: path,
             photo_type: form.photoType || "general",
             mime_type: file.type,
             size_bytes: file.size,
-          });
-        }
+          }));
+        setUploadProgress((previous) => ({ ...previous, [progressKey]: 100 }));
+        setUploadStatus((previous) => ({ ...previous, [progressKey]: "Enregistrement de l’étape…" }));
 
         const location = form.location || null;
         const { error: rpcError } = await supabase.rpc("secoto_finalize_tracking_event", {
@@ -3058,21 +3290,38 @@ export default function App() {
       });
       return Boolean(result && !result.skipped);
     } catch (err) {
+      if (err?.name === "AbortError") {
+        setUploadProgress((previous) => ({ ...previous, [progressKey]: null }));
+        setNotice("Envoi annulé. Vos photos et votre saisie restent enregistrées sur l’appareil.");
+        return false;
+      }
       const networkError =
         (typeof navigator !== "undefined" && !navigator.onLine) ||
         err instanceof TypeError ||
-        /network|réseau|fetch|interrompu|timeout/i.test(err?.message || "");
+        err?.timeout === true ||
+        /network|réseau|fetch|interrompu|ne répond plus|timeout/i.test(err?.message || "");
       if (networkError) {
         await queueTrackingAction(account.id, mission.id, eventType, operationId).catch(() => {});
         await saveTrackingDraft(account.id, mission.id, eventType, { ...form, operationId }).catch(() => {});
+        await saveTrackingDraftFiles(account.id, mission.id, eventType, form.files || []).catch(() => {});
         await refreshPendingSyncCount();
-        setNotice("Envoi interrompu : les éléments restent chiffrés sur l’appareil et seront réessayés.");
+        setNotice("Le réseau n’a pas suivi. Tout est conservé sur l’appareil : l’envoi repartira automatiquement, ou avec « Réessayer ».");
         if (!fromQueue) setError("");
       } else {
         setError(humanizeError(err, "Erreur lors de l’envoi du suivi mission."));
       }
       return false;
+    } finally {
+      uploadAbortRef.current.delete(progressKey);
+      setUploadProgress((previous) => ({ ...previous, [progressKey]: null }));
+      setUploadStatus((previous) => ({ ...previous, [progressKey]: null }));
     }
+  }
+
+  /** Permet de sortir d'un envoi qui n'aboutit pas, sans tuer l'application. */
+  function cancelTrackingUpload(missionId, eventType) {
+    const controller = uploadAbortRef.current.get(`${missionId}:${eventType}`);
+    if (controller) controller.abort();
   }
 
   async function resumePendingTrackingActions() {
@@ -3098,7 +3347,31 @@ export default function App() {
           await removeTrackingDraft(account.id, action.missionId, action.eventType).catch(() => {});
           continue;
         }
-        await submitTrackingEvent(mission, action.eventType, { fromQueue: true });
+
+        // CORRECTIF 024 — la file ne se vidait JAMAIS quand la re-soumission
+        // echouait pour une raison metier (sequence, droits, brouillon vide) :
+        // aucun compteur, aucun abandon, et le bandeau « envois en attente »
+        // restait affiche a vie en relancant l'effet en boucle.
+        const attempts = Number(action.attempts || 0);
+        if (attempts >= MAX_QUEUE_ATTEMPTS) {
+          setError(
+            "Un envoi n’a pas pu aboutir après plusieurs tentatives. Ouvrez la mission concernée et renvoyez l’étape, ou contactez SECOTO.",
+          );
+          await removeEncryptedRecord(item.key).catch(() => {});
+          continue;
+        }
+
+        const sent = await submitTrackingEvent(mission, action.eventType, { fromQueue: true });
+        if (!sent) {
+          await saveEncryptedRecord({
+            key: item.key,
+            owner: account.id,
+            kind: "pending-action",
+            value: { ...action, attempts: attempts + 1 },
+          }).catch(() => {});
+          // Temporisation croissante : on n'inonde pas un reseau deja fragile.
+          await new Promise((resolve) => setTimeout(resolve, Math.min(8000, 500 * 2 ** attempts)));
+        }
       }
       await refreshPendingSyncCount();
     } finally {
@@ -3115,11 +3388,88 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id, networkConnected, pendingSyncCount, missions.length]);
 
+  // Une etape rouverte par SECOTO ne compte plus comme faite : le transporteur
+  // doit pouvoir la refaire, sans que la preuve precedente soit effacee.
+  function hasLiveEvent(missionId, eventType) {
+    return trackingEvents.some((event) => (
+      event.missionId === missionId
+      && event.eventType === eventType
+      && !event.supersededAt
+    ));
+  }
   function hasDeliveryInspection(missionId) {
-    return trackingEvents.some((event) => event.missionId === missionId && event.eventType === "delivery_inspection");
+    return hasLiveEvent(missionId, "delivery_inspection");
+  }
+  const PROGRESS_AFTER_PICKUP = [
+    "pickup_completed", "in_transit", "incident_reported",
+    "delivery_started", "delivery_completed", "completed",
+  ];
+  function isPickupDone(mission) {
+    return hasLiveEvent(mission.id, "pickup_inspection")
+      || PROGRESS_AFTER_PICKUP.includes(mission.progressStatus);
   }
   function isMissionDeliveryValidated(mission) {
     return mission.progressStatus === "delivery_completed" || mission.progressStatus === "completed" || mission.status === "completed" || hasDeliveryInspection(mission.id);
+  }
+
+  /**
+   * Parcours terrain sequentiel — refonte 024.
+   *
+   * Avant : les trois formulaires (prise en charge, incident, livraison)
+   * etaient affiches en permanence, alors que le serveur impose une sequence
+   * stricte. Le convoyeur remplissait la livraison avant la prise en charge,
+   * se faisait rejeter, et concluait que « l'app refuse ses photos ». Le
+   * formulaire de prise en charge restait meme affiche apres validation.
+   *
+   * Desormais : une seule action possible a la fois, celle qui vient. Les
+   * etapes franchies passent en ligne de timeline.
+   */
+  function renderFieldActions(mission) {
+    const pickupDone = isPickupDone(mission);
+    const delivered = isMissionDeliveryValidated(mission);
+    const step = delivered ? 3 : pickupDone ? 2 : 1;
+
+    return (
+      <div className="applications-box field-actions">
+        <div className="field-steps" aria-label="Progression de la mission">
+          <span className={`field-step${step >= 1 ? " done" : ""}${step === 1 ? " current" : ""}`}>
+            1 · État des lieux de départ
+          </span>
+          <span className={`field-step${step >= 2 ? " done" : ""}${step === 2 ? " current" : ""}`}>
+            2 · Livraison
+          </span>
+          <span className={`field-step${step >= 3 ? " done" : ""}`}>3 · Terminée</span>
+        </div>
+
+        {step === 1 && (
+          <>
+            <p className="muted">
+              Prochaine étape : photographiez le véhicule au départ. C’est cet
+              état des lieux qui vous protège en cas de litige.
+            </p>
+            {renderTrackingForm(mission, "pickup_inspection")}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <p className="muted">
+              Prise en charge enregistrée. Prochaine étape : l’état des lieux
+              d’arrivée, qui valide la livraison.
+            </p>
+            {renderTrackingForm(mission, "delivery_inspection")}
+          </>
+        )}
+
+        {step === 3 && (
+          <div className="alert success">
+            Mission livrée et état des lieux d’arrivée transmis. Rien de plus à faire.
+          </div>
+        )}
+
+        {step < 3 && renderTrackingForm(mission, "road_incident")}
+      </div>
+    );
   }
 
   function renderTrackingTimeline(mission) {
@@ -3131,11 +3481,22 @@ export default function App() {
         {events.map((event) => {
           const photos = getTrackingPhotosForEvent(event.id);
           return (
-            <div className="mission-card" key={event.id}>
+            <div className={`mission-card${event.supersededAt ? " event-superseded" : ""}`} key={event.id}>
               <div className="card-top">
                 <span className="badge">{labelTrackingEventType(event.eventType)}</span>
                 <span className="status">{formatDateTime(event.createdAt)}</span>
               </div>
+              {/* Migration 024 : dire d'ou vient l'etape evite les malentendus
+                  entre la direction et le terrain. */}
+              {event.source === "admin" && (
+                <div className="alert compact">Étape saisie par SECOTO — aucun état des lieux photo transmis.</div>
+              )}
+              {event.supersededAt && (
+                <div className="alert compact">
+                  Étape rouverte par SECOTO le {formatDateTime(event.supersededAt)} — cette preuve est conservée
+                  mais a été remplacée.
+                </div>
+              )}
               <div className="card-section">
                 {event.odometerKm && <p><strong>Kilométrage :</strong> {event.odometerKm} km</p>}
                 <p><strong>Carburant :</strong> {labelFuelLevel(event.fuelLevel)}</p>
@@ -3253,6 +3614,20 @@ export default function App() {
           <button className="btn primary field-full track-submit" type="button" disabled={actionLoading} onClick={() => submitTrackingEvent(mission, eventType)}>
             Transmettre {labelTrackingEventType(eventType)}
           </button>
+        )}
+        {/* Sortie de secours : en zone blanche, l'envoi ne doit jamais
+            enfermer le convoyeur dans un bouton grise sans issue. */}
+        {uploadStatus[`${mission.id}:${eventType}`] && (
+          <div className="field-full upload-live">
+            <span>{uploadStatus[`${mission.id}:${eventType}`]}</span>
+            <button
+              className="btn ghost small"
+              type="button"
+              onClick={() => cancelTrackingUpload(mission.id, eventType)}
+            >
+              Annuler l’envoi
+            </button>
+          </div>
         )}
       </div>
     );
@@ -3479,6 +3854,7 @@ export default function App() {
               onAssignDirect={(values) => assignMissionDirect(mission.id, values)}
               onSavePricing={(values) => saveMissionPricing(mission.id, values)}
               onSetStage={(stage) => setMissionStage(mission.id, stage)}
+              onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
               onNotice={setNotice}
@@ -3623,6 +3999,7 @@ export default function App() {
               onAssignDirect={(values) => assignMissionDirect(mission.id, values)}
               onSavePricing={(values) => saveMissionPricing(mission.id, values)}
               onSetStage={(stage) => setMissionStage(mission.id, stage)}
+              onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
               onNotice={setNotice}
@@ -3683,6 +4060,9 @@ export default function App() {
       return {
         active: adminTab, setActive: setAdminTab,
         sections: [
+          { title: "Priorités", items: [
+            { key: "alertes", label: "À traiter", icon: "megaphone", count: adminAlerts.length || undefined },
+          ] },
           { title: "Missions", items: [
             { key: "create", label: "Créer une mission", icon: "plus" },
             { key: "published", label: "Publiées", icon: "megaphone", count: publishedMissions.length },
@@ -4122,6 +4502,54 @@ export default function App() {
         <>
           <KpiGrid stats={adminStats} />
 
+          {adminTab === "alertes" && (
+            <section className="layout">
+              <div className="panel panel-full">
+                <h2>À traiter</h2>
+                <p className="muted">
+                  Ce qui n’avancera pas tout seul aujourd’hui. Cette liste se vide
+                  d’elle-même dès que la mission repart.
+                </p>
+                {adminAlerts.length === 0 && (
+                  <div className="alert success">
+                    Rien de bloqué. Toutes les missions publiées et attribuées suivent leur cours.
+                  </div>
+                )}
+                <div className="cards">
+                  {adminAlerts.map((row) => (
+                    <article className="mission-card alert-card" key={row.mission_id}>
+                      <div className="card-top">
+                        <span className="badge">{row.public_ref}</span>
+                        <span className={`status alert-${row.alerte}`}>{labelAlert(row.alerte)}</span>
+                      </div>
+                      <h3>{row.from_city || "Départ"} → {row.to_city || "Arrivée"}</h3>
+                      <div className="card-section">
+                        <p>{describeAlert(row)}</p>
+                        {row.assigned_transporter_name && (
+                          <p className="muted">Transporteur : {row.assigned_transporter_name}</p>
+                        )}
+                      </div>
+                      <div className="actions-row">
+                        <button
+                          className="btn primary small"
+                          type="button"
+                          onClick={() => {
+                            setAdminTab(row.status === "published"
+                              ? (Number(row.candidatures_en_attente) > 0 ? "applications" : "published")
+                              : "assigned");
+                            setFocusMissionId(row.mission_id);
+                          }}
+                        >
+                          Ouvrir la mission
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
           {adminTab === "create" && (
             <section className="layout">
               <div className="panel panel-full">
@@ -4492,12 +4920,7 @@ export default function App() {
                               </button>
                             </div>
                             {renderTrackingTimeline(mission)}
-                            <div className="applications-box">
-                              <h4>Actions terrain</h4>
-                              {renderTrackingForm(mission, "pickup_inspection")}
-                              {renderTrackingForm(mission, "road_incident")}
-                              {renderTrackingForm(mission, "delivery_inspection")}
-                            </div>
+                            {renderFieldActions(mission)}
                           </article>
                         ))}
                       </div>

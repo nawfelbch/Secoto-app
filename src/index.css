@@ -1504,3 +1504,117 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
 .payment-waiver-mention + .payment-waiver-mention {
   margin-top: 8px;
 }
+
+/* ==========================================================================
+   Refonte 024 — candidature, parcours terrain séquentiel, alertes admin.
+   ========================================================================== */
+
+/* --- Candidature transporteur : le tarif d'abord, le reste ensuite. ------- */
+.offer-price-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.offer-availability {
+  margin-top: 10px;
+}
+
+.offer-presets {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.offer-presets-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+  margin-right: 2px;
+}
+
+.offer-hint {
+  margin: 10px 0 8px;
+  font-size: 13px;
+}
+
+.offer-hint-warn {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* --- Parcours terrain : une seule action possible à la fois. -------------- */
+.field-actions {
+  margin-top: 12px;
+}
+
+.field-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.field-step {
+  flex: 1 1 140px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0.55;
+  text-align: center;
+}
+
+.field-step.done {
+  opacity: 1;
+}
+
+.field-step.current {
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor inset;
+  opacity: 1;
+}
+
+/* Sortie de secours pendant un envoi qui n'aboutit pas. */
+.upload-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.event-superseded {
+  opacity: 0.62;
+}
+
+.alert.compact {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+/* --- Écran admin « À traiter ». ------------------------------------------ */
+.alert-card .card-section p {
+  margin: 4px 0;
+}
+
+.status.alert-sans_candidature,
+.status.alert-candidature_en_attente {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.status.alert-prise_en_charge_en_retard,
+.status.alert-livraison_en_retard,
+.status.alert-incident_ouvert {
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}

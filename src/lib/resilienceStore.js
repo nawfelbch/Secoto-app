@@ -179,17 +179,79 @@ export function trackingDraftKey(owner, missionId, eventType) {
   return `tracking:${owner}:${missionId}:${eventType}`;
 }
 
+export function trackingFilesKey(owner, missionId, eventType) {
+  return `trackingfiles:${owner}:${missionId}:${eventType}`;
+}
+
+// ---------------------------------------------------------------------------
+// CORRECTIF 024 — le brouillon ne re-chiffre plus les photos a chaque frappe.
+//
+// Avant : 350 ms apres chaque caractere saisi dans le commentaire, TOUTES les
+// photos du formulaire etaient relues, converties en base64 de facon synchrone
+// puis rechiffrees en AES-GCM sur le thread principal. Avec six photos
+// (~10 Mo), cela representait ~14 Mo rechiffres a chaque pause de saisie :
+// interface gelee plusieurs secondes, clavier qui saute, WebView qui plante.
+//
+// Le brouillon est desormais scinde en deux enregistrements : le TEXTE (
+// quelques octets, sauvegarde a chaque frappe) et les FICHIERS (ecrits une
+// seule fois, a l'ajout ou au retrait d'une photo).
+// ---------------------------------------------------------------------------
 export async function saveTrackingDraft(owner, missionId, eventType, form) {
+  const textOnly = { ...(form || {}) };
+  delete textOnly.files;
   return saveEncryptedRecord({
     key: trackingDraftKey(owner, missionId, eventType),
     owner,
     kind: "tracking-draft",
-    value: { missionId, eventType, form },
+    value: { missionId, eventType, form: textOnly },
   });
 }
 
+export async function saveTrackingDraftFiles(owner, missionId, eventType, files) {
+  const list = files || [];
+  if (list.length === 0) {
+    return removeEncryptedRecord(trackingFilesKey(owner, missionId, eventType));
+  }
+  return saveEncryptedRecord({
+    key: trackingFilesKey(owner, missionId, eventType),
+    owner,
+    kind: "tracking-files",
+    value: { missionId, eventType, files: list },
+  });
+}
+
+export async function listTrackingDraftFiles(owner) {
+  return listEncryptedRecords(owner, "tracking-files");
+}
+
 export async function removeTrackingDraft(owner, missionId, eventType) {
-  return removeEncryptedRecord(trackingDraftKey(owner, missionId, eventType));
+  await removeEncryptedRecord(trackingDraftKey(owner, missionId, eventType));
+  await removeEncryptedRecord(trackingFilesKey(owner, missionId, eventType));
+}
+
+/**
+ * Ramasse-miettes : sans lui, les brouillons de missions abandonnees
+ * s'accumulent jusqu'a saturer le quota IndexedDB du WebView, et TOUTES les
+ * sauvegardes suivantes echouent (« la sauvegarde chiffree a echoue »).
+ */
+export async function purgeStaleRecords(owner, { maxAgeDays = 14, keepKeys = [] } = {}) {
+  const limit = Date.now() - maxAgeDays * 24 * 3600 * 1000;
+  const keep = new Set(keepKeys);
+  const records = await transaction(RECORD_STORE, "readonly", (store) => {
+    const index = store.index("owner");
+    return requestResult(index.getAll(owner));
+  });
+  const stale = records.filter((record) => {
+    if (keep.has(record.key)) return false;
+    if (record.kind === "pending-action") return false;
+    const updated = Date.parse(record.updatedAt || "");
+    return Number.isFinite(updated) && updated < limit;
+  });
+  if (stale.length === 0) return 0;
+  await transaction(RECORD_STORE, "readwrite", async (store) => {
+    for (const record of stale) await requestResult(store.delete(record.key));
+  });
+  return stale.length;
 }
 
 export async function queueTrackingAction(owner, missionId, eventType, operationId) {

@@ -21,6 +21,19 @@ test("la validation exige cohérence MIME, extension, taille et nombre", () => {
   assert.equal(validateFiles([], { minFiles: 1 }).ok, false);
 });
 
+// Regression 024 : ces trois cas etaient refuses a tort et faisaient croire au
+// convoyeur que l'application « n'acceptait pas ses photos ».
+test("les photos valides des telephones reels ne sont plus refusees", () => {
+  // Galerie Android : nom sans extension.
+  assert.equal(validateFiles([fakeFile("IMG_20260905_181200", "image/jpeg")]).ok, true);
+  // iPhone : HEIC, transcode en JPEG avant l'envoi.
+  assert.equal(validateFiles([fakeFile("IMG_4821.HEIC", "image/heic")]).ok, true);
+  // Fichier livre sans type MIME mais avec une extension image.
+  assert.equal(validateFiles([fakeFile("etat-des-lieux.jpeg", "")]).ok, true);
+  // Un executable annonce en image reste refuse.
+  assert.equal(validateFiles([fakeFile("preuve.exe", "image/jpeg")]).ok, false);
+});
+
 test("les noms et chemins de stockage restent privés, déterministes et sans traversée", async () => {
   assert.equal(safeFileName("../../Carte grise éà.pdf"), "Carte_grise_ea.pdf");
   assert.equal(fileExtension("PREUVE.JPEG"), "jpeg");

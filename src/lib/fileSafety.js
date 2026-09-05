@@ -1,11 +1,52 @@
-const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+// ============================================================================
+// SECOTO — sécurité et préparation des fichiers de preuve.
+// ----------------------------------------------------------------------------
+// TROIS RÈGLES ISSUES DU TERRAIN
+//
+// 1. Une photo valide ne doit JAMAIS être refusée. L'ancienne validation
+//    exigeait que le type MIME *et* l'extension du nom soient reconnus. Or les
+//    galeries Android livrent souvent un fichier sans extension, et iOS livre
+//    du HEIC. Des états des lieux parfaitement valides étaient rejetés avec
+//    « format refusé ». On accepte désormais dès que le MIME **ou**
+//    l'extension identifie une image ; l'extension est réparée par
+//    `safeFileName`, et le contenu est transcodé en JPEG avant l'envoi.
+//
+// 2. Le serveur n'accepte que JPEG, PNG, WebP (et PDF pour un incident).
+//    `prepareEvidenceFile` garantit donc qu'un HEIC/HEIF, un fichier sans type
+//    ou une image exotique repart TOUJOURS en JPEG.
+//
+// 3. On compresse systématiquement. Une photo de 1,9 Mo passait telle quelle :
+//    dix photos = 19 Mo à téléverser en 4G au bord d'une route. À 1600 px et
+//    qualité 0,75, un état des lieux reste parfaitement opposable et pèse
+//    250 à 400 Ko — cinq à huit fois plus rapide à envoyer.
+// ============================================================================
+
+// Ce que le serveur accepte en sortie.
+const UPLOADABLE_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+// Ce que l'on accepte en entrée, avant préparation.
+const INPUT_IMAGE_MIME = new Set([
+  "image/jpeg", "image/jpg", "image/png", "image/webp",
+  "image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence",
+]);
 const PDF_MIME_TYPES = new Set(["application/pdf"]);
-const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+const IMAGE_EXTENSIONS = new Set([
+  "jpg", "jpeg", "jfif", "png", "webp", "heic", "heif", "gif", "bmp", "tif", "tiff",
+]);
 const PDF_EXTENSIONS = new Set(["pdf"]);
+// Une extension presente et etrangere aux medias fait foi contre le MIME :
+// un « preuve.exe » annonce en image/jpeg reste refuse.
+function isMediaExtension(extension) {
+  return extension === "" || IMAGE_EXTENSIONS.has(extension) || PDF_EXTENSIONS.has(extension);
+}
 
 export const DEFAULT_FILE_LIMITS = Object.freeze({
   maxFiles: 10,
   maxSizeBytes: 12 * 1024 * 1024,
+});
+
+export const EVIDENCE_COMPRESSION = Object.freeze({
+  maxDimension: 1600,
+  quality: 0.75,
 });
 
 export function safeFileName(name) {
@@ -26,12 +67,29 @@ export function fileExtension(name) {
   return index === -1 ? "" : clean.slice(index + 1);
 }
 
-export function isAllowedFile(file, { allowPdf = true } = {}) {
-  const extension = fileExtension(file?.name);
+/** Ce que le fichier est vraiment, en se fiant au MIME puis à l'extension. */
+export function detectFileKind(file) {
   const mime = String(file?.type || "").toLowerCase();
-  const isImage = IMAGE_MIME_TYPES.has(mime) && IMAGE_EXTENSIONS.has(extension);
-  const isPdf = allowPdf && PDF_MIME_TYPES.has(mime) && PDF_EXTENSIONS.has(extension);
-  return isImage || isPdf;
+  const extension = fileExtension(file?.name);
+  // Une extension presente et etrangere aux medias fait foi contre le MIME.
+  if (!isMediaExtension(extension)) return "unknown";
+  // Un MIME present et etranger aux medias fait foi contre l'extension.
+  if (mime && !mime.startsWith("image/") && !PDF_MIME_TYPES.has(mime)) return "unknown";
+  if (PDF_MIME_TYPES.has(mime) || (!mime && PDF_EXTENSIONS.has(extension))) return "pdf";
+  if (INPUT_IMAGE_MIME.has(mime) || mime.startsWith("image/")) return "image";
+  if (IMAGE_EXTENSIONS.has(extension)) return "image";
+  return "unknown";
+}
+
+export function isAllowedFile(file, { allowPdf = true } = {}) {
+  const kind = detectFileKind(file);
+  return kind === "image" || (allowPdf && kind === "pdf");
+}
+
+/** Le fichier est-il déjà dans un format que le serveur accepte tel quel ? */
+export function isUploadReady(file) {
+  const mime = String(file?.type || "").toLowerCase();
+  return UPLOADABLE_IMAGE_MIME.has(mime) || PDF_MIME_TYPES.has(mime);
 }
 
 export function validateFiles(files, options = {}) {
@@ -45,35 +103,54 @@ export function validateFiles(files, options = {}) {
   const list = Array.from(files || []);
   const errors = [];
 
-  if (list.length < minFiles) errors.push(`Ajoutez au moins ${minFiles} fichier${minFiles > 1 ? "s" : ""}.`);
+  if (list.length < minFiles) {
+    errors.push(
+      minFiles === 1
+        ? "Ajoutez au moins une photo : elle fait office d’état des lieux."
+        : `Ajoutez au moins ${minFiles} fichiers.`,
+    );
+  }
   if (list.length > maxFiles) errors.push(`Maximum ${maxFiles} fichiers par envoi.`);
 
   for (const file of list) {
     if (!isAllowedFile(file, { allowPdf })) {
-      errors.push(`${file?.name || "Fichier"} : format refusé (JPG, PNG, WebP${allowPdf ? " ou PDF" : ""}).`);
+      errors.push(
+        `${file?.name || "Fichier"} : ce format n’est pas accepté (photos JPG, PNG, WebP, HEIC${allowPdf ? " ou PDF" : ""}).`,
+      );
     }
     if (!Number.isFinite(file?.size) || file.size <= 0) {
       errors.push(`${file?.name || "Fichier"} : fichier vide ou illisible.`);
     } else if (file.size > maxSizeBytes) {
-      errors.push(`${file.name} : taille maximale ${Math.round(maxSizeBytes / 1024 / 1024)} Mo.`);
+      errors.push(`${file.name} : ${Math.round(maxSizeBytes / 1024 / 1024)} Mo maximum par fichier.`);
     }
   }
 
   if (requireImage && list.length > 0) {
-    const hasImage = list.some((file) => IMAGE_MIME_TYPES.has(String(file.type || "").toLowerCase()));
+    const hasImage = list.some((file) => detectFileKind(file) === "image");
     if (!hasImage) errors.push("Au moins une photo est obligatoire.");
   }
 
   return { ok: errors.length === 0, errors };
 }
 
+function canUseCanvas() {
+  return typeof document !== "undefined" && typeof createImageBitmap === "function";
+}
+
+/**
+ * Redimensionne, transcode en JPEG et compresse une image de preuve.
+ * Ne renvoie jamais d'erreur : en cas d'échec, le fichier d'origine est rendu
+ * tel quel — mieux vaut un envoi lourd qu'un état des lieux perdu.
+ */
 export async function compressEvidenceImage(file, {
-  maxDimension = 2400,
-  quality = 0.88,
-  compressionThreshold = 2 * 1024 * 1024,
+  maxDimension = EVIDENCE_COMPRESSION.maxDimension,
+  quality = EVIDENCE_COMPRESSION.quality,
+  // Conservé pour compatibilité d'appel : 0 = on compresse toujours.
+  compressionThreshold = 0,
 } = {}) {
-  if (!file || !IMAGE_MIME_TYPES.has(file.type) || file.size <= compressionThreshold) return file;
-  if (typeof document === "undefined" || typeof createImageBitmap !== "function") return file;
+  if (!file || detectFileKind(file) !== "image") return file;
+  if (compressionThreshold > 0 && file.size <= compressionThreshold && isUploadReady(file)) return file;
+  if (!canUseCanvas()) return file;
 
   let bitmap;
   try {
@@ -84,15 +161,20 @@ export async function compressEvidenceImage(file, {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    const context = canvas.getContext("2d", { alpha: file.type === "image/png" });
+    const context = canvas.getContext("2d");
+    // Fond blanc : une PNG transparente convertie en JPEG ne vire pas au noir.
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
-    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, quality));
-    if (!blob || blob.size >= file.size) return file;
-    const extension = outputType === "image/png" ? "png" : "jpg";
-    const baseName = safeFileName(file.name).replace(/\.[^.]+$/, "");
-    return new File([blob], `${baseName}.${extension}`, {
-      type: outputType,
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob || blob.size <= 0) return file;
+    // On garde l'original s'il est déjà plus léger ET déjà au bon format.
+    if (isUploadReady(file) && blob.size >= file.size && scale === 1) return file;
+
+    const baseName = safeFileName(file.name).replace(/\.[^.]+$/, "") || "photo";
+    return new File([blob], `${baseName}.jpg`, {
+      type: "image/jpeg",
       lastModified: file.lastModified || Date.now(),
     });
   } catch {
@@ -100,6 +182,31 @@ export async function compressEvidenceImage(file, {
   } finally {
     bitmap?.close?.();
   }
+}
+
+/**
+ * Prépare un fichier pour l'envoi : image → JPEG compressé, PDF → inchangé.
+ * Garantit un `type` exploitable même quand l'appareil n'en fournit aucun.
+ */
+export async function prepareEvidenceFile(file, options = {}) {
+  const kind = detectFileKind(file);
+  if (kind === "pdf") {
+    if (file.type === "application/pdf") return file;
+    return new File([file], safeFileName(file.name || "document.pdf"), {
+      type: "application/pdf",
+      lastModified: file.lastModified || Date.now(),
+    });
+  }
+  if (kind !== "image") return file;
+
+  const prepared = await compressEvidenceImage(file, options);
+  if (isUploadReady(prepared)) return prepared;
+  // Transcodage impossible (WebView sans canvas) : on force au moins un type
+  // accepté par le bucket plutôt que de laisser partir un MIME vide.
+  return new File([prepared], `${safeFileName(prepared.name).replace(/\.[^.]+$/, "") || "photo"}.jpg`, {
+    type: "image/jpeg",
+    lastModified: prepared.lastModified || Date.now(),
+  });
 }
 
 export function randomIdempotencyKey() {

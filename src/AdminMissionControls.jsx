@@ -456,6 +456,7 @@ export default function AdminMissionPilot({
   onAssignDirect,
   onSavePricing,
   onSetStage,
+  onReopenStep,
   onUploadSignedDevis,
   onSettleCommission,
   onNotice,
@@ -498,6 +499,44 @@ export default function AdminMissionPilot({
 
           <h4 style={{ marginBottom: 0 }}>Étape</h4>
           <StagePicker mission={mission} busy={busy} onSetStage={onSetStage} />
+
+          {assigned && onReopenStep && (
+            <>
+              <h4 style={{ marginBottom: 0 }}>Rendre la main au transporteur</h4>
+              <p className="muted" style={{ marginTop: 4 }}>
+                À utiliser quand un état des lieux est raté, incomplet, ou quand
+                la mission s’est retrouvée bloquée. Les photos déjà transmises
+                sont conservées et restent consultables : elles cessent
+                simplement de bloquer l’étape.
+              </p>
+              <div className="actions-row">
+                <button
+                  className="btn ghost small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onReopenStep("pickup")}
+                >
+                  Refaire l’état des lieux de départ
+                </button>
+                <button
+                  className="btn ghost small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onReopenStep("delivery")}
+                >
+                  Refaire la livraison
+                </button>
+                <button
+                  className="btn ghost small"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onReopenStep("all")}
+                >
+                  Tout rouvrir
+                </button>
+              </div>
+            </>
+          )}
 
           <h4 style={{ marginBottom: 0 }}>Prévenir le client</h4>
           <ClientSmsPanel
