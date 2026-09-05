@@ -15,7 +15,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6794878696"
-        IOS_MARKETING_VERSION: "1.4"
+        IOS_MARKETING_VERSION: "1.5"
       node: 24
       xcode: 26.0
     cache:

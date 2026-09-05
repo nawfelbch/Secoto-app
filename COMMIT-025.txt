@@ -1,0 +1,19 @@
+fix(025): publier en 1.5 — le train App Store 1.4 est ferme
+
+Le build 33 puis le build 34 ont ete refuses a l'upload :
+  STATE_ERROR.VALIDATION_ERROR — « The train version '1.4' is closed for
+  new build submissions » et « CFBundleShortVersionString [1.4] must
+  contain a higher version than the previously approved version [1.4] ».
+La version 1.4, publiee par le correctif 022 le 29/08, a ete approuvee :
+son train est ferme et n'accepte plus aucun build. Seul le numero de
+build s'incremente tout seul (40, 41...), pas la version marketing.
+
+- IOS_MARKETING_VERSION, Info.plist et les deux configurations Xcode
+  passent de 1.4 a 1.5, ensemble
+- le test ci-native-config verifie deja que les trois endroits declarent
+  la meme version : il reste au vert
+
+Cette version embarque le correctif 024 (candidatures, parcours terrain
+sequentiel, ecran admin « A traiter »). Pour memoire, la partie SQL du
+024 est deja appliquee en production et debloque les candidatures sur
+toutes les applications deja installees, sans attendre cette mise a jour.
