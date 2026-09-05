@@ -804,9 +804,19 @@ comment on view public.secoto_admin_alertes_v1 is
 -- ----------------------------------------------------------------------------
 -- 9. GARDES DE DÉPLOIEMENT
 -- ----------------------------------------------------------------------------
+-- Deux passe-plats a 3 arguments coexistent volontairement avec leur version a
+-- 6 arguments depuis la migration 021 : `secoto_render_document()` les appelle
+-- encore, et les supprimer casserait la generation des devis plateau. Ils ne
+-- sont JAMAIS appeles depuis l'application (aucun `supabase.rpc` ne les nomme),
+-- donc l'ambiguite PostgREST ne peut pas se produire en pratique.
+-- Toute AUTRE surcharge reste une erreur bloquante.
 do $guard_final$
 declare
   v_dup text;
+  v_attendus constant text[] := array[
+    'secoto_compute_client_price',
+    'secoto_compute_margin'
+  ];
 begin
   select string_agg(proname, ', ')
     into v_dup
@@ -814,13 +824,16 @@ begin
     select p.proname
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname like 'secoto\_%'
+    where n.nspname = 'public'
+      and p.proname like 'secoto\_%'
+      and not (p.proname = any (v_attendus))
     group by p.proname
     having count(*) > 1
   ) d;
   if v_dup is not null then
     raise exception
-      'Surcharges detectees (PostgREST ne pourra pas choisir) : %.',
+      'Surcharges detectees (PostgREST ne pourra pas choisir) : %. '
+      'Supprimez les anciennes signatures avant de recreer la fonction.',
       v_dup;
   end if;
 end

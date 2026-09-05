@@ -151,6 +151,26 @@ test("la migration 024 supprime les surcharges avant de recréer les fonctions e
   assert.match(migration024, /having count\(\*\) > 1/);
 });
 
+test("la garde anti-surcharge n'exempte que les deux passe-plats documentes", () => {
+  // Les versions a 3 arguments de secoto_compute_client_price / _margin
+  // coexistent volontairement depuis la 021 : secoto_render_document() les
+  // appelle encore. Elles ne sont jamais appelees depuis l'application.
+  const guard = migration024.slice(
+    migration024.indexOf("do $guard_final$"),
+    migration024.indexOf("$guard_final$;") + 14,
+  );
+  assert.match(guard, /v_attendus constant text\[\]/);
+  assert.match(guard, /'secoto_compute_client_price'/);
+  assert.match(guard, /'secoto_compute_margin'/);
+  assert.match(guard, /not \(p\.proname = any \(v_attendus\)\)/);
+
+  // Verrou : aucune de ces deux fonctions ne doit etre appelee via supabase.rpc.
+  const frontSources = ["src/App.jsx", "src/lib/docFlow.js", "src/lib/pricing.js"]
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(frontSources, /rpc\(\s*["']secoto_compute_/);
+});
+
 test("la migration 024 rend les disponibilités facultatives sans casser leur cohérence", () => {
   assert.match(migration024, /p_pickup_earliest_at timestamptz default null/);
   assert.match(migration024, /p_proposed_price_grouped numeric default null/);
