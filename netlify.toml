@@ -12,6 +12,16 @@
 [functions."retry-push-outbox"]
   schedule = "* * * * *"
 
+# Migration 030 : devis, verrous de capture expirés, libérations et
+# remboursements des commandes à la demande, suspension des abonnements.
+[functions."od-maintenance"]
+  schedule = "* * * * *"
+
+# Migration 032 : heure estimée d'arrivée des missions suivies en direct et
+# purge horaire des positions devenues inutiles.
+[functions."live-eta"]
+  schedule = "*/2 * * * *"
+
 [functions."retry-account-deletions"]
   schedule = "*/5 * * * *"
 

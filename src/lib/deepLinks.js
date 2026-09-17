@@ -20,6 +20,10 @@ export const ALLOWED_APP_SCREENS = Object.freeze([
   "transporters",
   "notifications",
   "legal",
+  // Migration 030 : proposition de mission, suivi en direct, abonnement.
+  "offre",
+  "suivi",
+  "abonnement",
 ]);
 
 const MISSION_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -128,11 +132,16 @@ export function parseSecotoDeepLink(
     query.get("mission") || query.get("missionId"),
   );
 
-  return {
+  const offerId = cleanMissionId(query.get("offre") || query.get("offer"));
+  const orderId = cleanMissionId(query.get("commande"));
+  const link = {
     kind: "navigation",
     screen: screenFromParams(query),
     missionId,
   };
+  if (offerId) link.offerId = offerId;
+  if (orderId) link.orderId = orderId;
+  return link;
 }
 
 export function buildMissionPath(missionId, screen = "courses") {

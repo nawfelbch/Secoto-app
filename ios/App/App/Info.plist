@@ -63,8 +63,8 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SECOTO accède à vos photos pour joindre états des lieux et justificatifs.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Avec votre accord, SECOTO enregistre une position ponctuelle lors de la prise en charge, d’un incident ou de la livraison. Aucun suivi permanent.</string>
+	<string>Avec votre accord, SECOTO enregistre une position ponctuelle lors de la prise en charge, d’un incident ou de la livraison. Si vous activez le suivi en direct sur une mission, votre position est partagée avec le client de cette mission pendant le transport, jusqu’à la livraison, et uniquement lorsque l’application est ouverte.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SECOTO utilise uniquement une position ponctuelle au premier plan pour documenter une étape de mission ; aucun suivi en arrière-plan.</string>
+	<string>SECOTO utilise votre position au premier plan : étapes de mission et, si vous l’activez, suivi en direct de la mission en cours jusqu’à la livraison. Aucun suivi en arrière-plan.</string>
 </dict>
 </plist>

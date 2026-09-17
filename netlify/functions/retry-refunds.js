@@ -36,6 +36,8 @@ const handler = async () => {
     .from("payments")
     .select("id,provider_intent_id,amount_cents,refunded_amount_cents")
     .eq("status", "refund_pending")
+    // Les commandes à la demande (030) sont remboursées par od-maintenance.
+    .in("purpose", ["commission_plateau", "convoyage_livraison"])
     .not("provider_intent_id", "is", null)
     .order("refund_requested_at", { ascending: true })
     .limit(20);

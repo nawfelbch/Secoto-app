@@ -12,6 +12,11 @@ const FUNCTIONS = [
   "send-mission-notifications.js",
   "send-transactional-email.js",
   "stripe-webhook.js",
+  "quote-transport.js",
+  "offer-accept.js",
+  "od-maintenance.js",
+  "live-eta.js",
+  "subscription-checkout.js",
 ];
 
 test("les fonctions Netlify utilisent le runtime moderne avec le wrapper Lambda", () => {

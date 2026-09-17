@@ -40,3 +40,15 @@ dist-ssr
 keystore.properties
 key.properties
 android/keystore*
+
+# Configuration native injectée par les consoles/CI — jamais dans Git.
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+GoogleService-Info.plist
+*.p8
+*.p12
+*.mobileprovision
+firebase-service-account*.json
+
+# Rendu de contrôle des écrans (tests/smoke)
+tests/smoke/out/

@@ -78,7 +78,7 @@ const handler = async (event) => {
 
   const { data: payment, error: paymentError } = await admin
     .from("payments")
-    .select("id,mission_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted")
+    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method")
     .eq("id", paymentId)
     .single();
   if (paymentError || !payment) return response(404, { error: "payment_not_found" });
@@ -117,9 +117,25 @@ const handler = async (event) => {
     await admin.from("accounts").update({ stripe_customer_id: customerId }).eq("id", userId);
   }
 
-  const description = payment.purpose === "commission_plateau"
-    ? "SECOTO — reservation de votre creneau (frais de mise en relation)"
-    : "SECOTO — prestation de convoyage";
+  const description = {
+    commission_plateau: "SECOTO — reservation de votre creneau (frais de mise en relation)",
+    convoyage_livraison: "SECOTO — prestation de convoyage",
+    od_convoyage: "SECOTO — convoyage a la demande",
+    od_plateau_commission: "SECOTO — frais de mise en relation (transport sur plateau)",
+    subscription_extension: "SECOTO — extension de forfait",
+  }[payment.purpose] || "SECOTO — prestation";
+  // Migration 030 : autorisation seule, capture après attribution confirmée.
+  const captureMethod = payment.capture_method === "manual" ? "manual" : "automatic";
+  const returnScreen = payment.order_id ? "courses" : payment.purpose === "subscription_extension" ? "abonnement" : "paiement";
+  const returnQuery = payment.order_id
+    ? `commande=${encodeURIComponent(payment.order_id)}`
+    : payment.mission_id ? `mission=${encodeURIComponent(payment.mission_id)}` : "";
+  const intentMetadata = {
+    secoto_payment_id: payment.id,
+    secoto_mission_id: payment.mission_id || "",
+    secoto_order_id: payment.order_id || "",
+    secoto_purpose: payment.purpose,
+  };
 
   try {
     // 4a. Sur le web, pas de feuille native : session Stripe Checkout hébergée.
@@ -139,15 +155,12 @@ const handler = async (event) => {
           }],
           payment_intent_data: {
             description,
-            metadata: {
-              secoto_payment_id: payment.id,
-              secoto_mission_id: payment.mission_id,
-              secoto_purpose: payment.purpose,
-            },
+            capture_method: captureMethod,
+            metadata: intentMetadata,
           },
           metadata: { secoto_payment_id: payment.id },
-          success_url: `${SECOTO_APP_URL}/?ecran=paiement&mission=${encodeURIComponent(payment.mission_id)}&paiement=ok`,
-          cancel_url: `${SECOTO_APP_URL}/?ecran=paiement&mission=${encodeURIComponent(payment.mission_id)}&paiement=annule`,
+          success_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`,
+          cancel_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`,
         },
         { idempotencyKey: `secoto-checkout-${payment.id}` },
       );
@@ -186,12 +199,9 @@ const handler = async (event) => {
           customer: customerId,
           description,
           automatic_payment_methods: { enabled: true },
+          capture_method: captureMethod,
           setup_future_usage: "on_session",
-          metadata: {
-            secoto_payment_id: payment.id,
-            secoto_mission_id: payment.mission_id,
-            secoto_purpose: payment.purpose,
-          },
+          metadata: intentMetadata,
         },
         { idempotencyKey: `secoto-payment-${payment.id}` },
       );
@@ -234,7 +244,8 @@ const handler = async (event) => {
       ephemeralKey,
       amountCents: payment.amount_cents,
       currency: payment.currency || "eur",
-      returnUrl: `${SECOTO_APP_URL}/?ecran=paiement&mission=${encodeURIComponent(payment.mission_id)}`,
+      captureMethod,
+      returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
     });
   } catch (error) {
     await admin

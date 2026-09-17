@@ -6,6 +6,7 @@ import { createSign, timingSafeEqual } from "node:crypto";
 import http2 from "node:http2";
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
+import { offerPushCopy } from "../lib/secoto-server.js";
 
 const {
   // ⚠ NE PAS « corriger » cette valeur en fr.secototransport.app.
@@ -36,6 +37,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const ALLOWED_SCREENS = new Set([
   "courses", "documents", "frais", "available", "assigned",
   "applications", "requests", "paiement", "transporters",
+  // Migration 030.
+  "offre", "suivi", "abonnement",
 ]);
 let firebaseTokenCache = null;
 
@@ -77,6 +80,10 @@ export function genericPushCopy(type) {
     payment_failed: "Un paiement SECOTO n’a pas abouti.",
     cancellation: "Une mission SECOTO a été annulée.",
     new_account: "Une nouvelle inscription attend une vérification dans SECOTO.",
+    mission_offer: "Une mission correspond à vos préférences. Ouvrez SECOTO pour la consulter.",
+    order_update: "Votre commande SECOTO a été mise à jour.",
+    live_tracking: "Le suivi de votre véhicule a été mis à jour.",
+    subscription: "Votre espace abonnement SECOTO a été mis à jour.",
     transporter_status: "Le statut d’un compte SECOTO a été mis à jour.",
   };
   return {
@@ -103,7 +110,7 @@ export const CASH_CHANNEL_ID = "secoto-cash-register-v1";
 export const DEFAULT_CHANNEL_ID = "secoto-missions";
 
 const CASH_EVENTS = {
-  transporter: new Set(["new_course", "course_assigned", "payment"]),
+  transporter: new Set(["new_course", "course_assigned", "payment", "mission_offer"]),
   admin: new Set(["payment", "new_request"]),
 };
 
@@ -134,6 +141,10 @@ export function nativeNotificationPresentation(notification = {}, preferences = 
 }
 
 export function notificationRoute(notification) {
+  // Migration 030 : une proposition de mission ouvre directement l'offre.
+  if (notification.type === "mission_offer" && UUID_PATTERN.test(notification.ref_id || "")) {
+    return `/?${new URLSearchParams({ ecran: "offre", offre: notification.ref_id }).toString()}`;
+  }
   const screen = ALLOWED_SCREENS.has(notification.push_screen)
     ? notification.push_screen
     : notification.type === "document"
@@ -214,6 +225,7 @@ async function sendFcm(token, push, route, missionId, presentation) {
           data: {
             screen: route.includes("ecran=") ? new URL(route, "https://app.secoto-transport.fr").searchParams.get("ecran") : "courses",
             missionId: missionId || "",
+            offerId: new URL(route, "https://app.secoto-transport.fr").searchParams.get("offre") || "",
             url: route,
           },
           android: {
@@ -301,6 +313,7 @@ function sendApns(token, push, route, missionId, presentation) {
       },
       screen: new URL(route, "https://app.secoto-transport.fr").searchParams.get("ecran") || "courses",
       missionId: missionId || "",
+      offerId: new URL(route, "https://app.secoto-transport.fr").searchParams.get("offre") || "",
       url: route,
     }));
   });
@@ -341,6 +354,26 @@ async function sendToDevice(device, push, route, missionId, presentation) {
   throw new Error("UNKNOWN_PUSH_PROVIDER");
 }
 
+// Résumé d'offre SANS donnée personnelle du client ni prix client.
+export async function loadOfferSummary(admin, offerId, partnerId) {
+  const { data: offer } = await admin
+    .from("transport_offers")
+    .select("id,partner_id,partner_pay_cents,order_id")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (!offer || offer.partner_id !== partnerId) return null;
+  const { data: order } = await admin.from("transport_orders").select("quote_id").eq("id", offer.order_id).maybeSingle();
+  if (!order) return null;
+  const { data: quote } = await admin.from("transport_quotes").select("pickup,delivery,vehicle").eq("id", order.quote_id).maybeSingle();
+  if (!quote) return null;
+  return {
+    partner_pay_cents: offer.partner_pay_cents,
+    pickup: { city: quote.pickup?.city, postcode: quote.pickup?.postcode },
+    delivery: { city: quote.delivery?.city, postcode: quote.delivery?.postcode },
+    vehicle_model: quote.vehicle?.model,
+  };
+}
+
 export const dispatchMissionNotifications = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SECOTO_PUSH_WEBHOOK_SECRET) {
@@ -374,7 +407,7 @@ export const dispatchMissionNotifications = async (event) => {
 
   const { data: notification, error: notificationError } = await admin
     .from("notifications")
-    .select("id,account_id,type,mission_id,push_screen,audience")
+    .select("id,account_id,type,mission_id,push_screen,audience,ref_id")
     .eq("id", outbox.notification_id)
     .single();
   if (notificationError || !notification) {
@@ -384,6 +417,27 @@ export const dispatchMissionNotifications = async (event) => {
       p_error: "notification_not_found",
     });
     return response(500, { error: "notification_not_found" });
+  }
+
+  // Migration 030 : préférences de diffusion du partenaire.
+  let offerPrivacy = "masked";
+  if (notification.type === "mission_offer") {
+    const { data: prefs } = await admin
+      .from("partner_dispatch_preferences")
+      .select("notify_offline,lockscreen_privacy")
+      .eq("account_id", notification.account_id)
+      .maybeSingle();
+    if (!prefs?.notify_offline) {
+      // Réglage « notifications hors connexion » désactivé : la proposition
+      // reste visible dans l'application (popup), sans notification push.
+      await admin.rpc("secoto_complete_push_outbox", {
+        p_outbox_id: outboxId,
+        p_success: true,
+        p_error: "offline_push_disabled_by_partner",
+      });
+      return response(200, { sent: 0, skipped: "offline_push_disabled_by_partner" });
+    }
+    offerPrivacy = prefs.lockscreen_privacy === "detailed" ? "detailed" : "masked";
   }
 
   const { data: devices, error: deviceError } = await admin
@@ -473,7 +527,11 @@ export const dispatchMissionNotifications = async (event) => {
     return response(500, { error: "delivery_claim_failed" });
   }
 
-  const push = genericPushCopy(notification.type);
+  let push = genericPushCopy(notification.type);
+  if (notification.type === "mission_offer" && offerPrivacy === "detailed" && notification.ref_id) {
+    const offer = await loadOfferSummary(admin, notification.ref_id, notification.account_id);
+    push = offerPushCopy(offer, offer ? "detailed" : "masked");
+  }
   const route = notificationRoute(notification);
 
   // Le son de caisse est une préférence du destinataire. Une lecture absente

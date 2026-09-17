@@ -212,10 +212,19 @@ export async function initializePushListeners({ onNotification, onOpen } = {}) {
   });
   const action = await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
     const data = notification?.data || {};
+    let offerId = data.offerId || null;
+    if (!offerId && typeof data.url === "string") {
+      try {
+        offerId = new URL(data.url, "https://app.secoto-transport.fr").searchParams.get("offre");
+      } catch {
+        offerId = null;
+      }
+    }
     onOpen?.({
       kind: "navigation",
       screen: data.screen || "courses",
       missionId: data.missionId || data.mission_id || null,
+      ...(offerId ? { offerId } : {}),
     });
   });
   return async () => {

@@ -109,6 +109,16 @@ import AdminMissionPilot, {
   ManualPricingFields,
 } from "./AdminMissionControls";
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
+// Migration 030-032 : transport à la demande, offres partenaires, abonnement, suivi.
+import OnDemandBooking from "./ondemand/OnDemandBooking";
+import MyOrdersPanel from "./ondemand/MyOrdersPanel";
+import SubscriptionPanel from "./ondemand/SubscriptionPanel";
+import AdminOnDemand from "./ondemand/AdminOnDemand";
+import LiveSharingControl from "./ondemand/LiveSharingControl";
+import LiveTrackingView from "./ondemand/LiveTrackingView";
+import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
+import { featureFlags } from "./lib/onDemand";
+import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
   EMPTY_APPLICATION_OFFER,
@@ -1634,6 +1644,11 @@ export default function App() {
   // Migration 024 : missions qui n'avanceront pas seules (vue admin dediee).
   const [adminAlerts, setAdminAlerts] = useState([]);
   const [claimShare, setClaimShare] = useState(null);
+  // Migration 030 : fonctionnalités activées par l'administrateur (toutes
+  // désactivées par défaut : aucun écran n'apparaît tant qu'elles sont fermées).
+  const [flags, setFlags] = useState({});
+  const [focusOfferId, setFocusOfferId] = useState(null);
+  const [clientTrackingMissionId, setClientTrackingMissionId] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
   const [claimStatus, setClaimStatus] = useState("idle");
   const [claimError, setClaimError] = useState("");
@@ -1695,6 +1710,11 @@ export default function App() {
   const accountRef = useRef(null);
   useEffect(() => { accountRef.current = account; }, [account]);
 
+  useEffect(() => {
+    if (!account?.id) return;
+    featureFlags().then((value) => setFlags(value || {})).catch(() => setFlags({}));
+  }, [account?.id]);
+
 
   const actionLocksRef = useRef(new Set());
   const accountLoadGenerationRef = useRef(0);
@@ -1740,6 +1760,7 @@ export default function App() {
       else if (screen === "paiement") setAdminTab("assigned");
       else if (screen === "notifications") setAdminTab("notifications");
       else if (screen === "legal") setAdminTab("legal");
+      else if (screen === "offre" || screen === "suivi" || screen === "abonnement") setAdminTab("ondemand");
       else setAdminTab("published");
     } else if (currentAccount.role === "transporter") {
       if (screen === "documents") setTransporterTab("documents");
@@ -1751,6 +1772,10 @@ export default function App() {
       else if (screen === "contact") setTransporterTab("contact");
       else if (screen === "notifications") setTransporterTab("notifications");
       else if (screen === "legal") setTransporterTab("legal");
+      else if (screen === "offre") {
+        setTransporterTab("offres");
+        if (link.offerId) setFocusOfferId(link.offerId);
+      }
       else setTransporterTab("available");
     } else {
       if (screen === "documents") setClientTab("documents");
@@ -1761,7 +1786,12 @@ export default function App() {
       else if (screen === "paiement") {
         if (link.missionId) setPayingMissionId(link.missionId);
         setClientTab("paiement");
-      } else setClientTab("courses");
+      } else if (screen === "abonnement") setClientTab("abonnement");
+      else if (screen === "suivi") {
+        if (link.missionId) setClientTrackingMissionId(link.missionId);
+        setClientTab("courses");
+      } else if (link.orderId) setClientTab("orders");
+      else setClientTab("courses");
     }
     if (link.missionId) setFocusMissionId(link.missionId);
     pendingDeepLinkRef.current = null;
@@ -4046,6 +4076,13 @@ export default function App() {
             { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
             { key: "documents", label: "Mes documents", icon: "inbox", count: docsToSignCount || undefined },
             { key: "paiement", label: "Paiement", icon: "check", count: missionsAwaitingPayment.length || undefined },
+            ...(flags.auto_pricing || flags.od_payments
+              ? [
+                { key: "ondemand", label: "Transport à la demande", icon: "plus" },
+                { key: "orders", label: "Mes commandes", icon: "truck" },
+              ]
+              : []),
+            ...(flags.subscriptions ? [{ key: "abonnement", label: "Abonnement pro", icon: "bank" }] : []),
           ] },
           { title: "Compte", items: [
             { key: "contact", label: "Contact SECOTO", icon: "phone" },
@@ -4068,6 +4105,7 @@ export default function App() {
             { key: "published", label: "Publiées", icon: "megaphone", count: publishedMissions.length },
             { key: "assigned", label: "Attribuées", icon: "truck", count: activeAssignedMissions.length },
             { key: "completed", label: "Terminées", icon: "check", count: completedOrDeliveredMissions.length },
+            { key: "ondemand", label: "À la demande", icon: "megaphone" },
           ] },
           { title: "Flux entrant", items: [
             { key: "requests", label: "Demandes", icon: "inbox", count: pendingRequests.length },
@@ -4091,6 +4129,12 @@ export default function App() {
         { title: "Missions", items: [
           { key: "available", label: "Disponibles", icon: "megaphone", count: (account.role === "admin" ? publishedMissions : publicMissions).length },
           { key: "assigned", label: "Mes missions", icon: "truck", count: assignedToCurrentTransporter.length },
+          ...(flags.dispatch_notifications
+            ? [
+              { key: "offres", label: "Missions proposées", icon: "hand" },
+              { key: "disponibilite", label: "Ma disponibilité", icon: "settings" },
+            ]
+            : []),
         ] },
         { title: "Mon activité", items: [
           { key: "applications", label: "Mes candidatures", icon: "hand", count: currentTransporterApplications.length },
@@ -4257,6 +4301,18 @@ export default function App() {
         />
       )}
 
+      {flags.dispatch_notifications && account.role === "transporter" && (
+        <OfferPopupHost
+          accountId={account.id}
+          suppressed={Boolean(docModal) || navOpen}
+          onOpenMission={(missionId) => {
+            if (missionId) setFocusMissionId(missionId);
+            setTransporterTab("assigned");
+            loadAllData(account);
+          }}
+        />
+      )}
+
       <header className="topbar">
         <button className="hamburger" aria-label="Ouvrir le menu" onClick={() => setNavOpen(true)}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -4365,6 +4421,10 @@ export default function App() {
                   </button>
                 )}
 
+                {flags.live_tracking && clientTrackingMissionId && (
+                  <LiveTrackingView missionId={clientTrackingMissionId} onClose={() => setClientTrackingMissionId(null)} />
+                )}
+
                 {clientMissions.length === 0 && (
                   <div className="empty-state"><strong>Aucune course pour le moment</strong>Publiez votre première demande de transport en quelques secondes.</div>
                 )}
@@ -4386,6 +4446,11 @@ export default function App() {
                         {mission.proposedPrice ? <p><strong>Budget indiqué :</strong> {mission.proposedPrice} €</p> : null}
                       </div>
                       <ClientTrackingTimeline mission={mission} events={getTrackingEventsForMission(mission.id)} getPhotos={getTrackingPhotosForEvent} />
+                      {flags.live_tracking && mission.status === "assigned" && clientTrackingMissionId !== mission.id && (
+                        <div className="actions-row">
+                          <button className="btn ghost small" type="button" onClick={() => setClientTrackingMissionId(mission.id)}>Suivre en direct</button>
+                        </div>
+                      )}
                       {mission.status === "published" && (
                         <div className="actions-row">
                           <button className="btn danger small" onClick={() => deleteMission(mission.id, { confirmLabel: "Supprimer cette course ?" })}>Supprimer ma course</button>
@@ -4451,6 +4516,24 @@ export default function App() {
                   </p>
                 </div>
               )}
+            </section>
+          )}
+
+          {clientTab === "ondemand" && (
+            <section className="layout">
+              <OnDemandBooking flags={flags} onBooked={() => { setClientTab("orders"); loadAllData(account); }} />
+            </section>
+          )}
+
+          {clientTab === "orders" && (
+            <section className="layout">
+              <MyOrdersPanel flags={flags} focusMissionId={clientTrackingMissionId} />
+            </section>
+          )}
+
+          {clientTab === "abonnement" && (
+            <section className="layout">
+              <SubscriptionPanel flags={flags} />
             </section>
           )}
 
@@ -4756,6 +4839,12 @@ export default function App() {
             </section>
           )}
 
+          {adminTab === "ondemand" && (
+            <section className="layout">
+              <AdminOnDemand flags={flags} transporters={transporters} onFlagsChange={(value) => setFlags(value || {})} />
+            </section>
+          )}
+
           {adminTab === "frais" && (
             <section className="layout">
               <div className="panel-full">
@@ -4920,6 +5009,7 @@ export default function App() {
                               </button>
                             </div>
                             {renderTrackingTimeline(mission)}
+                            {flags.live_tracking && <LiveSharingControl mission={mission} />}
                             {renderFieldActions(mission)}
                           </article>
                         ))}
@@ -4934,6 +5024,26 @@ export default function App() {
                   );
                 })()}
               </div>
+            </section>
+          )}
+
+          {transporterTab === "offres" && (
+            <section className="layout">
+              <OffersPanel
+                focusOfferId={focusOfferId}
+                onOpenMission={(missionId) => {
+                  setFocusOfferId(null);
+                  if (missionId) setFocusMissionId(missionId);
+                  setTransporterTab("assigned");
+                  loadAllData(account);
+                }}
+              />
+            </section>
+          )}
+
+          {transporterTab === "disponibilite" && (
+            <section className="layout">
+              <DispatchPreferencesPanel transporterType={account.transporterType} />
             </section>
           )}
 
