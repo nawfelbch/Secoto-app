@@ -1,0 +1,71 @@
+feat(030): transport a la demande, abonnement professionnel et suivi de mission
+
+Trois migrations additives (030 devis/commandes/paiement/attribution, 031
+abonnement, 032 suivi de position), les fonctions serveur associees et les
+ecrans client, partenaire et administration. TOUT EST LIVRE DESACTIVE : les
+cinq interrupteurs de public.secoto_feature_flags valent false, aucun parcours
+existant ne change tant qu'ils ne sont pas ouverts.
+
+PRIX
+- barèmes versionnes (public.pricing_grids) : le convoyage v1 reprend a
+  l'identique le bareme de la migration 009 (1,00 / 0,90 / 0,88 EUR/km,
+  plancher 115 EUR, convoyeur 0,55 EUR/km, frais reels sur justificatifs)
+- prix automatique borne aux voitures et a 600 km, marge minimale 15 %
+  (analyse SECOTO-025 : bareme deficitaire au-dela sur utilitaire)
+- plateau : bareme livre en brouillon NON activable tant que la remuneration
+  transporteur n'y est pas definie -> devis manuel
+- distance routiere calculee par le serveur ; sans fournisseur d'itineraire
+  configure, devis manuel. Aucune distance a vol d'oiseau, aucun peage invente
+- prix, remuneration partenaire et marge calcules en base ; le telephone
+  n'envoie aucun montant ; chaque devis garde sa version et sa validite
+
+PAIEMENT ET RESERVATION
+- autorisation puis capture apres attribution confirmee quand la prise en
+  charge est proche ; encaissement immediat et remboursement integral
+  automatique au-dela de la fenetre d'autorisation. Le comportement reel est
+  ecrit dans l'interface
+- etats du paiement separes des etats du transport (six jalons distincts)
+- webhooks signes, machine d'etat monotone et idempotente : un evenement
+  rejoue ou recu dans le desordre ne fait jamais regresser un paiement
+- pas de double facturation : sur une mission prepayee, le paiement a la
+  livraison ne facture plus que les frais reels valides
+
+ATTRIBUTION
+- offres diffusees aux seuls partenaires compatibles, disponibles et a jour de
+  leurs documents ; preferences de zones, vehicules, equipements et jours
+- acceptation atomique : une seule gagne, les autres voient
+  « Mission deja attribuee » ; un echec de capture ne laisse jamais une
+  mission faussement confirmee ; verrou expirant verifie chez Stripe
+- aucun refus penalise, aucune obligation d'horaire ni de connexion
+- notification : depart, arrivee, modele et remuneration, avec apercu masque
+  ou detaille au choix du partenaire ; jamais les coordonnees du client
+
+ABONNEMENT
+- eligibilite : questionnaire, import XLSX/CSV controle (formules jamais
+  evaluees, macros refusees, doublons et incoherences signales, correction
+  avant transmission), historique prive
+- proposition simulee en utilisation complete : l'envoi est refuse si la marge
+  du pire cas passe sous le seuil. Aucun forfait illimite
+- quotas reserves atomiquement, restitues a l'annulation et quand aucun
+  partenaire ne confirme ; extension chiffree et acceptee avant tout engagement
+
+SUIVI
+- active par le partenaire apres « Vehicule recupere », avec consentement,
+  pour cette mission seulement ; arret automatique a la livraison, a
+  l'annulation et a la reattribution
+- position ancienne signalee comme telle, jamais animee comme actuelle ;
+  position du telephone du transporteur, jamais d'un traceur dans le vehicule
+- acces limite au client concerne, au partenaire affecte et aux
+  administrateurs ; conservation 30 jours apres l'arret, 90 jours au maximum
+
+VERIFICATIONS
+- 166 tests au vert (13 ajoutes), lint et build propres
+- 16 tests d'integration base de donnees sur PostgreSQL 17 avec connexions
+  concurrentes reelles : acceptations simultanees, webhooks rejoues et en
+  desordre, echec de capture, absence de partenaire, quotas simultanes,
+  cloisonnement des prix et des documents, GPS, non-regression
+- rendu de controle des douze ecrans (tests/smoke)
+- retour arriere verifie : supabase/rollback/030-032_rollback.sql
+
+Face ID, notifications push reelles, Apple Pay / Google Pay et GPS n'ont PAS
+ete testes sur appareil : voir deliverables/secoto-030-transport-abonnement-suivi.md
