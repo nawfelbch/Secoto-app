@@ -53,8 +53,11 @@ export async function authenticatedUserId(accessToken, env = process.env) {
 
 // ----------------------------------------------------------------------------
 // Itinéraire routier. Fournisseurs pris en charge :
-//   ROUTING_PROVIDER=ors   + ORS_API_KEY        (openrouteservice.org)
+//   ROUTING_PROVIDER=ors   + ORS_API_KEY        (openrouteservice, HeiGIT)
 //   ROUTING_PROVIDER=osrm  + OSRM_URL           (instance OSRM auto-hébergée)
+// L'ancienne adresse api.openrouteservice.org a été coupée le 24 août 2026 :
+// la base par défaut est api.heigit.org/openrouteservice, surchargeable par
+// ORS_BASE_URL si HeiGIT la fait encore évoluer. La clé API est inchangée.
 // Sans fournisseur configuré : null → devis manuel. Jamais de distance
 // « à vol d'oiseau » présentée comme une distance routière.
 // ----------------------------------------------------------------------------
@@ -72,7 +75,8 @@ export async function computeRoute(from, to, { env = process.env, fetchImpl = fe
   try {
     if (provider === "ors" && env.ORS_API_KEY) {
       const orsProfile = profile === "hgv" ? "driving-hgv" : "driving-car";
-      const url = `https://api.openrouteservice.org/v2/directions/${orsProfile}?start=${Number(from.lng)},${Number(from.lat)}&end=${Number(to.lng)},${Number(to.lat)}`;
+      const base = String(env.ORS_BASE_URL || "https://api.heigit.org/openrouteservice").replace(/\/+$/, "");
+      const url = `${base}/v2/directions/${orsProfile}?start=${Number(from.lng)},${Number(from.lat)}&end=${Number(to.lng)},${Number(to.lat)}`;
       const res = await fetchImpl(url, { headers: { Authorization: env.ORS_API_KEY, Accept: "application/geo+json" }, signal: controller.signal });
       if (!res.ok) return null;
       const body = await res.json();

@@ -47,12 +47,22 @@ test("itinéraire : ORS et OSRM convertis en km / minutes, erreurs → null", as
   const ors = await lib.computeRoute(A, B, {
     env: { ROUTING_PROVIDER: "ors", ORS_API_KEY: "k" },
     fetchImpl: async (url, opts) => {
-      assert.match(url, /driving-car\?start=2.29,48.79&end=4.83,45.76/);
+      // L'ancienne adresse api.openrouteservice.org est coupée depuis le 24/08/2026.
+      assert.match(url, /^https:\/\/api\.heigit\.org\/openrouteservice\/v2\/directions\/driving-car\?start=2.29,48.79&end=4.83,45.76$/);
       assert.equal(opts.headers.Authorization, "k");
       return { ok: true, json: async () => ({ features: [{ properties: { summary: { distance: 465321, duration: 16200 } } }] }) };
     },
   });
   assert.deepEqual(ors, { distance_km: 465.3, duration_min: 270, provider: "ors-driving-car" });
+  // Base surchargeable si HeiGIT change encore d'adresse.
+  const custom = await lib.computeRoute(A, B, {
+    env: { ROUTING_PROVIDER: "ors", ORS_API_KEY: "k", ORS_BASE_URL: "https://exemple.test/ors/" },
+    fetchImpl: async (url) => {
+      assert.equal(url, "https://exemple.test/ors/v2/directions/driving-car?start=2.29,48.79&end=4.83,45.76");
+      return { ok: true, json: async () => ({ features: [{ properties: { summary: { distance: 1000, duration: 60 } } }] }) };
+    },
+  });
+  assert.equal(custom.distance_km, 1);
   const osrm = await lib.computeRoute(A, B, {
     env: { ROUTING_PROVIDER: "osrm", OSRM_URL: "https://osrm.test/" },
     fetchImpl: async () => ({ ok: true, json: async () => ({ code: "Ok", routes: [{ distance: 1000, duration: 120 }] }) }),
