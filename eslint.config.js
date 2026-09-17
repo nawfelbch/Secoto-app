@@ -7,6 +7,8 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores([
     'dist',
+    // Rendu de contrôle des écrans : sortie de build, jamais du code source.
+    'tests/smoke/out',
     'android/app/build',
     'android/app/src/main/assets/public',
     'ios/App/App/public',
