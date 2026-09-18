@@ -1,5 +1,5 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
-import { withCors } from "../lib/secoto-server.js";
+import { MANAGED_PAYMENTS_ENABLED, createWithManagedPaymentsFallback, withCors } from "../lib/secoto-server.js";
 // SECOTO — création de l'intention de paiement Stripe.
 // ----------------------------------------------------------------------------
 // Le client n'envoie QUE l'identifiant d'une ligne public.payments déjà créée
@@ -33,7 +33,10 @@ const {
   STRIPE_AUTOMATIC_TAX = "false",
 } = process.env;
 
-const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
+// Managed Payments impose automatic_tax[enabled]=true. Les deux reglages sont
+// donc lies : on ne peut pas laisser le compte dans un etat que Stripe refuse.
+const AUTOMATIC_TAX_ENABLED =
+  MANAGED_PAYMENTS_ENABLED || String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
 
 // Une cle d'idempotence Stripe est liee A VIE aux parametres de son premier
 // usage : rejouee avec des parametres differents, Stripe refuse la requete
@@ -167,8 +170,9 @@ const handler = async (event) => {
     // 4a. Sur le web, pas de feuille native : session Stripe Checkout hébergée.
     //     Apple Pay et Google Pay y restent disponibles via le navigateur.
     if (platform === "web") {
-      const session = await stripe.checkout.sessions.create(
+      const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
         {
+          ...managed,
           mode: "payment",
           customer: customerId,
           line_items: [{
@@ -202,12 +206,13 @@ const handler = async (event) => {
             captureMethod,
             taxCode: STRIPE_TAX_CODE,
             automaticTax: AUTOMATIC_TAX_ENABLED,
+            managedPayments: MANAGED_PAYMENTS_ENABLED,
             customerId,
             returnScreen,
             returnQuery,
           }),
         },
-      );
+      ));
 
       await admin
         .from("payments")
@@ -236,8 +241,9 @@ const handler = async (event) => {
       }
     }
     if (!intent) {
-      intent = await stripe.paymentIntents.create(
+      intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
         {
+          ...managed,
           amount: payment.amount_cents,
           currency: payment.currency || "eur",
           customer: customerId,
@@ -254,9 +260,10 @@ const handler = async (event) => {
             description,
             captureMethod,
             customerId,
+            managedPayments: MANAGED_PAYMENTS_ENABLED,
           }),
         },
-      );
+      ));
     }
 
     await admin

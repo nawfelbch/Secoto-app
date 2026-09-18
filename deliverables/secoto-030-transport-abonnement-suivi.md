@@ -224,6 +224,7 @@ sont rétablis, les deux barèmes sont actifs, la fenêtre passe à 48 heures.
 | `VITE_APPLE_PAY_MERCHANT_ID` | build | Apple Pay masqué |
 | `STRIPE_TAX_CODE` | Netlify (facultatif) | par défaut `txcd_20030000` (« General - Services ») |
 | `STRIPE_AUTOMATIC_TAX` | Netlify (facultatif) | `false` par défaut : franchise en base, aucune TVA ajoutée |
+| `STRIPE_MANAGED_PAYMENTS` | Netlify (facultatif) | `false` par défaut : SECOTO reste vendeur et émetteur de la facture |
 
 **Stripe Tax.** Le compte Stripe de SECOTO a le calcul automatique de taxe
 activé. Stripe refuse alors toute session de paiement dont l'article n'a pas de
@@ -234,6 +235,16 @@ automatique : SECOTO est en franchise en base, rien ne doit être ajouté au pri
 affiché. Le jour où SECOTO sort de la franchise, passer `STRIPE_AUTOMATIC_TAX`
 à `true` suffit — la TVA sera alors **comprise** dans le prix annoncé, jamais
 ajoutée par-dessus.
+
+**Managed Payments.** Stripe l'active par défaut sur le compte SECOTO. Dans ce
+mode, Stripe devient redevable de la taxe et impose `automatic_tax[enabled]=true` :
+il ajouterait de la TVA au prix annoncé et deviendrait l'émetteur de la facture,
+ce qui est incompatible avec la franchise en base. Les trois créations Stripe
+(session de paiement, intention de paiement, abonnement) passent donc
+`managed_payments[enabled]=false`. Si un compte refuse ce paramètre, la requête
+est rejouée une fois sans lui plutôt que d'échouer. Les deux réglages restent
+liés : activer `STRIPE_MANAGED_PAYMENTS` active aussi le calcul de taxe, sans
+quoi Stripe refuserait la requête.
 
 **Clés d'idempotence.** Une clé Stripe est liée à vie aux paramètres de son
 premier usage. Construite sur le seul identifiant de paiement, elle condamnait

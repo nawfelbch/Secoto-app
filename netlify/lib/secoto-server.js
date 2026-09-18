@@ -231,3 +231,40 @@ export function withCors(handler) {
     return { ...reponse, headers: { ...(reponse?.headers || {}), ...entetes } };
   };
 }
+
+// ---------------------------------------------------------------------------
+// Stripe « Managed Payments ». Active par defaut sur le compte SECOTO, ce mode
+// fait de Stripe le redevable de la taxe et impose automatic_tax[enabled]=true.
+// SECOTO est en franchise en base (article 293 B du CGI) : aucune taxe ne doit
+// s'ajouter au prix annonce, et c'est SECOTO qui facture. On le desactive donc
+// requete par requete, sans dependre d'un reglage du tableau de bord.
+// STRIPE_MANAGED_PAYMENTS=true le reactive le jour ou SECOTO sort de la
+// franchise ; le calcul automatique de taxe devient alors obligatoire.
+// ---------------------------------------------------------------------------
+export const MANAGED_PAYMENTS_ENABLED =
+  String(process.env.STRIPE_MANAGED_PAYMENTS || "false").toLowerCase() === "true";
+
+export function managedPaymentsParams() {
+  return MANAGED_PAYMENTS_ENABLED ? {} : { managed_payments: { enabled: false } };
+}
+
+// Les comptes dont la version d'API ne connait pas ce parametre le refusent.
+// Plutot que d'echouer, on retente une seule fois sans lui : le paiement passe,
+// et le motif reste trace cote serveur.
+export function isUnknownParameterError(error, parametre) {
+  const message = String(error?.message || "");
+  const param = String(error?.param || error?.raw?.param || "");
+  return (
+    (param.includes(parametre) || message.includes(parametre))
+    && /unknown parameter|unrecognized parameter|no such parameter|not a valid/i.test(message)
+  );
+}
+
+export async function createWithManagedPaymentsFallback(creer) {
+  try {
+    return await creer(managedPaymentsParams());
+  } catch (error) {
+    if (!isUnknownParameterError(error, "managed_payments")) throw error;
+    return creer({});
+  }
+}

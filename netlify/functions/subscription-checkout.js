@@ -3,7 +3,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Le montant vient de la proposition ACCEPTÉE en base, jamais du téléphone.
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
-import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, withCors, MANAGED_PAYMENTS_ENABLED, createWithManagedPaymentsFallback } from "../lib/secoto-server.js";
 
 const { SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
@@ -11,7 +11,8 @@ const {
   STRIPE_TAX_CODE = "txcd_20030000",
   STRIPE_AUTOMATIC_TAX = "false",
 } = process.env;
-const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
+const AUTOMATIC_TAX_ENABLED =
+  MANAGED_PAYMENTS_ENABLED || String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
 
 // Voir create-payment-intent : l'empreinte des parametres evite qu'un
 // abonnement reste bloque apres un changement de prix ou de fiscalite.
@@ -57,7 +58,8 @@ const handler = async (event) => {
     customerId = customer.id;
     await admin.from("accounts").update({ stripe_customer_id: customerId }).eq("id", userId);
   }
-  const session = await stripe.checkout.sessions.create({
+  const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create({
+    ...managed,
     mode: "subscription",
     customer: customerId,
     line_items: [{
@@ -84,8 +86,9 @@ const handler = async (event) => {
       taxCode: STRIPE_TAX_CODE,
       automaticTax: AUTOMATIC_TAX_ENABLED,
       customerId,
+      managedPayments: MANAGED_PAYMENTS_ENABLED,
     }),
-  });
+  }));
   return json(200, { checkoutUrl: session.url });
 };
 

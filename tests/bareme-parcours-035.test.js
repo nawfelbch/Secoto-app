@@ -304,3 +304,43 @@ test("les fonctions appelées par l'application répondent au preflight CORS", a
     assert.match(src, /export default withLambda\(withCors\(handler\)\);/, nom);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Stripe « Managed Payments » est actif par défaut sur le compte : dans ce
+// mode Stripe devient redevable de la taxe et exige automatic_tax. SECOTO est
+// en franchise en base — rien ne doit s'ajouter au prix annoncé.
+// ---------------------------------------------------------------------------
+test("Managed Payments est désactivé requête par requête", async () => {
+  const lib = await import("../netlify/lib/secoto-server.js");
+  assert.equal(lib.MANAGED_PAYMENTS_ENABLED, false);
+  assert.deepEqual(lib.managedPaymentsParams(), { managed_payments: { enabled: false } });
+
+  // Un compte dont l'API ignore le paramètre ne doit pas bloquer le paiement.
+  let appels = 0;
+  const resultat = await lib.createWithManagedPaymentsFallback(async (managed) => {
+    appels += 1;
+    if (appels === 1) {
+      assert.deepEqual(managed, { managed_payments: { enabled: false } });
+      const e = new Error("Received unknown parameter: managed_payments");
+      e.param = "managed_payments";
+      throw e;
+    }
+    assert.deepEqual(managed, {});
+    return { id: "cs_test" };
+  });
+  assert.equal(resultat.id, "cs_test");
+  assert.equal(appels, 2);
+
+  // Une vraie erreur Stripe remonte telle quelle, elle n'est pas avalée.
+  await assert.rejects(
+    lib.createWithManagedPaymentsFallback(async () => { throw new Error("Your card was declined."); }),
+    /card was declined/,
+  );
+
+  for (const nom of ["create-payment-intent", "subscription-checkout"]) {
+    const src = readFileSync(new URL(`../netlify/functions/${nom}.js`, import.meta.url), "utf8");
+    assert.match(src, /createWithManagedPaymentsFallback/, nom);
+    // Les deux réglages restent cohérents : Managed Payments impose la taxe.
+    assert.match(src, /MANAGED_PAYMENTS_ENABLED \|\| String\(STRIPE_AUTOMATIC_TAX\)/, nom);
+  }
+});
