@@ -189,3 +189,30 @@ test("le tableau des missions publiées survit à une base pas encore migrée", 
   // Repli uniquement sur une colonne manquante, jamais sur une erreur de droits.
   assert.match(app, /column\|colonne\|42703/);
 });
+
+// ---------------------------------------------------------------------------
+// Stripe Tax : une session sans code fiscal est refusée dès que le calcul
+// automatique est actif sur le compte (« the product tax code is missing »).
+// SECOTO est en franchise en base : rien ne doit être ajouté au prix affiché.
+// ---------------------------------------------------------------------------
+test("les sessions Stripe portent un code fiscal et n'ajoutent aucune taxe", () => {
+  for (const nom of ["create-payment-intent", "subscription-checkout"]) {
+    const src = readFileSync(new URL(`../netlify/functions/${nom}.js`, import.meta.url), "utf8");
+    assert.match(src, /STRIPE_TAX_CODE = "txcd_20030000"/, nom);
+    assert.match(src, /tax_code: STRIPE_TAX_CODE/, nom);
+    assert.match(src, /automatic_tax: \{ enabled: AUTOMATIC_TAX_ENABLED \}/, nom);
+    // Franchise en base par défaut : le calcul automatique reste fermé.
+    assert.match(src, /STRIPE_AUTOMATIC_TAX = "false"/, nom);
+    // S'il est ouvert un jour, la TVA est comprise dans le prix, jamais ajoutée.
+    assert.match(src, /tax_behavior: AUTOMATIC_TAX_ENABLED \? "inclusive" : undefined/, nom);
+  }
+});
+
+test("le message d'erreur de paiement dit ce qui ne va pas", async () => {
+  const src = readFileSync(new URL("../src/lib/payments.js", import.meta.url), "utf8");
+  assert.match(src, /const PAYMENT_ERRORS = \{/);
+  for (const code of ["server_not_configured", "unauthorized", "payment_not_found", "stripe_unavailable"]) {
+    assert.match(src, new RegExp(`${code}:`), code);
+  }
+  assert.doesNotMatch(src, /throw new Error\("Le service de paiement est momentanément indisponible\."\)/);
+});

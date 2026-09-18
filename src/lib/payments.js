@@ -112,6 +112,17 @@ export function watchPayment(paymentId, onChange) {
   return () => { supabase.removeChannel(channel); };
 }
 
+// Ce que le serveur renvoie, traduit pour la personne qui le lit a l'ecran.
+const PAYMENT_ERRORS = {
+  server_not_configured: "Le paiement n\u2019est pas encore configure sur le serveur (cle Stripe ou cle Supabase manquante). Contactez SECOTO.",
+  unauthorized: "Votre session a expire. Reconnectez-vous puis reessayez.",
+  forbidden: "Ce paiement ne vous appartient pas.",
+  payment_not_found: "Ce paiement est introuvable. Rechargez la page puis reessayez.",
+  invalid_payment_id: "Reference de paiement invalide. Rechargez la page puis reessayez.",
+  invalid_json: "Requete de paiement invalide. Rechargez la page puis reessayez.",
+  stripe_unavailable: "Stripe a refuse la demande. Le motif exact est enregistre : SECOTO peut le consulter et vous rappeler.",
+};
+
 async function requestIntent(paymentId) {
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData?.session?.access_token;
@@ -139,7 +150,13 @@ async function requestIntent(paymentId) {
     throw new Error("Ce paiement n’est plus actif. Rechargez la mission pour réessayer.");
   }
   if (!result.ok) {
-    throw new Error("Le service de paiement est momentanément indisponible.");
+    // Un message generique rend toute panne indiagnosticable : on dit ce qui
+    // manque reellement, sans jamais exposer de detail technique inutile.
+    throw new Error(PAYMENT_ERRORS[body.error] || (
+      result.status >= 500
+        ? `Le service de paiement n’a pas repondu (code ${result.status}). Reessayez dans un instant.`
+        : `Le paiement n’a pas pu etre prepare (code ${result.status}).`
+    ));
   }
   return body;
 }

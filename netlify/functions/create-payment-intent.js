@@ -20,7 +20,18 @@ const {
   SUPABASE_URL,
   SECOTO_APP_URL = "https://app.secoto-transport.fr",
   STRIPE_MOBILE_API_VERSION = "2025-03-31.basil",
+  // Code fiscal Stripe de la prestation. Par defaut : « General - Services ».
+  // Stripe Tax le REFUSE absent des que le calcul automatique est actif sur le
+  // compte : sans lui, la session de paiement est rejetee avec
+  // « Invalid line_items[0]: the product tax code is missing ».
+  STRIPE_TAX_CODE = "txcd_20030000",
+  // SECOTO est en franchise en base (article 293 B du CGI) : aucune TVA n'est
+  // due, donc aucun calcul automatique. Passer cette variable a "true" le jour
+  // ou SECOTO sort de la franchise et facture la TVA.
+  STRIPE_AUTOMATIC_TAX = "false",
 } = process.env;
+
+const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_PLATFORMS = new Set(["ios", "android", "web"]);
@@ -150,10 +161,16 @@ const handler = async (event) => {
             price_data: {
               currency: payment.currency || "eur",
               unit_amount: payment.amount_cents,
-              product_data: { name: description },
+              product_data: { name: description, tax_code: STRIPE_TAX_CODE },
+              // Le prix affiche au client est le prix final : s'il devait un
+              // jour inclure de la TVA, elle serait comprise dedans, jamais
+              // ajoutee par-dessus.
+              tax_behavior: AUTOMATIC_TAX_ENABLED ? "inclusive" : undefined,
             },
             quantity: 1,
           }],
+          // Franchise en base par defaut : Stripe ne doit rien ajouter au prix.
+          automatic_tax: { enabled: AUTOMATIC_TAX_ENABLED },
           payment_intent_data: {
             description,
             capture_method: captureMethod,

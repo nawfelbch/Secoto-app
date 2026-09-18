@@ -222,6 +222,18 @@ sont rétablis, les deux barèmes sont actifs, la fenêtre passe à 48 heures.
 | `ROUTING_PROVIDER`, `ORS_API_KEY`, `ORS_BASE_URL` | Netlify | aucun itinéraire → devis manuel |
 | `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` | build | tuiles OpenStreetMap publiques |
 | `VITE_APPLE_PAY_MERCHANT_ID` | build | Apple Pay masqué |
+| `STRIPE_TAX_CODE` | Netlify (facultatif) | par défaut `txcd_20030000` (« General - Services ») |
+| `STRIPE_AUTOMATIC_TAX` | Netlify (facultatif) | `false` par défaut : franchise en base, aucune TVA ajoutée |
+
+**Stripe Tax.** Le compte Stripe de SECOTO a le calcul automatique de taxe
+activé. Stripe refuse alors toute session de paiement dont l'article n'a pas de
+code fiscal (`Invalid line_items[0]: the product tax code is missing`). Les deux
+fonctions qui créent une session (`create-payment-intent`, `subscription-checkout`)
+fournissent donc `txcd_20030000` et désactivent explicitement le calcul
+automatique : SECOTO est en franchise en base, rien ne doit être ajouté au prix
+affiché. Le jour où SECOTO sort de la franchise, passer `STRIPE_AUTOMATIC_TAX`
+à `true` suffit — la TVA sera alors **comprise** dans le prix annoncé, jamais
+ajoutée par-dessus.
 
 **Défaut corrigé au passage.** Si `VITE_SUPABASE_URL` ou `VITE_SUPABASE_ANON_KEY`
 manquaient, la construction **réussissait** mais produisait un fichier **sans

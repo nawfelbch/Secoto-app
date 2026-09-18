@@ -6,6 +6,12 @@ import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClie
 
 const { SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
+const {
+  STRIPE_TAX_CODE = "txcd_20030000",
+  STRIPE_AUTOMATIC_TAX = "false",
+} = process.env;
+const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
+
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
   const admin = serviceClient();
@@ -52,9 +58,14 @@ const handler = async (event) => {
         currency: "eur",
         unit_amount: proposal.monthly_price_cents,
         recurring: { interval: "month" },
-        product_data: { name: "SECOTO — abonnement professionnel personnalisé" },
+        // Meme exigence que create-payment-intent : Stripe Tax refuse un
+        // article sans code fiscal des que le calcul automatique est actif.
+        product_data: { name: "SECOTO — abonnement professionnel personnalisé", tax_code: STRIPE_TAX_CODE },
+        tax_behavior: AUTOMATIC_TAX_ENABLED ? "inclusive" : undefined,
       },
     }],
+    // Franchise en base (article 293 B du CGI) : rien n'est ajoute au prix.
+    automatic_tax: { enabled: AUTOMATIC_TAX_ENABLED },
     subscription_data: { metadata: { secoto_subscription_id: sub.id } },
     metadata: { secoto_subscription_id: sub.id },
     success_url: `${SECOTO_APP_URL}/?ecran=abonnement&abonnement=ok`,

@@ -152,7 +152,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
   return (
     <div className="panel panel-full">
       <h2>Transport à la demande</h2>
-      <p className="muted">Prix calculé sur l’itinéraire réel, paiement validé avant diffusion aux partenaires vérifiés.</p>
+      <p className="muted">Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.</p>
       <ol className="od-steps" aria-label="Étapes">
         {STEPS.map((label, i) => (
           <li key={label} className={i === step ? "is-current" : i < step ? "is-done" : ""} aria-current={i === step ? "step" : undefined}>{i + 1}. {label}</li>
