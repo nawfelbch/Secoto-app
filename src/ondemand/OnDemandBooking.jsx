@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
-  bookQuote, formatCents, formatDateTime, paymentExplanation, requestQuote, subscriptionOverview,
+  OFFER_WINDOW_HOURS, TVA_MENTION,
+  bookQuote, cancellationPolicy, formatCents, formatDateTime, paymentExplanation, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 
@@ -254,12 +255,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>
               <div className="od-price">
-                <span>{quote.mode === "plateau" ? "Prix total du transport" : "Prix de la prestation"}</span>
+                <span>Prix total du transport</span>
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
-              {quote.mode === "plateau" && (
-                <p className="muted">Dont frais de mise en relation SECOTO : {formatCents(quote.collect_cents)} (réglés en ligne). Transport : {formatCents(quote.transport_direct_cents)}, réglé directement au transporteur.</p>
-              )}
+              <p className="muted">Tout compris, réglé en une seule fois à SECOTO. {TVA_MENTION}</p>
               {quote.lines?.length > 0 && (
                 <ul className="od-lines">{quote.lines.map((l, i) => <li key={i}><span>{l.label}</span><span>{Number(l.eur).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</span></li>)}</ul>
               )}
@@ -268,6 +267,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
+              <p className="muted">{cancellationPolicy()}</p>
               {subscriptionActive && (
                 <label className="od-checks"><input type="checkbox" checked={useSubscription} onChange={(e) => setUseSubscription(e.target.checked)} /> Utiliser mon forfait (si ce trajet est couvert)</label>
               )}
@@ -292,20 +292,21 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
               {payment.waiverRequired && !payment.waiverAccepted && (
                 <label className="payment-waiver-row">
                   <input type="checkbox" checked={waiver} onChange={(e) => setWaiver(e.target.checked)} />
-                  <span>Je demande l’exécution immédiate de la mise en relation et renonce expressément à mon droit de rétractation de 14 jours.</span>
+                  <span>Je demande l’exécution immédiate du transport et renonce expressément à mon droit de rétractation de 14 jours.</span>
                 </label>
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
-                {busy ? "Validation en cours…" : `Valider mon moyen de paiement (${formatCents(order.collect_cents)})`}
+                {busy ? "Validation en cours…" : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
           {guaranteed && (
             <div className="alert success">
-              {order.funding === "subscription" ? "Forfait réservé." : payment?.status === "paid" ? "Paiement encaissé." : "Paiement autorisé, rien n’est débité à ce stade."}{" "}
-              Votre demande est proposée aux partenaires compatibles. Vous serez notifié dès qu’un partenaire confirme.
+              {order.funding === "subscription" ? "Forfait réservé." : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
+              Votre demande part à tous nos transporteurs compatibles : ils ont {OFFER_WINDOW_HOURS} h pour l’accepter.
+              Vous êtes notifié dès qu’un transporteur confirme.
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
             </div>
           )}

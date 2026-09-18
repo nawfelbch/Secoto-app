@@ -962,7 +962,12 @@ $f$;
 -- ============================================================================
 -- 3. DROITS
 -- ============================================================================
-revoke all on all functions in schema secoto_private from public, anon, authenticated;
+-- Aucun revoke global sur secoto_private ici : la migration 003 a déjà posé le
+-- cloisonnement, et plusieurs helpers (current_is_admin, can_read_mission…)
+-- sont appelés PAR LES POLITIQUES RLS avec l'identité de l'utilisateur. Un
+-- revoke global leur retirerait le droit d'exécution et bloquerait toute
+-- lecture, pour tous les rôles. Les nouvelles fonctions sont fermées une par
+-- une ci-dessous.
 do $grants$
 declare
   v_fn text;

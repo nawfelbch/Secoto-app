@@ -59,6 +59,11 @@ async function capturable(paymentId) {
   return service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.amount_capturable_updated','pi_' || $1::uuid::text,0,null,null) as r",
     [paymentId, `evt_${randomUUID()}`]);
 }
+// Parcours réel depuis la 035 : le paiement est encaissé dès la commande.
+async function paid(paymentId) {
+  return service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded','pi_' || $1::uuid::text,0,null,null) as r",
+    [paymentId, `evt_${randomUUID()}`]);
+}
 
 test.before(async () => {
   await sql("update public.secoto_feature_flags set enabled = true");
@@ -77,21 +82,49 @@ test.before(async () => {
 });
 test.after(async () => { await pool.end(); });
 
-test("barème : prix identique au barème validé (paliers cumulatifs, plancher)", async () => {
+test("barème : les prix sont exactement ceux décidés le 18/09/2026", async () => {
+  // Convoyage : forfait 1,00 €/km tout compris, convoyeur 0,55 €/km.
   const q = await createQuote(ids.client, {}, 400);
   assert.equal(q.status, "priced");
-  assert.equal(q.client_price_cents, 39000); // 300×1,00 + 100×0,90
-  assert.equal(q.partner_pay_cents, undefined, "le client ne voit jamais la rémunération partenaire");
+  assert.equal(q.client_price_cents, 40000);
+  assert.equal(q.partner_pay_cents, undefined, "le client ne voit jamais la rémunération transporteur");
   assert.equal(q.margin_cents, undefined);
+  assert.equal(q.collect_cents, 40000, "SECOTO encaisse la totalité");
+  assert.equal(q.transport_direct_cents, 0, "plus aucun transport réglé en direct");
+  assert.equal((await sql("select partner_pay_cents from public.transport_quotes where id=$1", [q.id]))[0].partner_pay_cents, 22000);
+
+  // Plancher 115 €.
   const small = await createQuote(ids.client, {}, 40);
   assert.equal(small.client_price_cents, 11500);
+  assert.equal((await sql("select partner_pay_cents from public.transport_quotes where id=$1", [small.id]))[0].partner_pay_cents, 6325);
+
+  // Convoyeur utilitaire : 0,65 €/km, prix client inchangé.
   const util = await createQuote(ids.client, { vehicle: { ...quotePayload().vehicle, class: "utilitaire" } }, 200);
-  assert.equal(util.status, "manual_review");
-  assert.equal(util.manual_reason, "categorie_vehicule_hors_bareme");
-  const far = await createQuote(ids.client, {}, 850);
+  assert.equal(util.status, "priced");
+  assert.equal(util.client_price_cents, 20000);
+  assert.equal((await sql("select partner_pay_cents from public.transport_quotes where id=$1", [util.id]))[0].partner_pay_cents, 13000);
+
+  // Plateau : voiture 1,12 · moto plafonnée à 400 € · utilitaire 1,25 · non roulant + 80 €.
+  const pv = await createQuote(ids.client, { mode: "plateau" }, 500);
+  assert.equal(pv.client_price_cents, 56000);
+  assert.equal((await sql("select partner_pay_cents from public.transport_quotes where id=$1", [pv.id]))[0].partner_pay_cents, 48500);
+  const moto = await createQuote(ids.client, { mode: "plateau", vehicle: { ...quotePayload().vehicle, class: "moto" } }, 800);
+  assert.equal(moto.client_price_cents, 40000, "moto : le prix ne dépasse jamais 400 €");
+  const pu = await createQuote(ids.client, { mode: "plateau", vehicle: { ...quotePayload().vehicle, class: "utilitaire" } }, 200);
+  assert.equal(pu.client_price_cents, 25000);
+  const nr = await createQuote(ids.client, { mode: "plateau", vehicle: { ...quotePayload().vehicle, rolling: false } }, 500);
+  assert.equal(nr.client_price_cents, 64000, "véhicule non roulant : + 80 €");
+  assert.equal((await sql("select partner_pay_cents from public.transport_quotes where id=$1", [nr.id]))[0].partner_pay_cents, 54500);
+
+  // Hors barème : devis personnalisé, jamais un prix inventé.
+  await assert.rejects(
+    createQuote(ids.client, { vehicle: { ...quotePayload().vehicle, rolling: false } }, 300),
+    /non roulant ne peut pas être convoyé/,
+  );
+  const far = await createQuote(ids.client, {}, 1600);
   assert.equal(far.manual_reason, "distance_hors_bareme_automatique");
-  const plateau = await createQuote(ids.client, { mode: "plateau" }, 100);
-  assert.equal(plateau.manual_reason, "aucun_bareme_actif");
+  const luxe = await createQuote(ids.client, { mode: "plateau", vehicle: { ...quotePayload().vehicle, category: "luxury" } }, 300);
+  assert.equal(luxe.manual_reason, "vehicule_prestige");
   const noRoute = await service("select public.secoto_quote_create($1,$2,null) as q", [ids.client, JSON.stringify(quotePayload())]);
   assert.equal(noRoute[0].q.manual_reason, "itineraire_indisponible");
 });
@@ -108,11 +141,12 @@ test("attribution : acceptations simultanées → un seul gagnant, capture, miss
   const booked = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r;
   mainOrder = booked.order;
   assert.equal(mainOrder.status, "awaiting_payment");
-  assert.equal(mainOrder.payment_strategy, "authorize_then_capture");
+  assert.equal(mainOrder.payment_strategy, "capture_then_refund", "le paiement est encaissé tout de suite");
+  assert.equal(mainOrder.collect_cents, mainOrder.client_price_cents, "SECOTO encaisse la totalité");
   const offersBefore = await sql("select count(*)::int n from public.transport_offers where order_id = $1", [mainOrder.id]);
   assert.equal(offersBefore[0].n, 0, "aucune diffusion avant validation du paiement");
 
-  await capturable(mainOrder.payment_id);
+  await paid(mainOrder.payment_id);
   const offers = await sql("select id, partner_id from public.transport_offers where order_id = $1 order by partner_id", [mainOrder.id]);
   const partners = offers.map((o) => o.partner_id).sort();
   assert.deepEqual(partners, [ids.p1, ids.p2, ids.p3].sort(), "diffusion limitée aux partenaires compatibles, disponibles, documents valides");
@@ -121,18 +155,18 @@ test("attribution : acceptations simultanées → un seul gagnant, capture, miss
 
   const results = await Promise.all(offers.map((o) =>
     as(o.partner_id, "select public.secoto_offer_accept($1,$2) as r", [o.id, randomUUID()]).then((r) => ({ partner: o.partner_id, r: r[0].r }))));
-  const winners = results.filter((x) => x.r.result === "pending_capture");
+  // Paiement déjà encaissé : le gagnant est confirmé sur-le-champ.
+  const winners = results.filter((x) => x.r.result === "confirmed");
   assert.equal(winners.length, 1, JSON.stringify(results));
   assert.equal(results.filter((x) => x.r.result === "already_assigned").length, 2);
 
-  const confirmed = (await service("select public.secoto_od_capture_result($1,true,null) as r", [mainOrder.id]))[0].r;
-  assert.equal(confirmed.result, "confirmed");
+  const confirmed = winners[0].r;
   const mission = (await sql("select * from public.missions where id = $1", [confirmed.mission_id]))[0];
   assert.equal(mission.status, "assigned");
   assert.equal(mission.assigned_transporter_id, winners[0].partner);
   assert.equal(Number(mission.client_price), 120);
   assert.equal(Number(mission.carrier_pay), 66);
-  // Webhook « succeeded » reçu après la capture : aucun effet indésirable.
+  // Webhook « succeeded » rejoué après confirmation : aucun effet indésirable.
   const again = (await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded','pi_' || $1::uuid::text,0,null,null) as r", [mainOrder.payment_id, "evt_succ_1"]))[0].r;
   assert.equal(again.status, "paid");
   const replay = (await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded','pi_' || $1::uuid::text,0,null,null) as r", [mainOrder.payment_id, "evt_succ_1"]))[0].r;
@@ -400,21 +434,23 @@ test("webhooks dans le désordre : annulation puis autorisation tardive → rest
   assert.equal(failed.status, "cancelled");
 });
 
-test("refus : aucune pénalité, le partenaire n'est plus sollicité pour cette commande seulement", async () => {
+test("refus : aucune pénalité, le transporteur n'est plus sollicité pour cette commande seulement", async () => {
   const q = await createQuote(ids.client);
   const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
-  await capturable(order.payment_id);
+  await paid(order.payment_id);
   const offer = (await sql("select id from public.transport_offers where order_id=$1 and partner_id=$2", [order.id, ids.p1]))[0];
   assert.equal((await as(ids.p1, "select public.secoto_offer_decline($1) as r", [offer.id]))[0].r.result, "declined");
-  await sql("update public.transport_orders set offers_expire_at = now() - interval '1 second' where id=$1", [order.id]);
-  await service("select public.secoto_od_maintenance_tick()");
-  const round2 = await sql("select partner_id from public.transport_offers where order_id=$1 and round=2", [order.id]);
-  assert.ok(!round2.some((r) => r.partner_id === ids.p1));
-  assert.ok(round2.some((r) => r.partner_id === ids.p2));
+  // Un refus ne rouvre pas un tour : la fenêtre de 48 h reste celle du premier envoi.
+  assert.equal((await sql("select dispatch_round from public.transport_orders where id=$1", [order.id]))[0].dispatch_round, 1);
+  assert.equal(await one(sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.p1, order.id])), false);
+  assert.equal(await one(sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.p2, order.id])), true);
+  // Le refus ne vaut que pour cette commande : la suivante lui est proposée.
   const other = await createQuote(ids.client);
   const order2 = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [other.id, randomUUID()]))[0].r.order;
-  await capturable(order2.payment_id);
+  await paid(order2.payment_id);
   assert.equal((await sql("select count(*)::int n from public.transport_offers where order_id=$1 and partner_id=$2", [order2.id, ids.p1]))[0].n, 1);
+  // Aucune trace de pénalité : ni compteur, ni note, ni statut.
+  assert.equal((await sql("select count(*)::int n from public.secoto_audit_log where action like '%penalt%'"))[0].n, 0);
 });
 
 test("flags désactivés : devis manuel et aucun paiement en ligne", async () => {
@@ -438,4 +474,223 @@ test("non-régression : paiement à la livraison d'une mission historique inchan
   assert.equal(r.amount_cents, Math.round(Number(legacy.client_price) * 100));
   assert.equal(r.frais_only, false);
   await assert.rejects(as(ids.client, "select public.secoto_prepare_delivery_payment($1,$2)", [ids.mainMission, randomUUID()]), /deja reglee/);
+});
+
+// Non-régression de l'incident du 17/09/2026 : un revoke global sur
+// secoto_private avait retiré aux politiques RLS le droit d'exécuter leurs
+// helpers, rendant TOUS les comptes inaccessibles.
+test("droits RLS : un utilisateur authentifié lit son compte et les vues cloisonnées", async () => {
+  for (const fn of ['secoto_private.current_is_admin()', 'secoto_private.can_read_mission(uuid)',
+    'secoto_private."current_role"()', 'secoto_private.can_read_document_path(text,boolean)',
+    'secoto_private.can_write_mission_file(uuid)', 'secoto_private.can_upload_tracking_file(uuid)',
+    'secoto_private.is_business_member(uuid,uuid)']) {
+    const [row] = await sql(`select has_function_privilege('authenticated', $1, 'execute') as ok`, [fn]);
+    assert.equal(row.ok, true, `authenticated doit pouvoir exécuter ${fn}`);
+  }
+  for (const who of ["client", "p1", "admin"]) {
+    const [me] = await as(ids[who], "select count(*)::int n from public.accounts");
+    assert.ok(me.n >= 1, `${who} doit voir son propre profil`);
+    await as(ids[who], "select count(*) from public.secoto_missions_client_v2");
+    await as(ids[who], "select count(*) from public.notifications");
+    await as(ids[who], "select count(*) from public.documents");
+  }
+});
+
+// ===========================================================================
+// Migrations 034-035 — décisions du 18/09/2026.
+// ===========================================================================
+
+test("diffusion : un transporteur qui n'a rien réglé reçoit quand même les missions", async () => {
+  const neuf = await account("pNeuf", "transporter", { type: "convoyeur" });
+  assert.equal((await sql("select count(*)::int n from public.partner_dispatch_preferences where account_id=$1", [neuf]))[0].n, 0);
+  const q = await createQuote(ids.client);
+  const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
+  await paid(order.payment_id);
+  const offers = await sql("select partner_id from public.transport_offers where order_id=$1", [order.id]);
+  assert.ok(offers.some((o) => o.partner_id === neuf), "aucune préférence exigée pour recevoir une mission");
+  // La zone déclarée par p1 (92) ne l'empêche pas : elle n'exclut que hors zone.
+  assert.ok(offers.some((o) => o.partner_id === ids.p1));
+  // Un transporteur qui s'est déclaré indisponible reste protégé.
+  assert.ok(!offers.some((o) => o.partner_id === ids.pUnavailable));
+});
+
+test("fenêtre de 48 h, un seul tour, remboursement intégral sous 24 h", async () => {
+  const q = await createQuote(ids.client, {
+    pickup: { label: "5 rue Test 13001 Marseille", city: "Marseille", postcode: "13001", lat: 43.3, lng: 5.37 } });
+  const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
+  await paid(order.payment_id);
+  const row = (await sql("select dispatch_round, offers_expire_at, pickup_at from public.transport_orders where id=$1", [order.id]))[0];
+  assert.equal(row.dispatch_round, 1);
+  const fenetreH = (new Date(row.offers_expire_at) - Date.now()) / 3600000;
+  // 48 h, sauf si la prise en charge arrive avant (ici J+3).
+  assert.ok(fenetreH > 47 && fenetreH <= 48.1, `fenêtre de ${fenetreH} h`);
+
+  await sql("update public.transport_orders set offers_expire_at = now() - interval '1 second' where id=$1", [order.id]);
+  const tick = (await service("select public.secoto_od_maintenance_tick() as r"))[0].r;
+  assert.ok(tick.no_partner >= 1);
+  const after = (await sql("select status, dispatch_round, refund_due_at from public.transport_orders where id=$1", [order.id]))[0];
+  assert.equal(after.status, "no_partner", "un seul tour : pas de relance");
+  assert.equal(after.dispatch_round, 1);
+  const delaiH = (new Date(after.refund_due_at) - Date.now()) / 3600000;
+  assert.ok(delaiH > 23 && delaiH <= 24.1, `remboursement annoncé sous ${delaiH} h`);
+
+  const actions = (await service("select public.secoto_od_maintenance_tick() as r"))[0].r.payment_actions;
+  const action = actions.find((a) => a.payment_id === order.payment_id);
+  assert.equal(action.action, "refund", "paiement encaissé : c'est un remboursement, pas une libération");
+  assert.equal(action.amount_cents, order.client_price_cents, "remboursement intégral");
+  await service("select public.secoto_od_payment_action_result($1,'refund',true,null)", [order.payment_id]);
+  const p = (await sql("select status, refunded_amount_cents from public.payments where id=$1", [order.payment_id]))[0];
+  assert.equal(p.status, "refunded");
+  assert.equal(p.refunded_amount_cents, order.client_price_cents);
+});
+
+test("facture émise dès l'encaissement, avec la mention de TVA", async () => {
+  const q = await createQuote(ids.client, {}, 400);
+  const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
+  assert.equal((await sql("select invoice_number from public.transport_orders where id=$1", [order.id]))[0].invoice_number, null);
+  await paid(order.payment_id);
+  const o = (await sql("select invoice_number, invoiced_at from public.transport_orders where id=$1", [order.id]))[0];
+  assert.match(o.invoice_number, /^FAC-\d{6}-\d{4}$/);
+  assert.ok(o.invoiced_at);
+  const mail = (await sql("select subject, body_text from public.email_outbox where event_key=$1", [`od-invoice:${order.id}`]))[0];
+  assert.ok(mail.subject.includes(o.invoice_number));
+  assert.match(mail.body_text, /TVA non applicable, article 293 B du CGI\./);
+  assert.match(mail.body_text, /Total paye : 400,00 EUR|Total paye : 400.00 EUR/);
+  assert.match(mail.body_text, /48 heures/);
+  // Rejeu du webhook : une seule facture, un seul numéro.
+  await paid(order.payment_id);
+  assert.equal((await sql("select invoice_number from public.transport_orders where id=$1", [order.id]))[0].invoice_number, o.invoice_number);
+  assert.equal((await sql("select count(*)::int n from public.email_outbox where event_key=$1", [`od-invoice:${order.id}`]))[0].n, 1);
+});
+
+test("annulation client : gratuite jusqu'à 24 h avant, 50 % retenus ensuite", async () => {
+  // a) largement à l'avance, avant attribution → remboursement intégral
+  const q1 = await createQuote(ids.client, {}, 400);
+  const o1 = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q1.id, randomUUID()]))[0].r.order;
+  await paid(o1.payment_id);
+  const preview1 = (await as(ids.client, "select public.secoto_od_cancel_quote_preview($1) as r", [o1.id]))[0].r;
+  assert.equal(preview1.late, false);
+  assert.equal(preview1.retained_pct, 0);
+  assert.equal(preview1.refund_cents, 40000);
+  await as(ids.client, "select public.secoto_od_cancel_order($1,$2)", [o1.id, randomUUID()]);
+  const pay1 = (await sql("select status, refund_requested_cents from public.payments where id=$1", [o1.payment_id]))[0];
+  assert.equal(pay1.status, "refund_pending");
+  assert.equal(pay1.refund_requested_cents, 40000);
+
+  // b) transporteur confirmé, puis annulation à moins de 24 h → 50 % retenus
+  const q2 = await createQuote(ids.client, {}, 400);
+  const o2 = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q2.id, randomUUID()]))[0].r.order;
+  await paid(o2.payment_id);
+  const offer = (await sql("select id from public.transport_offers where order_id=$1 and partner_id=$2", [o2.id, ids.p1]))[0];
+  const accepted = (await as(ids.p1, "select public.secoto_offer_accept($1,$2) as r", [offer.id, randomUUID()]))[0].r;
+  assert.equal(accepted.result, "confirmed");
+  await sql("update public.transport_orders set pickup_at = now() + interval '3 hours' where id=$1", [o2.id]);
+  const preview2 = (await as(ids.client, "select public.secoto_od_cancel_quote_preview($1) as r", [o2.id]))[0].r;
+  assert.equal(preview2.late, true);
+  assert.equal(Number(preview2.retained_pct), 50);
+  assert.equal(preview2.refund_cents, 20000);
+  await as(ids.client, "select public.secoto_od_cancel_order($1,$2)", [o2.id, randomUUID()]);
+  const after = (await sql("select o.status, o.cancel_reason, m.status mstatus, p.refund_requested_cents from public.transport_orders o join public.missions m on m.id=o.mission_id join public.payments p on p.id=o.payment_id where o.id=$1", [o2.id]))[0];
+  assert.equal(after.status, "cancelled");
+  assert.equal(after.cancel_reason, "annulation_client_tardive");
+  assert.equal(after.mstatus, "cancelled", "la mission suit l'annulation de la commande");
+  assert.equal(after.refund_requested_cents, 20000);
+  // Le transporteur et l'administrateur sont prévenus.
+  assert.ok((await sql("select count(*)::int n from public.notifications where account_id=$1 and type='cancellation'", [ids.p1]))[0].n >= 1);
+  // Remboursement partiel exécuté : le paiement reste « payé », pas « remboursé ».
+  await service("select public.secoto_od_payment_action_result($1,'refund',true,null)", [o2.payment_id]);
+  const pay2 = (await sql("select status, refunded_amount_cents from public.payments where id=$1", [o2.payment_id]))[0];
+  assert.equal(pay2.status, "paid");
+  assert.equal(pay2.refunded_amount_cents, 20000);
+});
+
+test("versement transporteur : dû 48 h après la livraison, dans les deux modes", async () => {
+  for (const mode of ["convoyage", "plateau"]) {
+    const partner = mode === "convoyage" ? ids.p1 : ids.plateau;
+    const q = await createQuote(ids.client, { mode }, 400);
+    const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
+    await paid(order.payment_id);
+    const offer = (await sql("select id from public.transport_offers where order_id=$1 and partner_id=$2", [order.id, partner]))[0];
+    const r = (await as(partner, "select public.secoto_offer_accept($1,$2) as r", [offer.id, randomUUID()]))[0].r;
+    assert.equal(r.result, "confirmed", `${mode} : attribution`);
+    await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [r.mission_id]);
+    const payout = (await sql("select amount_cents, due_at, mode, status from public.partner_payouts where mission_id=$1", [r.mission_id]))[0];
+    assert.ok(payout, `${mode} : un versement est dû`);
+    assert.equal(payout.mode, mode);
+    assert.equal(payout.status, "to_pay");
+    const dansH = (new Date(payout.due_at) - Date.now()) / 3600000;
+    assert.ok(dansH > 47 && dansH <= 48.1, `${mode} : échéance à ${dansH} h`);
+    assert.ok((await sql("select count(*)::int n from public.notifications where account_id=$1 and type='payment'", [partner]))[0].n >= 1);
+  }
+});
+
+test("pilotage admin : les conditions se modifient même en cours de mission", async () => {
+  const q = await createQuote(ids.client, {}, 400);
+  const order = (await as(ids.client, "select public.secoto_od_book_quote($1,false,$2) as r", [q.id, randomUUID()]))[0].r.order;
+  await paid(order.payment_id);
+  const offer = (await sql("select id from public.transport_offers where order_id=$1 and partner_id=$2", [order.id, ids.p1]))[0];
+  const r = (await as(ids.p1, "select public.secoto_offer_accept($1,$2) as r", [offer.id, randomUUID()]))[0].r;
+  await sql("update public.transport_orders set status='picked_up' where id=$1", [order.id]);
+
+  await assert.rejects(as(ids.p1, "select public.secoto_admin_od_update_conditions($1,$2,'TEST')", [order.id, JSON.stringify({})]), /administrateur/);
+  await assert.rejects(as(ids.admin, "select public.secoto_admin_od_update_conditions($1,$2,'')", [order.id, JSON.stringify({})]), /motif/);
+  await assert.rejects(as(ids.admin, "select public.secoto_admin_od_update_conditions($1,$2,'TEST')",
+    [order.id, JSON.stringify({ client_price_cents: 30000, partner_pay_cents: 40000 })]), /ne peut pas dépasser/);
+
+  const nouveau = new Date(Date.now() + 5 * 86400000).toISOString();
+  const updated = (await as(ids.admin, "select public.secoto_admin_od_update_conditions($1,$2,'Retard client TEST') as r",
+    [order.id, JSON.stringify({ client_price_cents: 45000, partner_pay_cents: 25000, pickup_at: nouveau })]))[0].r;
+  assert.equal(updated.client_price_cents, 45000);
+  assert.equal(updated.collect_cents, 45000);
+  const mission = (await sql("select mission_date, carrier_pay, client_price from public.missions where id=$1", [r.mission_id]))[0];
+  assert.equal(Number(mission.carrier_pay), 250);
+  assert.equal(Number(mission.client_price), 450, "sous-traitance : SECOTO encaisse la totalité");
+  assert.ok((await sql("select count(*)::int n from public.notifications where account_id=$1 and type='order_update'", [ids.client]))[0].n >= 1);
+  assert.ok((await sql("select count(*)::int n from public.secoto_audit_log where action='order_conditions_updated' and entity_id=$1", [order.id]))[0].n === 1);
+  // Le prix a changé après encaissement : l'écart est signalé, jamais débité seul.
+  assert.ok((await sql("select count(*)::int n from public.notifications where audience='admin' and title='Écart de prix à régulariser'"))[0].n >= 1);
+});
+
+test("acceptation directe : un seul gagnant, et plus aucune candidature", async () => {
+  await sql("update public.secoto_feature_flags set enabled = true where key = 'direct_accept'");
+  const mission = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, distance_km,
+      vehicle, vehicle_category, vehicle_rolling, manual_pricing, manual_carrier_pay, manual_margin, mission_date)
+    values ('MIS-TEST-DIRECT','convoyage','published','Paris','Lyon',400,'TEST Clio','standard',false,true,220,180, now() + interval '3 days')
+    returning id, carrier_pay, client_price`))[0];
+  // Sous-traitance totale : SECOTO encaisse 400 €, le transporteur touche 220 €.
+  assert.equal(Number(mission.carrier_pay), 220);
+  assert.equal(Number(mission.client_price), 400);
+
+  // Le transporteur voit sa rémunération et l'état du véhicule, jamais la marge.
+  const vue = (await as(ids.p1, "select * from public.secoto_public_missions_v2 where id=$1", [mission.id]))[0];
+  assert.equal(Number(vue.carrier_pay), 220);
+  assert.equal(vue.vehicle_rolling, false);
+  assert.equal(vue.client_price, undefined);
+  assert.equal(vue.margin, undefined);
+
+  // La candidature avec prix proposé est fermée.
+  await assert.rejects(
+    as(ids.p1, "select public.secoto_apply_to_mission($1,$2,$3,$4)", [mission.id, 200, "TEST", randomUUID()]),
+    /acceptation directe/,
+  );
+
+  // Trois acceptations simultanées : une seule gagne.
+  const results = await Promise.allSettled(["p1", "p2", "p3"].map((k) =>
+    as(ids[k], "select public.secoto_mission_accept($1,$2) as r", [mission.id, randomUUID()])));
+  const gagnants = results.filter((x) => x.status === "fulfilled" && x.value[0].r.result === "assigned");
+  assert.equal(gagnants.length, 1, JSON.stringify(results.map((x) => x.status === "fulfilled" ? x.value[0].r : x.reason.message)));
+  for (const perdant of results.filter((x) => x.status === "rejected")) {
+    assert.match(perdant.reason.message, /déjà attribuée/);
+  }
+  const m = (await sql("select status, assigned_transporter_id from public.missions where id=$1", [mission.id]))[0];
+  assert.equal(m.status, "assigned");
+  assert.ok([ids.p1, ids.p2, ids.p3].includes(m.assigned_transporter_id));
+
+  // Un refus retire la mission du tableau, sans conséquence.
+  const autre = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, distance_km, vehicle, vehicle_category, mission_date)
+    values ('MIS-TEST-REFUS','convoyage','published','Lille','Nice',900,'TEST 208','standard', now() + interval '4 days') returning id`))[0];
+  assert.equal((await as(ids.p2, "select count(*)::int n from public.secoto_public_missions_v2 where id=$1", [autre.id]))[0].n, 1);
+  await as(ids.p2, "select public.secoto_mission_decline($1)", [autre.id]);
+  assert.equal((await as(ids.p2, "select count(*)::int n from public.secoto_public_missions_v2 where id=$1", [autre.id]))[0].n, 0);
+  assert.equal((await as(ids.p3, "select count(*)::int n from public.secoto_public_missions_v2 where id=$1", [autre.id]))[0].n, 1, "le refus ne vaut que pour lui");
 });

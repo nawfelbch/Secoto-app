@@ -94,6 +94,9 @@ function AdminOrders({ orders, busy, run, transporters }) {
   const [pay, setPay] = useState("");
   const [note, setNote] = useState("");
   const [partner, setPartner] = useState("");
+  // Pilotage en cours de mission : prix client, rémunération, date de prise en
+  // charge. Le motif est obligatoire et le changement est tracé.
+  const [cond, setCond] = useState({ client: "", pay: "", pickup: "", note: "" });
   if (!orders) return <p className="muted">Chargement…</p>;
   const live = orders.filter((o) => !["delivered", "cancelled"].includes(o.status));
   const archive = orders.filter((o) => ["delivered", "cancelled"].includes(o.status));
@@ -133,6 +136,25 @@ function AdminOrders({ orders, busy, run, transporters }) {
             <button className="btn ghost small" type="button" disabled={busy || !partner}
               onClick={() => run(() => admin.lockForPartner(o.id, partner), "Attribution demandée (capture du paiement en cours).")}>Attribuer</button>
           </div>
+          <div className="od-inline-form">
+            <label className="field"><span>Prix client (€)</span><input inputMode="decimal" value={cond.client} onChange={(e) => setCond({ ...cond, client: e.target.value })} /></label>
+            <label className="field"><span>Rémunération transporteur (€)</span><input inputMode="decimal" value={cond.pay} onChange={(e) => setCond({ ...cond, pay: e.target.value })} /></label>
+            <label className="field"><span>Prise en charge</span><input type="datetime-local" value={cond.pickup} onChange={(e) => setCond({ ...cond, pickup: e.target.value })} /></label>
+            <label className="field"><span>Motif (obligatoire)</span><input value={cond.note} onChange={(e) => setCond({ ...cond, note: e.target.value })} /></label>
+            <button className="btn ghost small" type="button" disabled={busy || cond.note.trim().length < 3}
+              onClick={() => run(() => {
+                const euros = (v) => (String(v).trim() ? Math.round(Number(String(v).replace(",", ".")) * 100) : undefined);
+                const payload = {};
+                if (euros(cond.client) !== undefined) payload.client_price_cents = euros(cond.client);
+                if (euros(cond.pay) !== undefined) payload.partner_pay_cents = euros(cond.pay);
+                if (cond.pickup) payload.pickup_at = new Date(cond.pickup).toISOString();
+                return admin.updateConditions(o.id, payload, cond.note.trim());
+              }, "Conditions mises à jour. Le client et le transporteur sont prévenus.")}>Modifier les conditions</button>
+          </div>
+          <p className="muted">
+            Modifiable à tout moment, même en cours de mission. Si le prix change après encaissement,
+            le complément ou le remboursement se traite à la main : rien n’est débité automatiquement.
+          </p>
           <div className="actions-row">
             <button className="btn ghost small" type="button" disabled={busy} onClick={() => run(() => admin.rebroadcast(o.id), "Nouvelle diffusion lancée.")}>Rediffuser</button>
             {o.status === "partner_confirmed" && (
@@ -144,7 +166,15 @@ function AdminOrders({ orders, busy, run, transporters }) {
           </div>
         </div>
       ) : (
-        <div className="actions-row"><button className="btn ghost small" type="button" onClick={() => { setOpenId(o.id); setPay(String((o.partner_pay_cents / 100).toFixed(2))); setNote(""); }}>Piloter</button></div>
+        <div className="actions-row"><button className="btn ghost small" type="button" onClick={() => {
+          setOpenId(o.id); setPay(String((o.partner_pay_cents / 100).toFixed(2))); setNote("");
+          setCond({
+            client: String((o.client_price_cents / 100).toFixed(2)),
+            pay: String((o.partner_pay_cents / 100).toFixed(2)),
+            pickup: new Date(new Date(o.pickup_at).getTime() - new Date(o.pickup_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+            note: "",
+          });
+        }}>Piloter</button></div>
       )}
     </article>
   );

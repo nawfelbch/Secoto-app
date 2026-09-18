@@ -1,0 +1,183 @@
+// ============================================================================
+// SECOTO 034-035 — le barème et le parcours décidés le 18/09/2026 sont bien
+// ceux qui sont écrits en base et affichés à l'écran.
+// ============================================================================
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const GRID = readFileSync(new URL("../supabase/migrations/202609180034_bareme_secoto_2026.sql", import.meta.url), "utf8");
+const FLOW = readFileSync(new URL("../supabase/migrations/202609180035_parcours_commande_final.sql", import.meta.url), "utf8");
+
+const od = await import("../src/lib/orderCopy.js");
+
+// ---------------------------------------------------------------------------
+// Barème
+// ---------------------------------------------------------------------------
+test("le barème plateau porte exactement les tarifs décidés", () => {
+  const plateau = GRID.slice(GRID.indexOf("do $plateau$"), GRID.indexOf("do $convoyage$"));
+  assert.match(plateau, /'voiture',\s+jsonb_build_object\('client_eur_per_km', 1\.12, 'partner_eur_per_km', 0\.97\)/);
+  assert.match(plateau, /'moto',\s+jsonb_build_object\('client_eur_per_km', 1\.00, 'partner_eur_per_km', 0\.85, 'client_cap_eur', 400\)/);
+  assert.match(plateau, /'utilitaire', jsonb_build_object\('client_eur_per_km', 1\.25, 'partner_eur_per_km', 1\.10\)/);
+  assert.match(plateau, /'minimum_eur', 115/);
+  assert.match(plateau, /'non_rolling_client_eur', 80/);
+  assert.match(plateau, /'non_rolling_partner_eur', 60/);
+});
+
+test("le barème convoyage est un forfait de 1,00 €/km, convoyeur 0,55 et 0,65 en utilitaire", () => {
+  const conv = GRID.slice(GRID.indexOf("do $convoyage$"));
+  assert.match(conv, /'voiture',\s+jsonb_build_object\('client_eur_per_km', 1\.00, 'partner_eur_per_km', 0\.55\)/);
+  assert.match(conv, /'moto',\s+jsonb_build_object\('client_eur_per_km', 1\.00, 'partner_eur_per_km', 0\.55\)/);
+  assert.match(conv, /'utilitaire', jsonb_build_object\('client_eur_per_km', 1\.00, 'partner_eur_per_km', 0\.65\)/);
+  assert.match(conv, /'minimum_eur', 115/);
+});
+
+test("SECOTO encaisse la totalité : aucun transport n'est réglé en direct", () => {
+  // Les deux branches du moteur renvoient collect = prix client, direct = 0.
+  const returns = GRID.match(/'collect_cents',[^\n]*\n\s*'transport_direct_cents',[^\n]*/g) || [];
+  assert.equal(returns.length, 2, "le moteur a deux points de sortie");
+  for (const block of returns) {
+    assert.match(block, /'collect_cents', \(v_client \* 100\)::integer/);
+    assert.match(block, /'transport_direct_cents', 0/);
+  }
+  // La réservation reprend le prix client, pas une commission.
+  assert.match(FLOW, /v_quote\.client_price_cents, 0, v_quote\.pickup_at\)/);
+});
+
+test("le contrôle en base couvre les prix annoncés à Nawfal", () => {
+  for (const expected of [
+    /56000 or \(v ->> 'partner_cents'\)::int <> 48500/,   // voiture 500 km
+    /30000 or \(v ->> 'partner_cents'\)::int <> 25500/,   // moto 300 km
+    /40000 or \(v ->> 'partner_cents'\)::int <> 34000/,   // moto 800 km, plafond
+    /25000 or \(v ->> 'partner_cents'\)::int <> 22000/,   // utilitaire 200 km
+    /11500 or \(v ->> 'partner_cents'\)::int <> 9960/,    // plancher 115 €
+    /64000 or \(v ->> 'partner_cents'\)::int <> 54500/,   // non roulant +80/+60
+    /40000 or \(v ->> 'partner_cents'\)::int <> 22000/,   // convoyage 400 km
+    /40000 or \(v ->> 'partner_cents'\)::int <> 26000/,   // convoyage utilitaire
+  ]) assert.match(GRID, expected);
+});
+
+// ---------------------------------------------------------------------------
+// Parcours
+// ---------------------------------------------------------------------------
+test("les délais décidés sont ceux de la politique en base", () => {
+  assert.match(FLOW, /'offer_ttl_minutes', 2880/);            // 48 h
+  assert.match(FLOW, /'max_rounds', 1/);                      // un seul tour
+  assert.match(FLOW, /'no_partner_refund_hours', 24/);        // remboursement sous 24 h
+  assert.match(FLOW, /'payout_delay_hours', 48/);             // transporteur sous 48 h
+  assert.match(FLOW, /'free_cancel_hours_before_pickup', 24/);
+  assert.match(FLOW, /'late_cancel_retained_pct', 50/);
+});
+
+test("le paiement est toujours encaissé tout de suite", () => {
+  assert.match(FLOW, /v_strategy := 'capture_then_refund';/);
+  assert.doesNotMatch(FLOW.slice(FLOW.indexOf("secoto_od_book_quote")), /authorize_then_capture'\s*\n?\s*else/);
+  assert.match(FLOW, /'pending', 'automatic',/);
+});
+
+test("la diffusion n'exige plus de préférences réglées", () => {
+  assert.match(FLOW, /left join public\.partner_dispatch_preferences pr/);
+  assert.match(FLOW, /coalesce\(pr\.available, true\)/);
+  for (const filter of ["zones", "vehicle_classes", "weekdays"]) {
+    assert.match(FLOW, new RegExp(`pr\\.account_id is null or cardinality\\(pr\\.${filter}\\) = 0`));
+  }
+});
+
+test("la notification transporteur porte le modèle, les villes, l'état et la rémunération", () => {
+  const broadcast = FLOW.slice(FLOW.indexOf("function secoto_private.od_broadcast"), FLOW.indexOf("-- 5. RÉSERVATION"));
+  assert.match(broadcast, /v_state := case when coalesce\(\(v_quote\.vehicle ->> 'rolling'\)::boolean, true\) then 'roulant' else 'NON ROULANT' end/);
+  assert.match(broadcast, /vehicle ->> 'model'/);
+  assert.match(broadcast, /pickup ->> 'city'.*delivery ->> 'city'/s);
+  assert.match(broadcast, /€ pour vous/);
+});
+
+test("l'annulation applique la règle 24 h / 50 %", () => {
+  assert.match(FLOW, /v_late := v_order\.pickup_at - make_interval\(hours => v_free_h::int\) <= now\(\);/);
+  assert.match(FLOW, /v_refund := v_order\.client_price_cents - round\(v_order\.client_price_cents \* v_pct \/ 100\)::int;/);
+  // Une commande confirmée reste annulable ; seule la prise en charge bloque.
+  assert.match(FLOW, /if v_order\.status = 'picked_up' then/);
+});
+
+test("le transporteur est réglé dans les 48 h, dans les deux modes", () => {
+  const trg = FLOW.slice(FLOW.indexOf("function secoto_private.trg_od_sync_from_mission"), FLOW.indexOf("-- 12. PILOTAGE"));
+  assert.match(trg, /v_delay := secoto_private\.policy_num\('payout_delay_hours', 48\);/);
+  assert.doesNotMatch(trg, /if v_order\.mode = 'convoyage' then/);
+  assert.match(trg, /due_at, mode\)/);
+});
+
+test("l'administrateur peut modifier les conditions en cours de mission", () => {
+  assert.match(FLOW, /function public\.secoto_admin_od_update_conditions\(p_order_id uuid, p_payload jsonb, p_note text\)/);
+  assert.match(FLOW, /if v_order\.status in \('cancelled', 'no_partner'\) then/);
+  assert.match(FLOW, /update public\.transport_offers set partner_pay_cents = v_partner/);
+  assert.match(FLOW, /Écart de prix à régulariser/);
+});
+
+test("les candidatures cèdent la place à accepter ou refuser", () => {
+  assert.match(FLOW, /function public\.secoto_mission_accept\(p_mission_id uuid, p_idempotency_key uuid\)/);
+  assert.match(FLOW, /from public\.missions m where m\.id = p_mission_id for update/);
+  assert.match(FLOW, /Les candidatures sont remplacées par l''''acceptation directe/);
+  // Le tableau des missions publiées expose la rémunération, jamais la marge.
+  const vue = FLOW.slice(
+    FLOW.indexOf("create or replace view public.secoto_public_missions_v2"),
+    FLOW.indexOf("grant select on table public.secoto_public_missions_v2"),
+  );
+  assert.match(vue, /^\s*m\.carrier_pay$/m);
+  assert.match(vue, /coalesce\(m\.vehicle_rolling, true\) as vehicle_rolling/);
+  const colonnes = vue.slice(vue.indexOf("select"), vue.indexOf("from public.missions"));
+  assert.doesNotMatch(colonnes, /m\.client_price|m\.margin|m\.commission_amount|m\.client_total_due/);
+});
+
+test("la facture est émise à l'encaissement avec la mention de TVA", () => {
+  assert.match(FLOW, /perform secoto_private\.od_issue_invoice\(v_order\.id\);/);
+  assert.match(FLOW, /secoto_private\.next_doc_number\('FAC'\)/);
+  assert.match(FLOW, /TVA non applicable, article 293 B du CGI\./);
+});
+
+test("aucun interrupteur n'est ouvert par les migrations", () => {
+  assert.doesNotMatch(GRID, /set enabled = true/);
+  assert.doesNotMatch(FLOW, /set enabled = true/);
+  assert.match(FLOW, /insert into public\.secoto_feature_flags\(key\) values \('direct_accept'\) on conflict \(key\) do nothing;/);
+});
+
+// ---------------------------------------------------------------------------
+// Ce que lit le client à l'écran
+// ---------------------------------------------------------------------------
+test("les libellés client disent exactement ce qui se passe", () => {
+  assert.equal(od.OFFER_WINDOW_HOURS, 48);
+  assert.equal(od.NO_PARTNER_REFUND_HOURS, 24);
+  assert.equal(od.FREE_CANCEL_HOURS, 24);
+  assert.equal(od.LATE_CANCEL_RETAINED_PCT, 50);
+
+  const texte = od.paymentExplanation({ funding: "card", mode: "plateau", client_price_cents: 56000 });
+  assert.match(texte, /560\s*€/);
+  assert.match(texte, /réserve 48 h/);
+  assert.match(texte, /remboursé intégralement sous 24 h/);
+  assert.doesNotMatch(texte, /mise en relation/);
+
+  assert.match(od.cancellationPolicy(), /jusqu’à 24 h avant/);
+  assert.match(od.cancellationPolicy(), /50 % sont retenus/);
+  assert.match(od.cancellationNotice({ cancellable: true, late: false }), /remboursé intégralement/);
+  assert.match(
+    od.cancellationNotice({ cancellable: true, late: true, retained_pct: 50, refund_cents: 28000 }),
+    /50 % sont retenus, 280\s*€/,
+  );
+});
+
+test("le suivi client ne promet plus d'autorisation bancaire", () => {
+  assert.deepEqual(od.MILESTONES.map((m) => m.key), [
+    "demande_recue", "paiement_encaisse", "partenaire_confirme", "vehicule_recupere", "livraison_effectuee",
+  ]);
+  assert.equal(od.ORDER_STATUS_LABEL.no_partner, "Aucun transporteur disponible — remboursement en cours");
+});
+
+// ---------------------------------------------------------------------------
+// Garde-fou de construction : sans les variables Supabase, le bundle se
+// construit « avec succès » mais ne contient plus l'application.
+// ---------------------------------------------------------------------------
+test("la construction refuse de produire un bundle vide", () => {
+  const config = readFileSync(new URL("../vite.config.js", import.meta.url), "utf8");
+  assert.match(config, /VITE_SUPABASE_URL/);
+  assert.match(config, /VITE_SUPABASE_ANON_KEY/);
+  assert.match(config, /command === 'build'/);
+  assert.match(config, /throw new Error\(/);
+});

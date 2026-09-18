@@ -121,6 +121,7 @@ const handler = async (event) => {
     commission_plateau: "SECOTO — reservation de votre creneau (frais de mise en relation)",
     convoyage_livraison: "SECOTO — prestation de convoyage",
     od_convoyage: "SECOTO — convoyage a la demande",
+    od_plateau: "SECOTO — transport de vehicule sur plateau",
     od_plateau_commission: "SECOTO — frais de mise en relation (transport sur plateau)",
     subscription_extension: "SECOTO — extension de forfait",
   }[payment.purpose] || "SECOTO — prestation";

@@ -164,7 +164,7 @@ test("maintenance : libération d'autorisation, remboursement, verrou de forfait
     refunds: { create: async (p, o) => { stripeCalls.push(["refund", p.payment_intent, p.amount, o.idempotencyKey]); return {}; } },
   };
   const report = await runMaintenance({ admin, stripe });
-  assert.deepEqual(stripeCalls, [["cancel", "pi_a"], ["refund", "pi_b", 2000, "secoto-od-refund-p-paid"]]);
+  assert.deepEqual(stripeCalls, [["cancel", "pi_a"], ["refund", "pi_b", 2000, "secoto-od-refund-p-paid-2000"]]);
   assert.equal(report.locks[0].outcome, "confirmed");
   const results = admin.calls.filter((c) => c.name === "secoto_od_payment_action_result").map((c) => [c.args.p_payment_id, c.args.p_success]);
   assert.deepEqual(results, [["p-auth", true], ["p-paid", true], ["p-none", true]]);

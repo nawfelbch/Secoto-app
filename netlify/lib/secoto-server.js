@@ -159,7 +159,7 @@ export const SUBSCRIPTION_EVENTS = new Set([
   "invoice.payment_failed",
   "customer.subscription.deleted",
 ]);
-export const OD_PURPOSES = new Set(["od_convoyage", "od_plateau_commission", "subscription_extension"]);
+export const OD_PURPOSES = new Set(["od_convoyage", "od_plateau", "od_plateau_commission", "subscription_extension"]);
 
 export function intentIdFromObject(type, object = {}) {
   if (type.startsWith("payment_intent.")) return object.id || null;

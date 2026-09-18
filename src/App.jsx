@@ -117,7 +117,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { featureFlags } from "./lib/onDemand";
+import { acceptMission, declineMission, featureFlags, formatCents } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -230,6 +230,9 @@ const MISSION_TRANSPORTER_COLUMNS = [
 const PUBLIC_MISSION_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "vehicle", "distance_km", "created_at",
+  // Acceptation directe : le transporteur voit sa rémunération, la date et
+  // l'état du véhicule. Jamais le prix client ni la marge.
+  "mission_date", "vehicle_rolling", "carrier_pay",
 ].join(",");
 const APPLICATION_COLUMNS = [
   "id", "mission_id", "transporter_id", "transporter_name", "transporter_company",
@@ -2745,6 +2748,34 @@ export default function App() {
   }
 
   /**
+   * Acceptation directe d'une mission publiée : la rémunération est affichée,
+   * le transporteur accepte ou refuse. Aucun tarif proposé, aucune négociation.
+   * L'attribution est tranchée en base (verrou de ligne) : un seul gagnant.
+   */
+  async function acceptMissionDirect(missionId) {
+    setError(""); setNotice("");
+    try {
+      await runLocked(`accept:${missionId}`, async () => {
+        await acceptMission(missionId);
+        setNotice("Mission acceptée. Elle est maintenant dans vos missions attribuées.");
+        setTransporterTab("assigned");
+        await loadAllData(account, { silent: true });
+      });
+    } catch (err) { setError(humanizeError(err, "Cette mission n'a pas pu être acceptée.")); }
+  }
+
+  async function declineMissionDirect(missionId) {
+    setError(""); setNotice("");
+    try {
+      await runLocked(`decline:${missionId}`, async () => {
+        await declineMission(missionId);
+        setPublicMissions((prev) => prev.filter((m) => m.id !== missionId));
+        setNotice("Mission refusée : elle ne vous sera plus proposée. Aucune conséquence sur votre compte.");
+      });
+    } catch (err) { setError(humanizeError(err, "Le refus n'a pas pu être enregistré.")); }
+  }
+
+  /**
    * Fixe (ou libère) la rémunération du transporteur et la marge SECOTO.
    * Sans appel à cette fonction, le barème historique s'applique tel quel.
    */
@@ -4906,7 +4937,36 @@ export default function App() {
                       <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                       <PublicMissionInfo mission={mission} />
                       <div className="private-locked">Détails client, immatriculation et consignes visibles uniquement après attribution par SECOTO.</div>
-                      {!isAdmin && (
+                      {!isAdmin && flags?.direct_accept && (
+                        <>
+                          {/* Rémunération fixée par SECOTO et affichée telle quelle.
+                              Le transporteur accepte ou refuse : rien d'autre. */}
+                          <p className="od-offer-pay">{formatCents(Math.round(Number(mission.carrierPay || 0) * 100))}</p>
+                          <p className="muted">
+                            Votre rémunération pour cette mission, versée par SECOTO sous 48 h après la livraison.
+                            Véhicule {mission.vehicleRolling === false ? "NON ROULANT" : "roulant"}.
+                          </p>
+                          <div className="actions-row">
+                            <button
+                              className="btn primary small"
+                              type="button"
+                              disabled={!account.isVerified || actionLoading}
+                              onClick={() => acceptMissionDirect(mission.id)}
+                            >
+                              Accepter
+                            </button>
+                            <button
+                              className="btn ghost small"
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={() => declineMissionDirect(mission.id)}
+                            >
+                              Refuser
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {!isAdmin && !flags?.direct_accept && (
                         <>
                           {/* Seule formulation autorisée envers le transporteur.
                               Ne JAMAIS écrire qu'il doit « répercuter les 20 %

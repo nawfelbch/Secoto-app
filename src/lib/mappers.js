@@ -81,6 +81,8 @@ export function missionFromDb(row) {
     vehicle: row.vehicle,
     plate: row.plate,
     distanceKm: row.distance_km,
+    // false = vehicule non roulant (treuil). Absent sur les anciennes missions.
+    vehicleRolling: row.vehicle_rolling ?? null,
     carrierCost: row.carrier_cost,
     // Montants calcules par la base (colonnes generees). Peuvent etre absents
     // selon les droits de lecture (cloisonnement RLS/colonnaire).
@@ -139,6 +141,10 @@ export function publicMissionFromDb(row) {
     vehicle: row.vehicle,
     distanceKm: row.distance_km,
     createdAt: row.created_at,
+    // Acceptation directe (035) : remuneration, date et etat du vehicule.
+    missionDate: row.mission_date ?? null,
+    vehicleRolling: row.vehicle_rolling ?? null,
+    carrierPay: row.carrier_pay ?? null,
   };
 }
 

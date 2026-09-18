@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import OnDemandBooking from "./OnDemandBooking";
 import LiveTrackingView from "./LiveTrackingView";
 import {
-  MANUAL_REASONS, MILESTONES, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL,
-  cancelOrder, formatCents, formatDateTime, myOrders, myQuotes, orderHeadline, paymentExplanation,
+  MANUAL_REASONS, MILESTONES, NO_PARTNER_REFUND_HOURS, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL,
+  cancelOrder, cancelPreview, cancellationNotice, cancellationPolicy,
+  formatCents, formatDateTime, myOrders, myQuotes, orderHeadline, paymentExplanation,
 } from "../lib/onDemand";
 import { payNow } from "../lib/payments";
 
@@ -73,7 +74,9 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
       {orders?.length === 0 && quotes.length === 0 && <div className="empty-state"><strong>Aucune commande</strong>Demandez un prix pour votre prochain transport.</div>}
       <div className="cards">
         {(orders || []).map((order) => {
-          const cancellable = ["awaiting_payment", "searching_partner", "no_partner"].includes(order.status);
+          // Annulable jusqu'à la prise en charge du véhicule, y compris après
+          // confirmation : la retenue éventuelle est annoncée avant de valider.
+          const cancellable = ["awaiting_payment", "searching_partner", "partner_confirmed"].includes(order.status);
           const canTrack = flags?.live_tracking && order.mission_id && ["partner_confirmed", "picked_up", "delivered"].includes(order.status);
           return (
             <article id={`order-${order.id}`} className={`mission-card${focusOrderId === order.id ? " is-focused" : ""}`} key={order.id}>
@@ -95,7 +98,16 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                 ))}
               </ol>
               {order.status === "awaiting_payment" && order.funding === "card" && <p className="muted">{paymentExplanation(order)}</p>}
-              {order.status === "no_partner" && <p className="muted">Aucun partenaire n’a pu confirmer. {order.funding === "card" ? "Votre paiement est libéré ou remboursé intégralement." : "Votre droit de forfait est restitué."}</p>}
+              {["searching_partner", "partner_confirmed"].includes(order.status) && order.funding === "card" && (
+                <p className="muted">{cancellationPolicy()}</p>
+              )}
+              {order.status === "no_partner" && (
+                <p className="muted">
+                  Aucun transporteur ne s’est rendu disponible. {order.funding === "card"
+                    ? `Vous êtes remboursé intégralement sous ${NO_PARTNER_REFUND_HOURS} h.`
+                    : "Votre droit de forfait est restitué."}
+                </p>
+              )}
               <div className="actions-row">
                 {order.funding === "card" && (order.status === "awaiting_payment" || order.payment_status === "capture_failed" || order.payment_status === "failed") && order.status !== "cancelled" && (
                   <button className="btn primary small" type="button" disabled={busyId === order.id} onClick={async () => {
@@ -106,9 +118,14 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                 {canTrack && <button className="btn ghost small" type="button" onClick={() => setTracking(order.mission_id)}>Suivre en direct</button>}
                 {cancellable && (
                   <button className="btn danger small" type="button" disabled={busyId === order.id} onClick={async () => {
-                    if (!window.confirm("Annuler cette commande ? Le paiement sera libéré ou remboursé intégralement.")) return;
                     setBusyId(order.id);
-                    try { await cancelOrder(order.id); } catch (e) { setError(e.message); } finally { setBusyId(null); load(); }
+                    try {
+                      // On annonce le montant exact AVANT de demander confirmation :
+                      // c'est le serveur qui calcule la retenue, jamais l'écran.
+                      const preview = await cancelPreview(order.id);
+                      if (!window.confirm(`${cancellationNotice(preview)}\n\nConfirmer l’annulation ?`)) return;
+                      await cancelOrder(order.id);
+                    } catch (e) { setError(e.message); } finally { setBusyId(null); load(); }
                   }}>Annuler</button>
                 )}
               </div>

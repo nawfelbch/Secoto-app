@@ -32,7 +32,9 @@ export async function runMaintenance({ admin, stripe }) {
       } else if (action.action === "refund") {
         await stripe.refunds.create(
           { payment_intent: action.intent_id, amount: action.amount_cents, reason: "requested_by_customer", metadata: { secoto_payment_id: action.payment_id } },
-          { idempotencyKey: `secoto-od-refund-${action.payment_id}` },
+          // La clé porte le montant : un remboursement partiel (annulation
+          // tardive) et un remboursement du solde restent deux opérations.
+          { idempotencyKey: `secoto-od-refund-${action.payment_id}-${action.amount_cents}` },
         );
         await admin.rpc("secoto_od_payment_action_result", { p_payment_id: action.payment_id, p_action: "refund", p_success: true, p_error: null });
       } else {
@@ -41,8 +43,9 @@ export async function runMaintenance({ admin, stripe }) {
           await stripe.paymentIntents.cancel(intent.id, {}, { idempotencyKey: `secoto-od-cancel-${action.payment_id}` });
         } else if (intent.status === "succeeded") {
           // Encaissé entre-temps : on rembourse intégralement plutôt que d'annuler.
-          await stripe.refunds.create({ payment_intent: intent.id, reason: "requested_by_customer", metadata: { secoto_payment_id: action.payment_id } },
-            { idempotencyKey: `secoto-od-refund-${action.payment_id}` });
+          await stripe.refunds.create(
+            { payment_intent: intent.id, amount: action.amount_cents || undefined, reason: "requested_by_customer", metadata: { secoto_payment_id: action.payment_id } },
+            { idempotencyKey: `secoto-od-refund-${action.payment_id}-${action.amount_cents || "all"}` });
           await admin.rpc("secoto_od_payment_action_result", { p_payment_id: action.payment_id, p_action: "refund", p_success: true, p_error: null });
           report.actions.push({ payment: action.payment_id, outcome: "refunded_after_success" });
           continue;

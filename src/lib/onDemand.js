@@ -41,72 +41,15 @@ export const MANUAL_REASONS = {
   vehicule_prestige: "Les véhicules de prestige font l’objet d’un devis personnalisé.",
   contraintes_particulieres: "Les contraintes signalées demandent une étude personnalisée.",
   vehicule_non_roulant: "Un véhicule non roulant demande une étude personnalisée.",
+  supplement_non_roulant_non_defini: "Ce trajet fait l’objet d’un devis personnalisé.",
   convoyage_impossible_vehicule_non_roulant: "Un véhicule non roulant ne peut pas être convoyé.",
   delai_trop_court: "Le délai demandé est trop court pour un prix automatique.",
   remuneration_partenaire_non_definie: "Ce trajet fait l’objet d’un devis personnalisé.",
   marge_insuffisante: "Ce trajet fait l’objet d’un devis personnalisé.",
 };
 
-// Transport et paiement sont deux états distincts, jamais confondus.
-export const ORDER_STATUS_LABEL = {
-  awaiting_payment: "Demande reçue — paiement à valider",
-  searching_partner: "Recherche d’un partenaire",
-  partner_locked: "Confirmation du partenaire en cours",
-  partner_confirmed: "Partenaire confirmé",
-  picked_up: "Véhicule récupéré",
-  delivered: "Livraison effectuée",
-  no_partner: "Aucun partenaire disponible",
-  cancelled: "Annulée",
-};
-
-export const PAYMENT_STATE_LABEL = {
-  pending: "Paiement à valider",
-  processing: "Paiement en cours de validation",
-  requires_capture: "Paiement autorisé (non débité)",
-  paid: "Paiement encaissé",
-  capture_failed: "Encaissement refusé — moyen de paiement à mettre à jour",
-  failed: "Paiement refusé",
-  cancelled: "Autorisation libérée",
-  refund_pending: "Remboursement en cours",
-  refunded: "Remboursé",
-};
-
-export const MILESTONES = [
-  { key: "demande_recue", label: "Demande reçue" },
-  { key: "paiement_autorise", label: "Paiement autorisé" },
-  { key: "paiement_encaisse", label: "Paiement encaissé" },
-  { key: "partenaire_confirme", label: "Partenaire confirmé" },
-  { key: "vehicule_recupere", label: "Véhicule récupéré" },
-  { key: "livraison_effectuee", label: "Livraison effectuée" },
-];
-
-export function formatCents(cents) {
-  if (cents === null || cents === undefined || Number.isNaN(Number(cents))) return "—";
-  const value = Number(cents) / 100;
-  return value.toLocaleString("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: value % 1 ? 2 : 0 });
-}
-
-export function formatDateTime(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-export function paymentExplanation(order) {
-  if (!order) return "";
-  if (order.funding === "subscription") {
-    return "Mission incluse dans votre forfait : aucun paiement supplémentaire. Le droit est réservé et vous est restitué si aucun partenaire ne confirme.";
-  }
-  const amount = formatCents(order.collect_cents);
-  const plateau = order.mode === "plateau"
-    ? ` SECOTO encaisse uniquement ses frais de mise en relation (${amount}). Le transport (${formatCents(order.transport_direct_cents)}) est réglé directement au transporteur.`
-    : "";
-  if (order.payment_strategy === "authorize_then_capture") {
-    return `Votre banque autorise ${amount} : rien n’est débité tant qu’un partenaire n’a pas confirmé la mission. Sans confirmation, l’autorisation est libérée.${plateau}`;
-  }
-  return `La prise en charge étant éloignée, ${amount} sont encaissés dès la validation. Si aucun partenaire ne confirme, vous êtes remboursé intégralement.${plateau}`;
-}
+export * from "./orderCopy";
+import { OFFER_WINDOW_HOURS, ORDER_STATUS_LABEL } from "./orderCopy";
 
 // Étape suivante lisible par le client, sans jamais annoncer ce qui n'est pas acquis.
 export function orderHeadline(order) {
@@ -115,7 +58,7 @@ export function orderHeadline(order) {
   if (order.status === "searching_partner" || order.status === "partner_locked") {
     return order.payment_status === "capture_failed"
       ? "L’encaissement a échoué : mettez à jour votre moyen de paiement"
-      : "Votre demande est proposée aux partenaires compatibles";
+      : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
   }
   return ORDER_STATUS_LABEL[order.status] || order.status;
 }
@@ -176,6 +119,7 @@ export const myOrders = () => rpc("secoto_od_my_orders", {});
 export const bookQuote = (quoteId, useSubscription = false) =>
   rpc("secoto_od_book_quote", { p_quote_id: quoteId, p_use_subscription: useSubscription, p_idempotency_key: randomIdempotencyKey() });
 export const cancelOrder = (orderId) => rpc("secoto_od_cancel_order", { p_order_id: orderId, p_idempotency_key: randomIdempotencyKey() });
+export const cancelPreview = (orderId) => rpc("secoto_od_cancel_quote_preview", { p_order_id: orderId });
 
 // ---- Partenaire ------------------------------------------------------------
 export const myDispatchPreferences = () => rpc("secoto_my_dispatch_preferences", {});
@@ -185,6 +129,10 @@ export const getOffer = (offerId) => rpc("secoto_offer_get", { p_offer_id: offer
 export const markOfferSeen = (offerId) => rpc("secoto_offer_mark_seen", { p_offer_id: offerId }).catch(() => null);
 export const declineOffer = (offerId) => rpc("secoto_offer_decline", { p_offer_id: offerId });
 export const acceptOffer = (offerId, idempotencyKey) => callFunction("offer-accept", { offerId, idempotencyKey });
+// Missions publiées hors commande : la rémunération est affichée, on accepte ou on refuse.
+export const acceptMission = (missionId) =>
+  rpc("secoto_mission_accept", { p_mission_id: missionId, p_idempotency_key: randomIdempotencyKey() });
+export const declineMission = (missionId) => rpc("secoto_mission_decline", { p_mission_id: missionId });
 
 // ---- Suivi -----------------------------------------------------------------
 export const liveView = (missionId) => rpc("secoto_live_view", { p_mission_id: missionId });
@@ -227,6 +175,7 @@ export const admin = {
   lockForPartner: (orderId, partnerId) => callFunction("offer-accept", { adminOrderId: orderId, partnerId }),
   replacePartner: (id, reason) => rpc("secoto_admin_od_replace_partner", { p_order_id: id, p_reason: reason }),
   cancelOrder: (id, reason, refund) => rpc("secoto_admin_od_cancel_order", { p_order_id: id, p_reason: reason, p_refund: refund }),
+  updateConditions: (id, payload, note) => rpc("secoto_admin_od_update_conditions", { p_order_id: id, p_payload: payload, p_note: note }),
   grids: () => rpc("secoto_admin_pricing_grids", {}),
   createGrid: (mode, params, note) => rpc("secoto_admin_create_grid_version", { p_mode: mode, p_params: params, p_source_note: note }),
   activateGrid: (id) => rpc("secoto_admin_activate_grid", { p_grid_id: id }),

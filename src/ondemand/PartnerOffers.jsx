@@ -192,7 +192,12 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
         <div><strong>Inclus</strong><ul>{offer.partner_included.map((x) => <li key={x}>{x}</li>)}</ul></div>
         <div><strong>À savoir</strong><ul>{offer.partner_excluded.map((x) => <li key={x}>{x}</li>)}</ul></div>
       </div>
-      {available && <p className="muted">Proposition envoyée à plusieurs partenaires : elle disparaît dès qu’elle est attribuée.</p>}
+      {available && (
+        <p className="muted">
+          Proposition envoyée à tous les transporteurs compatibles : elle disparaît dès qu’elle est attribuée.
+          À accepter avant le {formatDateTime(offer.expires_at)}.
+        </p>
+      )}
       {result && <div className={`alert ${result === "confirmed" ? "success" : result === "pending_capture" ? "" : "error"}`} role="status">{RESULT_TEXT[result] || RESULT_TEXT.unavailable}</div>}
       {error && <div className="alert error">{error}</div>}
       <div className="actions-row">

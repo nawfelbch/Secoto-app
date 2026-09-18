@@ -17,6 +17,9 @@ comme aujourd'hui : aucun nouvel écran n'apparaît, aucune notification nouvell
 | `supabase/migrations/202609170030_transport_a_la_demande.sql` | interrupteurs, journal d'actions, sociétés clientes, barèmes versionnés + moteur de prix, devis, commandes, paiements (autorisation/capture), offres partenaires et attribution atomique, versements partenaires, export comptable |
 | `supabase/migrations/202609170031_abonnement_professionnel.sql` | dossiers d'éligibilité, historique importé (privé), propositions simulées au pire cas, abonnements Stripe Billing, quotas réservés atomiquement, extensions |
 | `supabase/migrations/202609170032_suivi_gps_mission.sql` | sessions de partage de position, positions, estimation d'arrivée, arrêt automatique, purge |
+| `supabase/migrations/202609180033_correctif_droits_helpers.sql` | **correctif** : rétablit les droits d'exécution retirés par erreur (comptes inaccessibles le 17/09) |
+| `supabase/migrations/202609180034_bareme_secoto_2026.sql` | barème commercial du 18/09/2026 (voir § 4) |
+| `supabase/migrations/202609180035_parcours_commande_final.sql` | parcours de commande définitif (voir § 4) |
 | `supabase/rollback/030-032_rollback.sql` | retour arrière (niveau 1 : désactivation ; niveau 2 : suppression des objets) |
 
 Trois modifications seulement touchent l'existant, toutes rétro-compatibles :
@@ -92,154 +95,193 @@ PGURL=postgres://... node --test tests/db/od-subscription-live.dbtest.mjs
 
 ---
 
-## 4. Ce qui fonctionne
+## 4. Le barème et le parcours décidés le 18/09/2026
 
-- **Prix** : barème versionné, calculé côté serveur, jamais modifiable par le client ;
-  chaque devis conserve sa version et sa durée de validité. Le barème convoyage initial
-  est **exactement** celui de la migration 009 (1,00 / 0,90 / 0,88 €/km, plancher 115 €,
-  convoyeur 0,55 €/km, frais réels sur justificatifs). Hors de son domaine de validité
-  (utilitaire, plus de 600 km, prestige, véhicule non roulant, contraintes) : devis manuel.
-- **Paiement avant diffusion** : autorisation puis capture après attribution quand la prise
-  en charge est proche ; encaissement immédiat avec remboursement intégral automatique
-  au-delà de la fenêtre d'autorisation. Le comportement réel est écrit à l'écran.
-- **Attribution atomique** : une seule acceptation gagne ; les autres voient
-  « Mission déjà attribuée » ; un échec de capture ne laisse jamais une mission confirmée.
-- **Partenaires** : disponibilité, zones, véhicules, équipements, jours, notifications hors
-  connexion, confidentialité de l'écran verrouillé. Aucun refus n'est pénalisé.
-- **Abonnement** : questionnaire, import contrôlé (formules jamais évaluées, macros refusées),
-  analyse admin, proposition simulée **en utilisation complète** (combinaison autorisée la plus
-  coûteuse) — l'envoi est refusé si la marge du pire cas passe sous le seuil ; quotas réservés
-  atomiquement, restitués à l'annulation et quand aucun partenaire ne confirme.
-- **Suivi** : activé par le partenaire après « Véhicule récupéré », avec consentement ;
-  position ancienne signalée comme telle ; arrêt automatique à la livraison, à l'annulation
-  et à la réattribution ; conservation limitée (30 j après l'arrêt, 90 j maximum).
-- **Cloisonnement** (contrôlé en base, pas seulement à l'écran) : le partenaire ne voit ni le
-  prix client ni la marge ; le client ne voit pas le coût partenaire ; chaque société ne voit
-  que ses dossiers ; l'historique importé reste privé.
+### Prix client
+
+| Mode | Catégorie | Prix client | Rémunération transporteur |
+|---|---|---|---|
+| Plateau | Voiture | **1,12 €/km** | 0,97 €/km |
+| Plateau | Moto | **1,00 €/km**, le prix ne dépasse jamais **400 €** | 0,85 €/km (340 € au plafond) |
+| Plateau | Utilitaire, VL, camionnette, caravane | **1,25 €/km** | 1,10 €/km |
+| Plateau | Véhicule non roulant | **+ 80 €** | + 60 € |
+| Convoyage | Toutes catégories | **1,00 €/km**, tout compris | 0,55 €/km — **0,65 €/km** en utilitaire |
+| Les deux | Plancher | **115 €** | 115 € × le rapport de la catégorie |
+
+Exemples produits par le moteur, vérifiés à chaque installation de la migration :
+voiture 500 km = **560,00 €** (transporteur 485,00) · moto 300 km = **300,00 €** (255,00) ·
+moto 800 km = **400,00 €** (340,00) · utilitaire 200 km = **250,00 €** (220,00) ·
+50 km = **115,00 €** (99,60) · voiture non roulante 500 km = **640,00 €** (545,00) ·
+convoyage 400 km = **400,00 €** (convoyeur 220,00, utilitaire 260,00).
+
+**SECOTO encaisse la totalité**, dans les deux modes, puis règle le transporteur.
+Plus aucun transport n'est payé en direct au transporteur. Les missions créées
+**avant** la bascule gardent exactement leurs montants : aucune mission en cours
+n'est modifiée.
+
+Hors du domaine du barème (prestige, contraintes particulières, plus de 1 500 km,
+itinéraire introuvable), le prix n'est pas inventé : la demande part en **devis
+personnalisé** et vous fixez le prix vous-même.
+
+### Parcours client
+
+1. Le client saisit ses adresses, décrit le véhicule, choisit sa date. Le prix
+   s'affiche immédiatement.
+2. Il paie par **Apple Pay, Google Pay ou carte**. Le paiement est **encaissé tout
+   de suite** et **gardé en réserve 48 heures**. C'est écrit à l'écran, avant et
+   après le paiement.
+3. La **facture** part automatiquement par e-mail dès l'encaissement, avec le
+   détail du prix et la mention « TVA non applicable, article 293 B du CGI ».
+4. La demande est proposée à **tous les transporteurs vérifiés compatibles**,
+   pendant **48 heures**, en **un seul tour**.
+5. Le premier qui accepte emporte la mission. Les autres voient
+   « Mission déjà attribuée ».
+6. **Si personne n'accepte** : la commande s'arrête et le **remboursement intégral**
+   est demandé automatiquement, annoncé au client **sous 24 heures**.
+7. **Annulation client** : remboursement intégral **jusqu'à 24 heures avant** la
+   prise en charge, même si un transporteur a confirmé ; au-delà, **50 % sont
+   retenus**. Le montant exact est annoncé à l'écran avant de valider.
+8. Après la livraison, le transporteur est réglé **sous 48 heures** (échéance
+   affichée dans l'espace administration, rappel automatique le jour venu).
+
+### Parcours transporteur
+
+- **Plus de candidature avec prix proposé.** Partout — commandes en ligne comme
+  missions créées par vous — il voit sa **rémunération** et **accepte ou refuse**.
+- La notification porte le **modèle du véhicule**, la **ville de départ**, la
+  **ville d'arrivée**, l'état **roulant / NON ROULANT** et **sa rémunération**.
+- Il n'a **rien à régler au préalable** : un transporteur vérifié qui n'a jamais
+  touché aux préférences reçoit tout ce qui le concerne. Les préférences (zones,
+  catégories, jours) ne filtrent que s'il les a renseignées lui-même.
+- **Un refus n'a aucune conséquence** : ni compteur, ni note, ni statut. Il retire
+  simplement cette mission-là de son tableau.
+
+### Pilotage
+
+Vous pouvez modifier **toutes les conditions** d'un transport **à tout moment,
+même en cours de mission** : prix client, rémunération du transporteur, date de
+prise en charge, adresses, véhicule. Le motif est obligatoire, le changement est
+tracé, le client et le transporteur sont prévenus, et la mission comme le
+versement suivent automatiquement. Si le prix change **après encaissement**, rien
+n'est débité ni remboursé tout seul : vous recevez une alerte « Écart de prix à
+régulariser ».
 
 ---
 
-## 5. Résultats des tests et limites connues
+## 5. Cloisonnement et sécurité (contrôlés en base, pas seulement à l'écran)
 
-### Tests exécutés
+- Le transporteur ne voit **ni le prix client ni la marge** — ni dans une offre,
+  ni dans le tableau des missions publiées.
+- Le client ne voit **pas le coût transporteur**.
+- Le prix, la rémunération et la marge sont calculés **en base** : le téléphone
+  n'envoie aucun montant, et tout montant qu'il enverrait serait ignoré.
+- Chaque société ne voit que ses dossiers ; l'historique importé reste privé.
+- Une seule acceptation peut gagner : l'attribution est sérialisée par un verrou
+  de ligne. Vérifié par 15 commandes × 3 acceptations simultanées.
+- Les webhooks Stripe rejoués ou reçus dans le désordre ne font jamais régresser
+  un paiement.
 
-| Vérification | Où | Résultat |
+---
+
+## 6. Ce qui reste à décider ou à confirmer
+
+Ces points ont été tranchés par défaut, faute de décision explicite. Ils se
+changent en une ligne, sans redéploiement.
+
+| Point | Valeur retenue | Où la changer |
 |---|---|---|
-| Suite existante + nouveaux tests unitaires | `npm test` | **166 tests au vert** (153 avant, 13 ajoutés) |
-| Lint | `npx eslint .` | propre |
-| Build de production | `npm run build` | propre (bundle 956 ko, avertissement de taille connu) |
-| Rendu de tous les nouveaux écrans | `tests/smoke/` | 12 écrans rendus sans erreur |
-| Intégration base de données (PostgreSQL 17, connexions concurrentes réelles) | `tests/db/od-subscription-live.dbtest.mjs` | **16 tests au vert** |
-| Rejeu complet des 19 migrations sur base vierge, deux fois de suite | script de rejeu | aucune erreur (migrations rejouables) |
-| Retour arrière puis réapplication | `supabase/rollback/030-032_rollback.sql` | l'état des fonctions redevient identique à l'avant-030 |
+| Part du supplément « non roulant » reversée au transporteur | 60 € sur les 80 € facturés | barème plateau, `non_rolling_partner_eur` |
+| Convoyage : frais réels (carburant, péages) du convoyeur | **remboursés sur justificatifs**, comme aujourd'hui — le prix client « tout compris » ne change pas ses conditions | barème convoyage, mention `included` |
+| Annulation après confirmation : part versée au transporteur | **aucune part automatique** — vous arbitrez, une alerte admin vous prévient | `secoto_od_cancel_order` |
+| Distance maximale du prix automatique | 1 500 km | barème, `auto_max_km` |
+| Marge minimale avant devis personnalisé | 10 % | barème, `min_margin_pct` |
 
-Ce que couvrent les tests base de données, point par point :
+Tous les délais (48 h d'offre, 24 h de remboursement, 24 h d'annulation gratuite,
+50 % de retenue, 48 h de versement) sont dans **une seule ligne de réglage** :
+`app_settings` → `dispatch_policy`. Les changer prend effet à la minute suivante.
 
-- 15 commandes × 3 acceptations **simultanées** : un seul gagnant à chaque fois ; aucune
-  mission créée tant que le paiement n'est pas capturé ;
-- webhook rejoué (même identifiant d'événement) : sans effet ; webhook reçu **dans le désordre**
-  (« autorisé » après « encaissé », « autorisé » après « annulé ») : aucun retour en arrière ;
-- échec de capture après acceptation : aucune mission confirmée, commande de nouveau
-  disponible, paiement marqué « encaissement refusé », partenaire informé sans pénalité ;
-- aucun partenaire compatible : fin de diffusion après le nombre de tours prévu, commande
-  « aucun partenaire », action de libération du paiement produite pour le serveur ;
-- trois réservations simultanées pour deux droits d'abonnement : deux acceptées, une refusée
-  avec le message « Droits épuisés » ; annulation → droit restitué → nouvelle réservation possible ;
-  plafond kilométrique et distance maximale par trajet refusés avec le motif exact ;
-- import d'historique : formule non évaluée, ligne en erreur bloquante, doublon signalé,
-  dossier d'un tiers illisible ;
-- suivi : activation refusée avant « Véhicule récupéré » et sans consentement, position
-  périmée signalée, accès refusé à un autre client et à un autre partenaire, arrêt automatique
-  à la livraison et à la réattribution, versement partenaire créé à la livraison ;
-- cloisonnement : lecture directe des tables refusée, fonctions d'administration refusées à un
-  client et à un partenaire, fonctions serveur refusées à tout compte authentifié, commandes
-  d'autrui invisibles, prix client jamais exposé au partenaire, rémunération partenaire jamais
-  exposée au client ;
-- non-régression : le paiement à la livraison d'une mission historique facture toujours le
-  montant complet ; sur une mission prépayée, il ne facture plus que les frais réels validés.
+---
 
-### Ce qui n'a PAS été testé sur appareil (à faire avant activation)
+## 7. Mise en ligne
 
-| Sujet | État | Ce qu'il reste à faire |
+### 7.1 Base de données
+
+Collez **`SECOTO-033-034-035-a-coller-dans-Supabase.sql`** dans le SQL Editor du
+projet **SECOTO CONVOYEURS**, en une seule fois. Le fichier est rejouable et
+n'active aucun interrupteur. Le chemin a été rejoué à blanc depuis l'état réel de
+la production (030-032 déjà installées, y compris le revoke fautif) : les droits
+sont rétablis, les deux barèmes sont actifs, la fenêtre passe à 48 heures.
+
+### 7.2 Variables d'environnement
+
+| Variable | Où | Sans elle |
 |---|---|---|
-| **Face ID / biométrie** | **non implémenté** | aucun plugin biométrique n'est présent dans le projet ; en l'état, l'ouverture depuis une notification s'appuie sur la session déjà ouverte et, si la session a expiré, la connexion ramène automatiquement à la mission (lien profond mémorisé — mécanisme existant). La confidentialité de l'écran verrouillé repose sur le réglage iOS « Aperçus : si déverrouillé », indiqué dans l'écran partenaire. Les passkeys web ne sont pas disponibles avec l'authentification actuelle. Ajouter un plugin biométrique est une décision à prendre (dépendance native + test sur appareil). |
-| **Notifications push réelles** | pipeline existant réutilisé | envoyer une offre de test à un iPhone et un Android : vérifier le texte masqué / détaillé, le son, l'ouverture directe sur la mission, et le cas « application fermée ». |
-| **GPS en arrière-plan** | **non disponible** | le partage fonctionne application ouverte (premier plan). Le suivi en arrière-plan demande un plugin dédié, `UIBackgroundModes`, une justification App Store et une nouvelle validation. L'interface le dit explicitement au partenaire, et une position ancienne est signalée comme telle. |
-| **Apple Pay / Google Pay avec capture différée** | code en place | régler une commande de test sur iPhone et Android en mode test Stripe. |
-| **Stripe** | simulé de bout en bout (RPC + fonctions avec un Stripe factice) | rejouer en **mode test** : paiement accepté, refusé, authentification 3DS, annulation d'autorisation, remboursement, contestation ; rejouer un même événement deux fois depuis le tableau de bord Stripe. |
-| **Abonnement récurrent** | code en place | un cycle complet en mode test : mise en place, facture payée, facture en échec, reprise, résiliation à l'échéance. |
-| **Estimation d'arrivée** | code en place | nécessite un fournisseur d'itinéraire configuré ; sans lui, aucune estimation n'est affichée (et jamais une distance à vol d'oiseau présentée comme une distance routière). |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | **build** (Netlify et Codemagic) | **la construction échoue désormais volontairement** (voir ci-dessous) |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Netlify | fonctions serveur en 503 |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY` | Netlify | paiement indisponible |
+| `ROUTING_PROVIDER`, `ORS_API_KEY`, `ORS_BASE_URL` | Netlify | aucun itinéraire → devis manuel |
+| `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` | build | tuiles OpenStreetMap publiques |
+| `VITE_APPLE_PAY_MERCHANT_ID` | build | Apple Pay masqué |
 
-Autres limites assumées :
+**Défaut corrigé au passage.** Si `VITE_SUPABASE_URL` ou `VITE_SUPABASE_ANON_KEY`
+manquaient, la construction **réussissait** mais produisait un fichier **sans
+l'application** : page blanche en ligne, sans le moindre message d'erreur. La
+cause : `src/supabaseClient.js` lève une erreur au chargement, l'optimiseur la
+voit devenir inconditionnelle et supprime tout le code qui suit. `vite.config.js`
+refuse maintenant de construire dans ce cas, avec un message explicite.
+Vérifiez que ces deux variables sont disponibles **dans tous les contextes de
+déploiement** Netlify, pas seulement en production.
 
-- **Plateau : pas de prix automatique.** Le barème plateau est livré en brouillon non activable
-  tant que la rémunération transporteur n'y est pas définie (voir §6). Toute demande plateau
-  part en devis manuel.
-- **Convoyage : prix automatique borné** aux voitures et à 600 km, marge minimale 15 %,
-  conformément à l'analyse SECOTO-025 (barème déficitaire au-delà sur utilitaire).
-- **Péages et carburant** ne sont pas estimés : ils restent des frais réels sur justificatifs
-  (convoyage) ou inclus dans le tarif plateau. Aucune donnée de péage n'est inventée.
-- Le portail client Stripe n'est pas activé : un prélèvement d'abonnement en échec se
-  régularise depuis l'e-mail de facture Stripe ou par SECOTO.
-- La carte de suivi utilise par défaut les tuiles publiques OpenStreetMap : acceptable pour les
-  essais, à remplacer par un fournisseur dédié en production (`VITE_MAP_TILE_URL`).
+Événements Stripe à cocher sur le webhook : `payment_intent.amount_capturable_updated`,
+`payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`,
+`charge.refunded`, `charge.dispute.created`, `charge.dispute.closed`,
+`checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`,
+`customer.subscription.deleted`.
 
-## 6. Points contractuels, tarifaires et externes qui conditionnent la production
+### 7.3 Ouverture des interrupteurs
 
-1. **Barème plateau à trancher.** Deux références coexistent dans le projet : la grille
-   2,20 €/km (≤ 300 km) puis 1,80 €/km global, et le modèle de l'application « tarif
-   transporteur × 1,20 ». La première ne dit pas ce que touche le transporteur. Tant que ce
-   point n'est pas fixé, le prix automatique plateau reste fermé.
-2. **Révision du barème convoyage.** À 2,25 €/L de gazole, la grille actuelle n'est plus
-   tenable au-delà de 600 km ni sur utilitaire. Décision à prendre : majoration utilitaire,
-   clause de révision gazole, ou maintien du devis manuel au-delà de 600 km.
-3. **Fournisseur d'itinéraire** (openrouteservice ou OSRM auto-hébergé) : compte, clé, quota
-   et coût. Sans lui : aucun prix automatique.
-4. **Fournisseur de tuiles cartographiques** pour la production.
-5. **Stripe** : activer les événements listés au §3 sur le webhook de production, et confirmer
-   la durée de validité des autorisations avec votre compte (la fenêtre est paramétrée à
-   144 h dans `app_settings.dispatch_policy`). Aucun compte Connect n'est nécessaire : sur
-   plateau, SECOTO n'encaisse que sa commission, le transport est réglé au transporteur.
-6. **Conditions générales** : clauses d'abonnement (droits non reportés, annulation,
-   résiliation, extension), prix ferme après acceptation du devis, et renonciation au droit de
-   rétractation pour un convoyage prépayé à date déterminée — à faire valider juridiquement.
-7. **RGPD** : la géolocalisation partenaire est une nouvelle donnée. À mettre à jour : registre
-   des traitements, politique de confidentialité, information du partenaire (déjà affichée dans
-   l'application) et du client, durées de conservation (30 jours après la fin du partage,
-   90 jours maximum — paramétrables dans `app_settings.live_tracking_policy`).
-8. **Stores** : les textes de localisation d'`Info.plist` ont été mis à jour (suivi de mission au
-   premier plan). La fiche de confidentialité App Store doit déclarer la localisation liée à
-   l'identité, usage « fonctionnement de l'app ».
+Dans l'ordre, une fois la base à jour et le site déployé :
 
-## 7. Déploiement et retour arrière
+```sql
+update public.secoto_feature_flags set enabled = true, updated_at = now()
+ where key in ('auto_pricing', 'od_payments', 'dispatch_notifications', 'live_tracking', 'direct_accept');
+notify pgrst, 'reload schema';
+```
 
-### Déploiement
+- `auto_pricing` — le prix s'affiche automatiquement au client.
+- `od_payments` — le paiement en ligne s'ouvre.
+- `dispatch_notifications` — la diffusion part aux transporteurs (sans lui, c'est
+  vous qui attribuez depuis l'administration).
+- `live_tracking` — le suivi en direct.
+- `direct_accept` — accepter / refuser remplace les candidatures.
 
-1. **Sauvegarde PITR** du projet Supabase et export des tables `payments` et `missions`.
-2. Appliquer, dans l'ordre, dans le SQL Editor (ou `supabase db push`) :
-   `202609170030`, `202609170031`, `202609170032`. Chaque fichier est une transaction unique,
-   additive et rejouable ; aucune réécriture de table, exécution de l'ordre de quelques secondes.
-3. Contrôler : `select key, enabled from public.secoto_feature_flags;` → **tout à false**.
-   `select mode, version, status from public.pricing_grids;` → convoyage v1 active, plateau v1 draft.
-4. Déployer la branche sur Netlify (déploiement de prévisualisation d'abord), ajouter les
-   variables du §3, puis ajouter les événements Stripe au webhook.
-5. Vérifier que les deux nouvelles tâches planifiées tournent : `od-maintenance` (chaque minute)
-   et `live-eta` (toutes les deux minutes) — journal Netlify.
-6. **Activation progressive**, un interrupteur à la fois, en observant l'écran « À la demande » :
-   `auto_pricing` (les devis se calculent, rien n'est payable) → `od_payments` avec Stripe en
-   mode test → `dispatch_notifications` sur un compte partenaire de test → `live_tracking` →
-   `subscriptions`.
-7. Publier l'application mobile seulement après validation sur le web : les écrans partenaires
-   et le suivi utilisent les capacités natives (notifications, localisation).
+`subscriptions` reste **fermé** : les abonnements sont livrés mais pas ouverts.
 
-### Retour arrière
+### 7.4 Retour arrière
 
-- **Immédiat, sans perte** : `update public.secoto_feature_flags set enabled = false;`
-  Les parcours existants (candidatures, documents, paiement plateau, frais, terrain) ne
-  dépendent d'aucun objet des migrations 030-032.
-- **Code** : redéployer le commit précédent sur Netlify ; les migrations restent en place sans
-  effet (tout est fermé par les interrupteurs).
-- **Suppression complète** : `supabase/rollback/030-032_rollback.sql` — à n'exécuter qu'après
-  export, et seulement si aucun paiement de commande n'est en cours (requête de contrôle en
-  tête du fichier). Le fichier restaure `prepare_notification` et `secoto_prepare_delivery_payment`
-  dans leur version antérieure et laisse intactes les colonnes ajoutées aux tables existantes.
+- **Immédiat** : remettre les interrupteurs à `false`. L'application reprend son
+  comportement d'avant, sans redéploiement.
+- **Barème** : réactiver une version archivée avec
+  `select public.secoto_admin_activate_grid('<id>')`. Les devis déjà émis gardent
+  la version qui les a produits.
+- **Délais** : `update public.app_settings set value = value || '{"offer_ttl_minutes": 30}'::jsonb where key = 'dispatch_policy';`
+- **Complet** : `supabase/rollback/030-032_rollback.sql`.
+
+---
+
+## 8. Vérifications effectuées
+
+- **183 tests** applicatifs et serveur (dont 17 sur le barème, le parcours et les
+  libellés affichés) : verts.
+- **24 tests d'intégration** sur une base PostgreSQL réelle, migrations rejouées
+  de zéro : concurrence d'attribution, webhooks rejoués et désordonnés, échec de
+  capture, absence de transporteur, annulation à 24 h et retenue de 50 %,
+  versement à 48 h dans les deux modes, facture et mention de TVA, pilotage admin
+  en cours de mission, acceptation directe concurrente, cloisonnement RLS.
+- **Rejeu double** de toutes les migrations : aucune erreur, aucun doublon.
+- **Chemin de production simulé** : base à l'état réel (030-032 avec le revoke
+  fautif) → fichier à coller → droits rétablis et barèmes actifs.
+- **Lint** propre, **construction** vérifiée (960 ko, contenant bien l'application).
+
+Ce qui n'a **pas** été fait, volontairement : aucun déploiement, aucun paiement
+réel, aucune notification envoyée à un vrai utilisateur, aucun interrupteur ouvert.
