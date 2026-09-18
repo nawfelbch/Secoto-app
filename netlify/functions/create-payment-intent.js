@@ -156,6 +156,7 @@ const handler = async (event) => {
       const session = await stripe.checkout.sessions.create(
         {
           mode: "payment",
+          managed_payments: { enabled: false },
           customer: customerId,
           line_items: [{
             price_data: {
@@ -180,7 +181,7 @@ const handler = async (event) => {
           success_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`,
           cancel_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`,
         },
-        { idempotencyKey: `secoto-checkout-${payment.id}` },
+        { idempotencyKey: `secoto-checkout-v2-${payment.id}` },
       );
 
       await admin
@@ -188,6 +189,7 @@ const handler = async (event) => {
         .update({
           provider_intent_id: session.payment_intent || payment.provider_intent_id,
           status: "processing",
+          last_error: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", payment.id);
@@ -230,6 +232,7 @@ const handler = async (event) => {
       .update({
         provider_intent_id: intent.id,
         status: "processing",
+        last_error: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", payment.id);
