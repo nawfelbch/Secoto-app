@@ -181,3 +181,11 @@ test("la construction refuse de produire un bundle vide", () => {
   assert.match(config, /command === 'build'/);
   assert.match(config, /throw new Error\(/);
 });
+
+test("le tableau des missions publiées survit à une base pas encore migrée", () => {
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /PUBLIC_MISSION_COLUMNS_FALLBACK/);
+  assert.match(app, /async function fetchPublicMissions\(limit\)/);
+  // Repli uniquement sur une colonne manquante, jamais sur une erreur de droits.
+  assert.match(app, /column\|colonne\|42703/);
+});

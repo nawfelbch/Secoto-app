@@ -227,13 +227,27 @@ const MISSION_TRANSPORTER_COLUMNS = [
   // le transporteur ne voit que sa propre rémunération.
   "payment_status", "cancelled_at", "cancellation_reason",
 ].join(",");
-const PUBLIC_MISSION_COLUMNS = [
+const PUBLIC_MISSION_BASE_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "vehicle", "distance_km", "created_at",
-  // Acceptation directe : le transporteur voit sa rémunération, la date et
-  // l'état du véhicule. Jamais le prix client ni la marge.
-  "mission_date", "vehicle_rolling", "carrier_pay",
-].join(",");
+];
+// Acceptation directe : le transporteur voit sa rémunération, la date et l'état
+// du véhicule. Jamais le prix client ni la marge. Ces trois colonnes n'existent
+// qu'à partir de la migration 035 : tant qu'elle n'est pas appliquée, on retombe
+// sur les colonnes historiques plutôt que de casser le tableau des missions.
+const PUBLIC_MISSION_EXTRA_COLUMNS = ["mission_date", "vehicle_rolling", "carrier_pay"];
+const PUBLIC_MISSION_COLUMNS = [...PUBLIC_MISSION_BASE_COLUMNS, ...PUBLIC_MISSION_EXTRA_COLUMNS].join(",");
+const PUBLIC_MISSION_COLUMNS_FALLBACK = PUBLIC_MISSION_BASE_COLUMNS.join(",");
+
+async function fetchPublicMissions(limit) {
+  const query = (columns) => supabase.from("secoto_public_missions_v2").select(columns)
+    .order("created_at", { ascending: false }).limit(limit);
+  const result = await query(PUBLIC_MISSION_COLUMNS);
+  if (result.error && /column|colonne|42703/i.test(`${result.error.code} ${result.error.message}`)) {
+    return query(PUBLIC_MISSION_COLUMNS_FALLBACK);
+  }
+  return result;
+}
 const APPLICATION_COLUMNS = [
   "id", "mission_id", "transporter_id", "transporter_name", "transporter_company",
   "transporter_status", "message", "proposed_price", "proposed_price_grouped",
@@ -2556,7 +2570,7 @@ export default function App() {
         setPublicMissions([]); setRequests([]); setApplications([]); setTransporters([]); setDocuments([]);
       } else {
         const [publicResult, privateResult, requestsResult, applicationsResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
-          supabase.from("secoto_public_missions_v2").select(PUBLIC_MISSION_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          fetchPublicMissions(DATA_PAGE_SIZE),
           supabase.from("secoto_missions_transporter_v2").select(MISSION_TRANSPORTER_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
