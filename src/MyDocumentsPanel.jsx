@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
+import { humanizeError } from "./lib/humanError";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import SignaturePad from "./SignaturePad";
@@ -46,7 +47,7 @@ export default function MyDocumentsPanel({
       setDocs(await listMyDocuments());
       setError("");
     } catch (e) {
-      setError(e.message || "Chargement des documents impossible.");
+      setError(humanizeError(e, "Chargement des documents impossible."));
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export default function MyDocumentsPanel({
         onDevisSigned?.(signed.missionId);
       }
     } catch (e) {
-      setError(e.message || "Signature impossible.");
+      setError(humanizeError(e, "Signature impossible."));
     } finally {
       setBusy(false);
     }
@@ -87,7 +88,7 @@ export default function MyDocumentsPanel({
 
   function onDownload(doc) {
     try { downloadDocument(doc); }
-    catch (e) { setError(e.message || "Telechargement impossible."); }
+    catch (e) { setError(humanizeError(e, "Telechargement impossible.")); }
   }
 
   const toSign = docs.filter((d) => d.needsSignature && d.statut === "envoye");

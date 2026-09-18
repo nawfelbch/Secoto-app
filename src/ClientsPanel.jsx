@@ -1,3 +1,4 @@
+import { humanizeError } from "./lib/humanError";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { accountFromDb, labelStatus, formatDateTime } from "./lib/mappers";
@@ -19,7 +20,7 @@ export default function ClientsPanel() {
         if (error) throw error;
         setClients((data || []).map(accountFromDb));
       } catch (e) {
-        setError(e.message || "Chargement des clients impossible.");
+        setError(humanizeError(e, "Chargement des clients impossible."));
       } finally {
         setLoading(false);
       }

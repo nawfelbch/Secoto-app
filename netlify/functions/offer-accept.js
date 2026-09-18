@@ -8,7 +8,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Une erreur réseau pendant la capture ne tranche rien : le verrou expire et
 // « od-maintenance » vérifie l'état réel chez Stripe.
 import Stripe from "stripe";
-import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, userClient } from "../lib/secoto-server.js";
+import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, userClient, withCors } from "../lib/secoto-server.js";
 
 const DECLINE_CODES = new Set(["card_declined", "expired_card", "insufficient_funds", "payment_intent_unexpected_state", "authentication_required"]);
 
@@ -72,4 +72,4 @@ const handler = async (event) => {
   return json(200, safe);
 };
 
-export default withLambda(handler);
+export default withLambda(withCors(handler));

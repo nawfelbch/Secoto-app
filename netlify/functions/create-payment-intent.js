@@ -1,4 +1,5 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
+import { withCors } from "../lib/secoto-server.js";
 // SECOTO — création de l'intention de paiement Stripe.
 // ----------------------------------------------------------------------------
 // Le client n'envoie QUE l'identifiant d'une ligne public.payments déjà créée
@@ -310,4 +311,4 @@ const handler = async (event) => {
   }
 };
 
-export default withLambda(handler);
+export default withLambda(withCors(handler));

@@ -3,7 +3,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Le montant vient de la proposition ACCEPTÉE en base, jamais du téléphone.
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
-import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient } from "../lib/secoto-server.js";
+import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
 
 const { SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
@@ -89,4 +89,4 @@ const handler = async (event) => {
   return json(200, { checkoutUrl: session.url });
 };
 
-export default withLambda(handler);
+export default withLambda(withCors(handler));

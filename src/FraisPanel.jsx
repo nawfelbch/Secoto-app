@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
+import { humanizeError } from "./lib/humanError";
 import { useEffect, useRef, useState } from "react";
 import {
   FRAIS_TYPES,
@@ -46,7 +47,7 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
     try {
       setItems(isAdmin ? await listAllFrais() : await listMyFrais(account.id));
     } catch (e) {
-      setError(e.message || "Chargement des frais impossible.");
+      setError(humanizeError(e, "Chargement des frais impossible."));
     }
     setLoading(false);
   }
@@ -87,7 +88,7 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
       e.target.reset?.();
       await reload();
     } catch (err) {
-      setError(err.message || "Envoi impossible.");
+      setError(humanizeError(err, "Envoi impossible."));
     }
     setBusy(false);
     busyRef.current = false;
@@ -96,7 +97,7 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
   async function onValidate(id) {
     setError("");
     try { await validateFrais(id); await reload(); }
-    catch (e) { setError(e.message); }
+    catch (e) { setError(humanizeError(e)); }
   }
 
   async function onRefuse(id) {
@@ -104,7 +105,7 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
     if (motif === null) return;
     setError("");
     try { await refuseFrais(id, motif); await reload(); }
-    catch (e) { setError(e.message); }
+    catch (e) { setError(humanizeError(e)); }
   }
 
   async function openJustificatif(path) {
@@ -116,7 +117,7 @@ export default function FraisPanel({ account, isAdmin, missions = [] }) {
         url,
       });
     } catch (e) {
-      setError(e.message || "Justificatif indisponible.");
+      setError(humanizeError(e, "Justificatif indisponible."));
     }
   }
 

@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import {
@@ -39,7 +40,7 @@ export function DispatchPreferencesPanel({ transporterType }) {
   useEffect(() => {
     myDispatchPreferences()
       .then((p) => { setPrefs(p); setZonesText((p.zones || []).join(", ")); })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(humanizeError(e)));
   }, []);
 
   async function save(patch = {}) {
@@ -50,7 +51,7 @@ export function DispatchPreferencesPanel({ transporterType }) {
       setZonesText((next.zones || []).join(", "));
       setMessage("Préférences enregistrées.");
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }
@@ -129,7 +130,7 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
       setOffer(data);
       return data;
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
       return null;
     }
   }, [offerId]);
@@ -155,7 +156,7 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
       const data = await refresh();
       if (r.result === "confirmed") onConfirmed?.(data);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }
@@ -163,7 +164,7 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
 
   async function decline() {
     setBusy(true);
-    try { await declineOffer(offerId); onClose?.(); } catch (e) { setError(e.message); } finally { setBusy(false); }
+    try { await declineOffer(offerId); onClose?.(); } catch (e) { setError(humanizeError(e)); } finally { setBusy(false); }
   }
 
   if (!offer) return <div className="od-offer-sheet">{error ? <div className="alert error">{error}</div> : <p className="muted">Chargement…</p>}</div>;
@@ -217,7 +218,7 @@ export function OffersPanel({ focusOfferId, onOpenMission }) {
   const [open, setOpen] = useState(focusOfferId || null);
   const [error, setError] = useState("");
 
-  const load = useCallback(() => myOffers().then((list) => { setOffers(list); setError(""); }).catch((e) => setError(e.message)), []);
+  const load = useCallback(() => myOffers().then((list) => { setOffers(list); setError(""); }).catch((e) => setError(humanizeError(e))), []);
   useEffect(() => { queueMicrotask(load); const id = setInterval(() => document.visibilityState === "visible" && load(), 20000); return () => clearInterval(id); }, [load]);
   useEffect(() => { if (focusOfferId) queueMicrotask(() => setOpen(focusOfferId)); }, [focusOfferId]);
 

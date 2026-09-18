@@ -189,3 +189,45 @@ export function subscriptionEventData(type, object = {}) {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// CORS. L'application native est servie depuis capacitor://localhost : chaque
+// appel a une fonction Netlify est donc une requete d'origine differente. Sans
+// reponse au preflight OPTIONS ni en-tetes d'autorisation, WebKit abandonne la
+// requete et l'ecran affiche « Load failed », sans plus d'explication. Le site
+// web, lui, fonctionne : meme origine, aucun preflight. D'ou un defaut visible
+// sur iPhone seulement.
+// ---------------------------------------------------------------------------
+export const ALLOWED_ORIGINS = new Set([
+  "https://app.secoto-transport.fr",
+  "https://www.app.secoto-transport.fr",
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+]);
+
+export function corsHeaders(origin = "") {
+  const valide = ALLOWED_ORIGINS.has(origin) ? origin : "https://app.secoto-transport.fr";
+  return {
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Origin": valide,
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+// Repond au preflight et ajoute les en-tetes a toutes les reponses, sans
+// toucher a la logique de la fonction enveloppee.
+export function withCors(handler) {
+  return async (event, context) => {
+    const origine = event?.headers?.origin || event?.headers?.Origin || "";
+    const entetes = corsHeaders(origine);
+    if (event?.httpMethod === "OPTIONS") {
+      return { statusCode: 204, headers: { ...entetes, "Cache-Control": "no-store" }, body: "" };
+    }
+    const reponse = await handler(event, context);
+    return { ...reponse, headers: { ...(reponse?.headers || {}), ...entetes } };
+  };
+}

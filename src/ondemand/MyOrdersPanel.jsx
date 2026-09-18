@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useState } from "react";
 import OnDemandBooking from "./OnDemandBooking";
 import LiveTrackingView from "./LiveTrackingView";
@@ -23,7 +24,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
       setQuotes(q.filter((x) => ["manual_review", "manual_priced", "priced"].includes(x.status)));
       setError("");
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
       setOrders((prev) => prev || []);
     }
   }, []);
@@ -112,7 +113,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                 {order.funding === "card" && (order.status === "awaiting_payment" || order.payment_status === "capture_failed" || order.payment_status === "failed") && order.status !== "cancelled" && (
                   <button className="btn primary small" type="button" disabled={busyId === order.id} onClick={async () => {
                     setBusyId(order.id);
-                    try { await payNow(order.payment_id); } catch (e) { setError(e.message); } finally { setBusyId(null); load(); }
+                    try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                   }}>{order.payment_status === "capture_failed" ? "Mettre à jour le paiement" : "Valider le paiement"}</button>
                 )}
                 {canTrack && <button className="btn ghost small" type="button" onClick={() => setTracking(order.mission_id)}>Suivre en direct</button>}
@@ -125,7 +126,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                       const preview = await cancelPreview(order.id);
                       if (!window.confirm(`${cancellationNotice(preview)}\n\nConfirmer l’annulation ?`)) return;
                       await cancelOrder(order.id);
-                    } catch (e) { setError(e.message); } finally { setBusyId(null); load(); }
+                    } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                   }}>Annuler</button>
                 )}
               </div>

@@ -11,14 +11,31 @@
 /* Cases a cocher (zones, categories, jours). En ligne flexible, les libelles
    les plus longs debordaient et se chevauchaient sur telephone : on passe en
    grille, chaque libelle peut revenir a la ligne dans sa propre colonne. */
-.od-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px 16px; }
+.od-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 10px 16px; }
+/* La case et son libelle forment une grille « auto 1fr » et non une boite
+   flexible : en flex, le texte devient un element flexible qui peut se reduire
+   a rien, et le libelle s'affiche une lettre par ligne. Ici la seconde colonne
+   occupe toute la place restante et le texte revient a la ligne sur les mots. */
 .od-checks label {
-  display: flex; gap: 8px; align-items: flex-start; font-size: .92rem;
-  min-width: 0; line-height: 1.35; overflow-wrap: anywhere;
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px; align-items: start; font-size: .92rem; line-height: 1.35;
+  overflow-wrap: break-word; word-break: normal; hyphens: manual;
 }
-.od-checks input { flex: 0 0 auto; margin-top: .15em; }
-@media (max-width: 520px) { .od-checks { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 340px) { .od-checks { grid-template-columns: 1fr; } }
+.od-checks input { margin: .15em 0 0; }
+@media (max-width: 420px) { .od-checks { grid-template-columns: 1fr; } }
+
+/* La classe sert aussi, parfois, directement sur un <label> unique. Sans cette
+   regle, la case et son texte tombaient dans deux colonnes auto-ajustees et le
+   libelle se retrouvait, la aussi, une lettre par ligne. */
+label.od-checks {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start; font-size: .92rem; line-height: 1.35;
+  overflow-wrap: break-word; word-break: normal;
+}
+@media (max-width: 420px) { label.od-checks { grid-template-columns: auto minmax(0, 1fr); } }
+
+/* Meme garde-fou partout ou une case precede un texte long. */
+.od-choice label > *, .od-offer-sheet label > * { min-width: 0; }
 .od-price { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px; border-radius: var(--radius-md); background: var(--accent-soft); border: 1px solid var(--accent); margin: 12px 0; }
 .od-price strong { font-size: 1.7rem; font-family: var(--font-display); }
 .od-lines { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; font-size: .9rem; }
@@ -88,4 +105,10 @@
   padding: 10px 12px; border-radius: var(--radius-md);
   border: 1px solid var(--border-soft); background: var(--glass-soft);
   color: var(--text-soft); font-size: .9rem;
+}
+/* Sur telephone, quatre etapes empilees en pleine largeur repoussaient tout le
+   reste sous la ligne de flottaison : deux colonnes compactes suffisent. */
+@media (max-width: 560px) {
+  .od-steps-inline { grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+  .od-steps-inline li { padding: 8px 10px; font-size: .82rem; line-height: 1.3; }
 }

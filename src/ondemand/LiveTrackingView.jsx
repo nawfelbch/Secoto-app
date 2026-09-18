@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import LiveTrackingMap from "./LiveTrackingMap";
 import { formatDateTime, freshnessLabel, liveView } from "../lib/onDemand";
@@ -18,7 +19,7 @@ export default function LiveTrackingView({ missionId, onClose }) {
       setError("");
       setLastFetch(new Date());
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     }
   }, [missionId]);
 

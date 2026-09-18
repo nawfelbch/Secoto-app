@@ -4,7 +4,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // description du véhicule. L'itinéraire routier est calculé ICI, puis le prix,
 // la rémunération partenaire et la marge sont calculés PAR LA BASE
 // (secoto_quote_create, réservée au service). Le client ne transmet aucun montant.
-import { authenticatedUserId, bearer, computeRoute, json, parseBody, serviceClient } from "../lib/secoto-server.js";
+import { authenticatedUserId, bearer, computeRoute, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
 
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
@@ -33,4 +33,4 @@ const handler = async (event) => {
   return json(200, { quote: data, routing: route ? "ok" : "unavailable" });
 };
 
-export default withLambda(handler);
+export default withLambda(withCors(handler));

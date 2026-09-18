@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isNativePlatform } from "../platform/runtime";
 import { livePush, liveStart, liveStop, liveView } from "../lib/onDemand";
@@ -163,7 +164,7 @@ export default function LiveSharingControl({ mission }) {
               await liveStart(mission.id);
               setSharing("active");
               startWatch();
-            } catch (e) { setError(e.message); }
+            } catch (e) { setError(humanizeError(e)); }
           }}>Activer le partage</button>
         </>
       )}

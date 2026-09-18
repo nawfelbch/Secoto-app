@@ -237,3 +237,70 @@ test("les clés d'idempotence Stripe portent l'empreinte des paramètres", async
   // Paramètre différent → clé différente (la reprise est possible).
   assert.notEqual(cle({ amount: 82746, taxCode: null }), cle({ amount: 82746, taxCode: "txcd_20030000" }));
 });
+
+// ---------------------------------------------------------------------------
+// Libellés de cases à cocher : en boîte flexible, le texte devient un élément
+// qui peut se réduire à zéro, et le libellé s'affiche une lettre par ligne.
+// ---------------------------------------------------------------------------
+test("les cases à cocher n'écrasent jamais leur libellé", () => {
+  const css = readFileSync(new URL("../src/ondemand/ondemand.css", import.meta.url), "utf8");
+  const bloc = css.slice(css.indexOf(".od-checks"), css.indexOf(".od-steps-inline"));
+  // Grille « auto 1fr » : la seconde colonne prend toute la place restante.
+  assert.match(bloc, /grid-template-columns: auto minmax\(0, 1fr\)/);
+  // La classe posée directement sur un <label> est couverte elle aussi.
+  assert.match(bloc, /label\.od-checks \{/);
+  // Aucune coupure caractère par caractère.
+  assert.doesNotMatch(bloc, /overflow-wrap: anywhere/);
+  assert.doesNotMatch(bloc, /word-break: break-all/);
+});
+
+test("aucun message d'erreur brut du navigateur n'atteint l'écran", async () => {
+  const { readdirSync } = await import("node:fs");
+  const dossiers = [
+    new URL("../src/", import.meta.url),
+    new URL("../src/ondemand/", import.meta.url),
+  ];
+  for (const dossier of dossiers) {
+    for (const nom of readdirSync(dossier).filter((f) => f.endsWith(".jsx"))) {
+      const src = readFileSync(new URL(nom, dossier), "utf8");
+      assert.doesNotMatch(
+        src,
+        /setError\((e|err|error)\.message/,
+        `${nom} : passer par humanizeError, sinon « Load failed » s'affiche tel quel`,
+      );
+    }
+  }
+  // Le traducteur couvre bien le message de WebKit.
+  const { humanizeError } = await import("../src/lib/humanError.js");
+  const msg = humanizeError(new TypeError("Load failed"));
+  assert.doesNotMatch(msg, /Load failed/);
+  assert.match(msg, /réseau|Connexion/i);
+});
+
+// ---------------------------------------------------------------------------
+// L'application native est servie depuis capacitor://localhost : sans réponse
+// au preflight CORS, WebKit abandonne et l'écran affiche « Load failed ».
+// ---------------------------------------------------------------------------
+test("les fonctions appelées par l'application répondent au preflight CORS", async () => {
+  const { withCors, corsHeaders, ALLOWED_ORIGINS } = await import("../netlify/lib/secoto-server.js");
+  assert.ok(ALLOWED_ORIGINS.has("capacitor://localhost"));
+
+  const enveloppe = withCors(async () => ({ statusCode: 200, headers: { "Content-Type": "application/json" }, body: "{}" }));
+  const pre = await enveloppe({ httpMethod: "OPTIONS", headers: { origin: "capacitor://localhost" } });
+  assert.equal(pre.statusCode, 204);
+  assert.equal(pre.headers["Access-Control-Allow-Origin"], "capacitor://localhost");
+  assert.match(pre.headers["Access-Control-Allow-Headers"], /Authorization/);
+
+  const post = await enveloppe({ httpMethod: "POST", headers: { origin: "capacitor://localhost" } });
+  assert.equal(post.statusCode, 200);
+  assert.equal(post.headers["Content-Type"], "application/json");
+  assert.equal(post.headers["Access-Control-Allow-Origin"], "capacitor://localhost");
+
+  // Une origine inconnue ne se voit jamais renvoyer sa propre adresse.
+  assert.equal(corsHeaders("https://exemple.invalid")["Access-Control-Allow-Origin"], "https://app.secoto-transport.fr");
+
+  for (const nom of ["quote-transport", "create-payment-intent", "offer-accept", "subscription-checkout"]) {
+    const src = readFileSync(new URL(`../netlify/functions/${nom}.js`, import.meta.url), "utf8");
+    assert.match(src, /export default withLambda\(withCors\(handler\)\);/, nom);
+  }
+});

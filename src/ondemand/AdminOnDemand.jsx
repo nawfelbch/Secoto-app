@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 
@@ -48,7 +49,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
       const result = await map[which]();
       setData((d) => ({ ...d, [which]: result }));
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     }
   }, [tab]);
 
@@ -61,7 +62,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
       if (successMessage) setMessage(successMessage);
       await load(tab);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }

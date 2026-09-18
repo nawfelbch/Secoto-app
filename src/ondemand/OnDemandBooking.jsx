@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useEffect, useMemo, useState } from "react";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
@@ -120,7 +121,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
       setQuote(result.quote);
       setStep(4);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }
@@ -137,7 +138,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
       }
       setStep(5);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }
@@ -155,7 +156,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
       if (outcome.cancelled) setBusy(false);
       // La validation n'est affichée qu'à réception du webhook signé.
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
       setBusy(false);
     }
   }

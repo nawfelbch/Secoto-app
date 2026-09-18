@@ -1,3 +1,4 @@
+import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useState } from "react";
 import {
   acceptExtension, acceptProposal, declineProposal, formatCents, formatDateTime,
@@ -57,7 +58,7 @@ export default function SubscriptionPanel({ flags }) {
       }
       setError("");
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     }
   }, []);
   useEffect(() => { queueMicrotask(load); }, [load]);
@@ -69,7 +70,7 @@ export default function SubscriptionPanel({ flags }) {
       if (successMessage) setMessage(successMessage);
       await load();
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
     } finally {
       setBusy(false);
     }

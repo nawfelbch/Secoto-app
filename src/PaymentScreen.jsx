@@ -1,3 +1,4 @@
+import { humanizeError } from "./lib/humanError";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import {
@@ -59,7 +60,7 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
         const row = await fetchPayment(result.payment_id);
         if (alive) setPayment(row);
       })
-      .catch((e) => { if (alive) setError(e.message || "Paiement indisponible."); });
+      .catch((e) => { if (alive) setError(humanizeError(e, "Paiement indisponible.")); });
     return () => { alive = false; };
   }, [mission.id]);
 
@@ -143,7 +144,7 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
       }
     } catch (e) {
       setBusy(false);
-      setError(e.message || "Paiement impossible.");
+      setError(humanizeError(e, "Paiement impossible."));
     }
   }, [mission.id, payment, waiverChecked, waiverRequired]);
 
