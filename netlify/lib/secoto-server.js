@@ -225,7 +225,15 @@ export function withCors(handler) {
     const origine = event?.headers?.origin || event?.headers?.Origin || "";
     const entetes = corsHeaders(origine);
     if (event?.httpMethod === "OPTIONS") {
-      return { statusCode: 204, headers: { ...entetes, "Cache-Control": "no-store" }, body: "" };
+      // 200 et non 204 : un 204 interdit tout corps de reponse, et la couche
+      // Lambda de Netlify en construit un malgre tout, ce qui fait echouer la
+      // requete de verification prealable avec « Invalid response status code ».
+      // Le navigateur accepte n'importe quel statut 2xx pour un preflight.
+      return {
+        statusCode: 200,
+        headers: { ...entetes, "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" },
+        body: "{}",
+      };
     }
     const reponse = await handler(event, context);
     return { ...reponse, headers: { ...(reponse?.headers || {}), ...entetes } };

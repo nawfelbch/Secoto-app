@@ -65,7 +65,9 @@ const handler = async (event) => {
   const origin = event.headers?.origin || event.headers?.Origin || "";
   const respond = (status, body) => json(status, body, origin);
   if (origin && !ALLOWED_ORIGINS.has(origin)) return respond(403, { error: "origin_not_allowed" });
-  if (event.httpMethod === "OPTIONS") return respond(204, {});
+  // 200 et non 204 : un 204 interdit tout corps, et la couche Lambda de Netlify
+  // en construit un, ce qui fait echouer la verification prealable (502).
+  if (event.httpMethod === "OPTIONS") return respond(200, {});
   if (event.httpMethod !== "POST") return respond(405, { error: "method_not_allowed" });
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return respond(503, { error: "server_not_configured" });

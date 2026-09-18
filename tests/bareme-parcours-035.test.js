@@ -287,7 +287,12 @@ test("les fonctions appelées par l'application répondent au preflight CORS", a
 
   const enveloppe = withCors(async () => ({ statusCode: 200, headers: { "Content-Type": "application/json" }, body: "{}" }));
   const pre = await enveloppe({ httpMethod: "OPTIONS", headers: { origin: "capacitor://localhost" } });
-  assert.equal(pre.statusCode, 204);
+  // Jamais 204 : ce statut interdit tout corps, et la couche Lambda de Netlify
+  // en construit un — la verification prealable echouait alors en 502, ce qui
+  // rendait l'application iOS inutilisable quelle que soit la connexion.
+  assert.equal(pre.statusCode, 200);
+  assert.notEqual(pre.statusCode, 204);
+  assert.ok(pre.body && pre.body.length > 0, "un statut 2xx avec corps, pas un 204 vide");
   assert.equal(pre.headers["Access-Control-Allow-Origin"], "capacitor://localhost");
   assert.match(pre.headers["Access-Control-Allow-Headers"], /Authorization/);
 
@@ -342,5 +347,15 @@ test("Managed Payments est désactivé requête par requête", async () => {
     assert.match(src, /createWithManagedPaymentsFallback/, nom);
     // Les deux réglages restent cohérents : Managed Payments impose la taxe.
     assert.match(src, /MANAGED_PAYMENTS_ENABLED \|\| String\(STRIPE_AUTOMATIC_TAX\)/, nom);
+  }
+});
+
+test("aucune fonction ne repond 204 a une verification prealable", async () => {
+  const { readdirSync } = await import("node:fs");
+  const dossier = new URL("../netlify/functions/", import.meta.url);
+  for (const nom of readdirSync(dossier).filter((f) => f.endsWith(".js"))) {
+    const src = readFileSync(new URL(nom, dossier), "utf8");
+    assert.doesNotMatch(src, /OPTIONS"\) return respond\(204/, nom);
+    assert.doesNotMatch(src, /statusCode: 204/, nom);
   }
 });
