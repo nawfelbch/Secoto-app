@@ -235,6 +235,14 @@ affiché. Le jour où SECOTO sort de la franchise, passer `STRIPE_AUTOMATIC_TAX`
 à `true` suffit — la TVA sera alors **comprise** dans le prix annoncé, jamais
 ajoutée par-dessus.
 
+**Clés d'idempotence.** Une clé Stripe est liée à vie aux paramètres de son
+premier usage. Construite sur le seul identifiant de paiement, elle condamnait
+définitivement une commande dès que le montant, le libellé ou la fiscalité
+changeaient (`Keys for idempotent requests can only be used with the same
+parameters`). Les clés portent désormais l'empreinte des paramètres : un double
+appui sur « Payer » reste protégé contre le double encaissement, mais une
+modification légitime repart proprement.
+
 **Défaut corrigé au passage.** Si `VITE_SUPABASE_URL` ou `VITE_SUPABASE_ANON_KEY`
 manquaient, la construction **réussissait** mais produisait un fichier **sans
 l'application** : page blanche en ligne, sans le moindre message d'erreur. La

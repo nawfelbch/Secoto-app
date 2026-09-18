@@ -1,0 +1,126 @@
+From 8dd5205b39117ac260b1eb2a1dce5584d6edf0e4 Mon Sep 17 00:00:00 2001
+From: SECOTO <contact.secoto@gmail.com>
+Date: Tue, 25 Aug 2026 23:26:43 +0000
+Subject: [PATCH] =?UTF-8?q?fix(020):=20rendre=20les=20contr=C3=B4les=20de?=
+ =?UTF-8?q?=20son=20ex=C3=A9cutables=20sur=20les=20machines=20de=20build?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Deux défauts de mes étapes CI, dont un aurait fait échouer tout build
+Android dès le premier lancement.
+
+1. BLOQUANT — `sha256sum` n'existe pas sur macOS, et les DEUX workflows
+   tournent sur mac_mini_m2 (le workflow Android compile sur Mac lui aussi).
+   L'étape Android appelait `sha256sum -c -` : échec garanti. Les deux
+   étapes passent par une fonction portable qui utilise `shasum -a 256`
+   quand il est disponible et retombe sur `sha256sum` sinon.
+
+2. `python3` n'est utilisé nulle part ailleurs dans ce fichier : sa présence
+   sur l'image de build n'est pas garantie, et j'en avais fait dépendre la
+   validation du format APNs. Le bloc est supprimé. La garantie n'est pas
+   perdue : le même contrôle (PCM linéaire, 16 bits, mono, 44,1 kHz, moins
+   de 30 s) est fait par « npm test », qui s'exécute à l'étape PRÉCÉDENTE
+   dans les deux workflows.
+
+Un test couvre désormais ces deux points, pour que la prochaine étape CE
+ajoutée au fichier ne réintroduise pas une commande absente de l'image.
+
+Validé : les deux étapes extraites du YAML et exécutées réellement, 18/18
+tests sur ce module.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vtbv5x2quBJjBrk1QkMnJP
+---
+ codemagic.yaml                            | 29 +++++++++++++----------
+ tests/cash-notification-sound-018.test.js | 20 +++++++++++++---
+ 2 files changed, 34 insertions(+), 15 deletions(-)
+
+diff --git a/codemagic.yaml b/codemagic.yaml
+index 0039de2..b1c3715 100644
+--- a/codemagic.yaml
++++ b/codemagic.yaml
+@@ -62,23 +62,23 @@ workflows:
+           # assets/notification-sound/PROVENANCE.md). Son empreinte est
+           # vérifiée ici : remplacer le son sans mettre à jour la provenance
+           # ni le canal Android arrête le build.
+-          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  ios/App/App/secoto_cash_register.wav" | shasum -a 256 -c -
++          # shasum est présent sur macOS ET sur les images Linux ; sha256sum
++          # n'existe PAS sur macOS, où tournent nos deux workflows.
++          check_sha() {
++            if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c -
++            else sha256sum -c -; fi
++          }
++          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  ios/App/App/secoto_cash_register.wav" | check_sha
+           grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
+ 
+           # Les deux plateformes doivent recevoir exactement le même fichier.
+           cmp ios/App/App/secoto_cash_register.wav \
+               android/app/src/main/res/raw/secoto_cash_register.wav
+ 
+-          # Contraintes APNs : PCM linéaire, 30 secondes maximum.
+-          python3 - <<'PY'
+-          import sys, wave
+-          with wave.open("ios/App/App/secoto_cash_register.wav") as w:
+-              seconds = w.getnframes() / w.getframerate()
+-              assert w.getcomptype() == "NONE", "APNs exige du PCM lineaire"
+-              assert w.getsampwidth() == 2, "16 bits attendus"
+-              assert seconds <= 30, f"APNs refuse un son de {seconds:.1f}s"
+-              print(f"son de caisse : {seconds:.2f}s, PCM {w.getsampwidth()*8} bits, OK")
+-          PY
++          # Le format APNs (PCM linéaire, 16 bits, 30 s maximum) est vérifié
++          # par « npm test », exécuté à l'étape précédente : inutile de le
++          # refaire ici, et cela éviterait de dépendre de python3, dont la
++          # présence n'est pas garantie sur l'image de build.
+ 
+           # Référencé dans le projet Xcode, sinon il n'entre pas dans le bundle
+           # et iOS retombe silencieusement sur le son par défaut.
+@@ -326,7 +326,12 @@ workflows:
+           printf '%s' "$FIREBASE_ANDROID_CONFIG_B64" | base64 --decode > android/app/google-services.json
+       - name: Son de notification natif — contrôle Android
+         script: |
+-          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  android/app/src/main/res/raw/secoto_cash_register.wav" | sha256sum -c -
++          # Ce workflow tourne sur mac_mini_m2 : sha256sum n'y existe pas.
++          check_sha() {
++            if command -v shasum >/dev/null 2>&1; then shasum -a 256 -c -
++            else sha256sum -c -; fi
++          }
++          echo "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042  android/app/src/main/res/raw/secoto_cash_register.wav" | check_sha
+           grep -q "766a7f3c4d14f9d3c1fa9aff3ffde9864dd7ea3d14f364650c9957e5d8816042" assets/notification-sound/PROVENANCE.md
+ 
+           # res/raw n'accepte que minuscules, chiffres et underscores : un nom
+diff --git a/tests/cash-notification-sound-018.test.js b/tests/cash-notification-sound-018.test.js
+index f185ce9..028a3ae 100644
+--- a/tests/cash-notification-sound-018.test.js
++++ b/tests/cash-notification-sound-018.test.js
+@@ -235,10 +235,24 @@ test("le CI vérifie l'empreinte du son sur les deux plateformes", () => {
+     (ci.match(new RegExp(SOUND_SHA256, "g")) || []).length >= 2,
+     "l'empreinte doit être contrôlée dans les deux workflows",
+   );
+-  assert.match(ci, /shasum -a 256 -c -/);
+-  assert.match(ci, /sha256sum -c -/);
+   assert.match(ci, /grep -q "secoto_cash_register\.wav in Resources"/);
+-  assert.match(ci, /seconds <= 30/);
+   // Les deux plateformes doivent recevoir le même octet.
+   assert.match(ci, /cmp ios\/App\/App\/secoto_cash_register\.wav/);
+ });
++
++test("les commandes du CI existent sur les machines de build", () => {
++  // Les DEUX workflows tournent sur mac_mini_m2. macOS ne fournit pas
++  // sha256sum : l'appeler directement ferait échouer le build Android.
++  for (const step of ci.matchAll(/check_sha\(\) \{[\s\S]*?\}/g)) {
++    assert.match(step[0], /command -v shasum/);
++    assert.match(step[0], /shasum -a 256 -c -/);
++    assert.match(step[0], /sha256sum -c -/);
++  }
++  assert.equal([...ci.matchAll(/check_sha\(\) \{/g)].length, 2);
++  // Aucune commande sha256sum nue, hors du repli portable.
++  assert.doesNotMatch(ci, /\| sha256sum/);
++  // python3 n'est pas garanti sur l'image de build : le format du WAV est
++  // déjà validé par « npm test », exécuté à l'étape précédente. On interdit
++  // l'INVOCATION, pas la mention en commentaire.
++  assert.doesNotMatch(ci, /^\s*python3\b/m);
++});
+-- 
+2.43.0
+

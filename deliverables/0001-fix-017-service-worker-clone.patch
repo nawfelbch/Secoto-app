@@ -1,0 +1,171 @@
+From 3f00e44eab1407fc64ad2b79c3072d08e4e19a20 Mon Sep 17 00:00:00 2001
+From: SECOTO <contact.secoto@gmail.com>
+Date: Tue, 25 Aug 2026 22:48:39 +0000
+Subject: [PATCH] =?UTF-8?q?fix(017):=20service=20worker=20=E2=80=94=20clon?=
+ =?UTF-8?q?e=20de=20r=C3=A9ponse=20et=20=C3=A9critures=20de=20cache=20s?=
+ =?UTF-8?q?=C3=BBres?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Le journal console de l'espace transporteur montrait, à chaque chargement,
+deux « Uncaught (in promise) TypeError: Failed to execute 'clone' on
+'Response': Response body is already used » venant de sw.js.
+
+Cause : dans la stratégie de cache des ressources, le clone était évalué
+DANS le `.then()` de `caches.open()`. Or `caches.open()` est asynchrone :
+quand il se résout, la réponse a déjà été renvoyée à la page et le
+navigateur a commencé à lire son corps — le clone est alors interdit. La
+ressource n'était donc jamais remise en cache, et l'erreur polluait la
+console à chaque visite.
+
+- public/sw.js : clone pris de façon synchrone, avant toute attente, dans
+  les deux stratégies ; chaque écriture de cache reçoit un `.catch()` pour
+  qu'un échec de stockage ne produise plus de rejet non capturé ; cache de
+  shell passé en v4 pour que l'ancien service worker soit purgé chez les
+  utilisateurs déjà installés.
+- supabase/repair/2026-08-25-drop-surcharge-hors-depot.sql : suppression
+  ciblée, par signature exacte, de la surcharge de secoto_apply_to_mission
+  jamais versionnée — les deux signatures ayant été identifiées avec
+  certitude dans le journal console (PGRST203). Conserve la version du
+  dépôt (migration 013, security definer).
+- tests/service-worker-017.test.js : 4 tests de non-régression.
+
+Validé : node --check sur sw.js, 97/97 tests. Le drop ciblé rejoué sur
+PostgreSQL 16 sur une reproduction des deux surcharges conserve bien la
+version canonique du dépôt.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vtbv5x2quBJjBrk1QkMnJP
+---
+ public/sw.js                                  | 18 ++++++++--
+ .../2026-08-25-drop-surcharge-hors-depot.sql  | 36 +++++++++++++++++++
+ tests/service-worker-017.test.js              | 32 +++++++++++++++++
+ 3 files changed, 83 insertions(+), 3 deletions(-)
+ create mode 100644 supabase/repair/2026-08-25-drop-surcharge-hors-depot.sql
+ create mode 100644 tests/service-worker-017.test.js
+
+diff --git a/public/sw.js b/public/sw.js
+index 6714876..6de7df8 100644
+--- a/public/sw.js
++++ b/public/sw.js
+@@ -1,5 +1,5 @@
+ /* SECOTO — Service Worker (PWA + Web Push) */
+-const CACHE = "secoto-shell-v3";
++const CACHE = "secoto-shell-v4";
+ const OFFLINE_SHELL = [
+   "/",
+   "/manifest.json",
+@@ -34,7 +34,9 @@ self.addEventListener("fetch", (event) => {
+         .then((response) => {
+           const copy = response.clone();
+           const cacheKey = url.pathname === "/" ? "/" : request;
+-          caches.open(CACHE).then((cache) => cache.put(cacheKey, copy));
++          caches.open(CACHE)
++            .then((cache) => cache.put(cacheKey, copy))
++            .catch(() => {});
+           return response;
+         })
+         .catch(() => caches.match(request).then((cached) => cached || caches.match("/"))),
+@@ -46,7 +48,17 @@ self.addEventListener("fetch", (event) => {
+     caches.match(request).then((cached) => {
+       const refresh = fetch(request)
+         .then((response) => {
+-          if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
++          // Le clone DOIT être pris tout de suite : `caches.open` est
++          // asynchrone, et si l'on attend sa résolution le navigateur a déjà
++          // commencé à lire le corps de la réponse renvoyée à la page.
++          // C'est ce qui provoquait « Failed to execute 'clone' on 'Response':
++          // Response body is already used » à chaque chargement.
++          if (response.ok) {
++            const copy = response.clone();
++            caches.open(CACHE)
++              .then((cache) => cache.put(request, copy))
++              .catch(() => {});
++          }
+           return response;
+         })
+         .catch(() => cached);
+diff --git a/supabase/repair/2026-08-25-drop-surcharge-hors-depot.sql b/supabase/repair/2026-08-25-drop-surcharge-hors-depot.sql
+new file mode 100644
+index 0000000..a5ac926
+--- /dev/null
++++ b/supabase/repair/2026-08-25-drop-surcharge-hors-depot.sql
+@@ -0,0 +1,36 @@
++-- ============================================================================
++-- SECOTO — suppression ciblée de la surcharge hors dépôt de
++-- secoto_apply_to_mission (incident PGRST203 du 25/08/2026).
++-- ----------------------------------------------------------------------------
++-- Les deux signatures présentes en base ont été identifiées avec certitude
++-- dans le journal console du navigateur :
++--
++--   CONSERVÉE — migration 013, versionnée dans le dépôt, security definer :
++--     (p_mission_id, p_proposed_price, p_message, p_idempotency_key,
++--      p_pickup_earliest_at, p_pickup_latest_at,
++--      p_delivery_earliest_at, p_delivery_latest_at, p_proposed_price_grouped)
++--
++--   SUPPRIMÉE — surcharge appliquée directement en production, jamais
++--   versionnée, p_idempotency_key relégué en dernière position :
++--     (p_mission_id, p_proposed_price, p_message,
++--      p_pickup_earliest_at, p_pickup_latest_at,
++--      p_delivery_earliest_at, p_delivery_latest_at,
++--      p_proposed_price_grouped, p_idempotency_key)
++--
++-- Aucune donnée touchée. Rejouable (drop if exists).
++-- ============================================================================
++
++drop function if exists public.secoto_apply_to_mission(
++  uuid, numeric, text,
++  timestamptz, timestamptz, timestamptz, timestamptz, numeric, uuid
++);
++
++notify pgrst, 'reload schema';
++
++-- Vérification : une seule ligne, security_definer = true, execute = true.
++select p.oid::regprocedure::text as signature,
++       p.prosecdef              as security_definer,
++       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_execute
++from pg_proc p
++join pg_namespace n on n.oid = p.pronamespace
++where n.nspname = 'public' and p.proname = 'secoto_apply_to_mission';
+diff --git a/tests/service-worker-017.test.js b/tests/service-worker-017.test.js
+new file mode 100644
+index 0000000..0e18d22
+--- /dev/null
++++ b/tests/service-worker-017.test.js
+@@ -0,0 +1,32 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++
++const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
++
++test("le corps de la réponse est cloné AVANT toute attente asynchrone", () => {
++  // Régression : `cache.put(request, response.clone())` était évalué dans le
++  // `.then()` de `caches.open()`. Le clone arrivait donc après que le
++  // navigateur eut commencé à lire la réponse → TypeError à chaque chargement.
++  assert.doesNotMatch(sw, /caches\.open\([^)]*\)\s*\.then\(\([^)]*\)\s*=>\s*cache\.put\([^)]*\.clone\(\)/);
++  assert.doesNotMatch(sw, /cache\.put\([^)]*,\s*response\.clone\(\)\)/);
++  // Deux stratégies de cache, deux clones synchrones.
++  assert.equal((sw.match(/const copy = response\.clone\(\);/g) || []).length, 2);
++});
++
++test("aucune écriture de cache ne peut produire de rejet non capturé", () => {
++  const opens = sw.match(/caches\.open\(CACHE\)[\s\S]*?;/g) || [];
++  const putters = opens.filter((block) => block.includes("cache.put"));
++  assert.equal(putters.length, 2);
++  for (const block of putters) assert.match(block, /\.catch\(\(\) => \{\}\)/);
++});
++
++test("le cache de shell est versionné pour purger l'ancien service worker", () => {
++  assert.match(sw, /const CACHE = "secoto-shell-v4";/);
++  assert.match(sw, /keys\.filter\(\(key\) => key\.startsWith\("secoto-shell-"\) && key !== CACHE\)/);
++});
++
++test("les appels aux fonctions serveur ne sont jamais mis en cache", () => {
++  assert.match(sw, /url\.pathname\.startsWith\("\/\.netlify\/functions\/"\)\) return;/);
++  assert.match(sw, /if \(request\.method !== "GET"\) return;/);
++});
+-- 
+2.43.0
+

@@ -1,0 +1,961 @@
+From 39224e406cfc9515ee733fdd9d9af876b14a5283 Mon Sep 17 00:00:00 2001
+From: SECOTO <contact.secoto@gmail.com>
+Date: Tue, 25 Aug 2026 21:20:33 +0000
+Subject: [PATCH] fix(015): messages d'erreur lisibles et garde-fous
+ RPC/paiement
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Incident du 25/08/2026 : les transporteurs voyaient les erreurs brutes de
+PostgREST (« schema cache », « best candidate function ») et toute
+candidature échouait à cause de surcharges dupliquées de
+secoto_apply_to_mission.
+
+- src/lib/humanError.js : traduction systématique des erreurs techniques
+  (PostgREST, PostgreSQL, Supabase Auth, réseau) en messages français
+  compréhensibles ; les messages métier de nos fonctions SQL (P0001)
+  passent tels quels ; le détail technique part en console, jamais à
+  l'écran.
+- src/App.jsx : les 33 affichages d'erreur passent par humanizeError —
+  plus aucun message interne visible par un transporteur ou un client.
+- src/lib/payments.js : même traitement pour le parcours de paiement.
+- supabase/migrations/202608250015_reliability_guards.sql :
+  1. suppression de TOUTES les surcharges de secoto_apply_to_mission puis
+     recréation de l'unique signature canonique (identique à la 013) ;
+  2. secoto_settle_payment : un paiement « paid » est définitif — un
+     événement Stripe retardataire (failed/canceled) ne peut plus écraser
+     un encaissement ni retirer un bon de mission déjà libéré ;
+  3. garde de déploiement : la migration échoue si une fonction
+     public.secoto_% existe en plusieurs exemplaires.
+- tests/human-error-015.test.js : 11 tests (traduction, non-régression
+  des messages métier, garanties de la migration).
+
+Validé sur PostgreSQL 16 : reproduction des 3 surcharges → 1 seule après
+migration, rejouable, garde déclenchée sur doublon artificiel.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vtbv5x2quBJjBrk1QkMnJP
+---
+ src/App.jsx                                   |  73 ++--
+ src/lib/humanError.js                         | 126 +++++++
+ src/lib/payments.js                           |   8 +-
+ .../202608250015_reliability_guards.sql       | 333 ++++++++++++++++++
+ tests/human-error-015.test.js                 |  97 +++++
+ 5 files changed, 592 insertions(+), 45 deletions(-)
+
+diff --git a/src/App.jsx b/src/App.jsx
+index 887181c..94295fa 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useMemo, useRef, useState } from "react";
+ import { supabase } from "./supabaseClient";
++import { humanizeError } from "./lib/humanError";
+ import {
+   emptyMissionForm,
+   TRANSPORTER_TYPES,
+@@ -805,7 +806,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
+     e.preventDefault();
+     setLoading(true); setError("");
+     const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+-    if (error) setError(error.message);
++    if (error) setError(humanizeError(error));
+     setLoading(false);
+   }
+ 
+@@ -820,7 +821,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
+       clearPendingMissionClaim();
+       onMissionAccessComplete?.(result);
+     } catch (accessError) {
+-      setError(accessError.message || "Connexion client impossible.");
++      setError(humanizeError(accessError, "Connexion client impossible."));
+     } finally {
+       setLoading(false);
+     }
+@@ -838,7 +839,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
+       if (resetError) throw resetError;
+       setNotice("Un lien sécurisé de réinitialisation vient de vous être envoyé.");
+     } catch (resetError) {
+-      setError(resetError.message || "Envoi du lien impossible.");
++      setError(humanizeError(resetError, "Envoi du lien impossible."));
+     } finally {
+       setLoading(false);
+     }
+@@ -875,7 +876,7 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
+       },
+     });
+ 
+-    if (error) { setError(error.message); setLoading(false); return; }
++    if (error) { setError(humanizeError(error)); setLoading(false); return; }
+ 
+     if (!data.user) {
+       setNotice("Compte créé. Vérifiez votre email si une confirmation est demandée.");
+@@ -1181,7 +1182,7 @@ function PublicLanding({ onShowAuth }) {
+       setForm(emptyGuestForm);
+       window.scrollTo({ top: 0, behavior: "smooth" });
+     } catch (err) {
+-      setError(err.message || "Une erreur est survenue. Réessayez ou appelez-nous.");
++      setError(humanizeError(err, "Une erreur est survenue. Réessayez ou appelez-nous."));
+     } finally {
+       setLoading(false);
+     }
+@@ -1322,7 +1323,7 @@ function PasswordRecoveryScreen({ onDone }) {
+     const { error: updateError } = await supabase.auth.updateUser({ password });
+     setLoading(false);
+     if (updateError) {
+-      setError(updateError.message || "Mise à jour impossible.");
++      setError(humanizeError(updateError, "Mise à jour impossible."));
+       return;
+     }
+     onDone();
+@@ -1572,7 +1573,7 @@ export default function App() {
+       if (link.code) {
+         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(link.code);
+         if (exchangeError) {
+-          setError(exchangeError.message || "Lien d’authentification invalide ou expiré.");
++          setError(humanizeError(exchangeError, "Lien d’authentification invalide ou expiré."));
+           return;
+         }
+       }
+@@ -1620,7 +1621,7 @@ export default function App() {
+       if (alive) dispose = cleanup;
+       else cleanup();
+     }).catch((platformError) => {
+-      if (alive) setError(platformError.message || "Initialisation native incomplète.");
++      if (alive) setError(humanizeError(platformError, "Initialisation native incomplète."));
+     });
+     return () => {
+       alive = false;
+@@ -1707,10 +1708,7 @@ export default function App() {
+         if (!alive) return;
+         setClaimStatus("error");
+         setShowClaimRecovery(true);
+-        setClaimError(
+-          claimFailure.message
+-          || "Impossible d’ajouter ce transport. Vérifiez le code ou le compte utilisé.",
+-        );
++        setClaimError(humanizeError(claimFailure, "Impossible d’ajouter ce transport. Vérifiez le code ou le compte utilisé."));
+       }
+     }
+ 
+@@ -1751,7 +1749,7 @@ export default function App() {
+       } catch (err) {
+         if (mounted) {
+           clearTimeout(timer);
+-          setError(err.message || "Erreur au chargement de la session Supabase.");
++          setError(humanizeError(err, "Erreur au chargement de la session Supabase."));
+           setSession(null); setAccount(null); setBootLoading(false);
+         }
+       }
+@@ -1817,7 +1815,7 @@ export default function App() {
+       setAccount(loadedAccount);
+     } catch (err) {
+       if (await isCurrentAccountLoad()) {
+-        setError(err.message || "Profil SECOTO introuvable ou bloqué par RLS.");
++        setError(humanizeError(err, "Profil SECOTO introuvable ou bloqué par RLS."));
+         setAccount(null);
+       }
+     } finally {
+@@ -2008,7 +2006,7 @@ export default function App() {
+     if (account?.role !== "admin") return;
+     let alive = true;
+     syncDocTemplates()
+-      .catch((e) => { if (alive) setError(e.message || "Maquettes de documents non synchronisées."); });
++      .catch((e) => { if (alive) setError(humanizeError(e, "Maquettes de documents non synchronisées.")); });
+     return () => { alive = false; };
+   }, [account?.role]);
+ 
+@@ -2283,7 +2281,7 @@ export default function App() {
+       }
+     } catch (err) {
+       if (isCurrentLoad() && !silent) {
+-        setError(err.message || "Erreur lors du chargement Supabase.");
++        setError(humanizeError(err, "Erreur lors du chargement Supabase."));
+       }
+     } finally {
+       if (isCurrentLoad() && !silent) setLoading(false);
+@@ -2298,7 +2296,7 @@ export default function App() {
+       setNotice(`Mission ${claim.publicRef} publiée. Envoyez maintenant le lien sécurisé au client.`);
+       return claim;
+     } catch (claimError) {
+-      setError(claimError.message || "Mission publiée, mais le lien client n’a pas pu être généré.");
++      setError(humanizeError(claimError, "Mission publiée, mais le lien client n’a pas pu être généré."));
+       return null;
+     }
+   }
+@@ -2331,7 +2329,7 @@ export default function App() {
+         setAdminTab("published");
+         await createOrRenewMissionClaim(created);
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la création de mission."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la création de mission.")); }
+   }
+ 
+   /* ---------- Actions CLIENT ---------- */
+@@ -2363,7 +2361,7 @@ export default function App() {
+         setNotice("Votre course est publiée et visible par les transporteurs.");
+         setClientTab("courses");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la publication de la course."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la publication de la course.")); }
+   }
+ 
+   async function createMissionRequest(e) {
+@@ -2387,7 +2385,7 @@ export default function App() {
+         setNotice("Demande envoyée à SECOTO pour validation.");
+         setTransporterTab("requests");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la demande de mise en ligne."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la demande de mise en ligne.")); }
+   }
+ 
+   async function applyToMission(missionId) {
+@@ -2418,7 +2416,7 @@ export default function App() {
+         setNotice("Candidature envoyée avec votre tarif.");
+         setTransporterTab("applications");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la candidature."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la candidature.")); }
+   }
+ 
+   async function assignMission(missionId, application) {
+@@ -2435,7 +2433,7 @@ export default function App() {
+         setNotice("Mission attribuée. Le devis part au client et le bon de mission suivra dès sa signature.");
+         setAdminTab("assigned");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de l’attribution."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de l’attribution.")); }
+   }
+ 
+   async function markMissionCompleted(missionId) {
+@@ -2452,7 +2450,7 @@ export default function App() {
+         setNotice("Mission marquée comme terminée.");
+         setAdminTab("completed");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors du changement de statut."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors du changement de statut.")); }
+   }
+ 
+   async function deleteMission(missionId, { confirmLabel = "Supprimer définitivement cette annonce ?" } = {}) {
+@@ -2469,7 +2467,7 @@ export default function App() {
+         setNotice("Annonce supprimée.");
+       });
+     } catch (err) {
+-      setError(err.message || "Erreur lors de la suppression de l’annonce.");
++      setError(humanizeError(err, "Erreur lors de la suppression de l’annonce."));
+     }
+   }
+ 
+@@ -2486,7 +2484,7 @@ export default function App() {
+         setNotice("Demande validée et mission publiée.");
+         setAdminTab("published");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la validation de la demande."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la validation de la demande.")); }
+   }
+ 
+   async function rejectRequest(requestId) {
+@@ -2501,7 +2499,7 @@ export default function App() {
+         await loadAllData(account);
+         setNotice("Demande refusée.");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors du refus de la demande."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors du refus de la demande.")); }
+   }
+ 
+   async function updateTransporterStatus(transporterId, updates) {
+@@ -2519,7 +2517,7 @@ export default function App() {
+         await loadAllData(account);
+         setNotice("Statut transporteur mis à jour.");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la mise à jour du transporteur."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la mise à jour du transporteur.")); }
+   }
+ 
+   async function reviewLuxuryCapacity(transporterId, status) {
+@@ -2538,10 +2536,7 @@ export default function App() {
+         setNotice("Capacité camion fermé mise à jour.");
+       });
+     } catch (err) {
+-      setError(
+-        err.message
+-        || "Erreur lors de la validation de la capacité camion fermé.",
+-      );
++      setError(humanizeError(err, "Erreur lors de la validation de la capacité camion fermé."));
+     }
+   }
+ 
+@@ -2563,7 +2558,7 @@ export default function App() {
+         setNotice("Préférences de missions enregistrées.");
+       });
+     } catch (err) {
+-      setError(err.message || "Impossible d’enregistrer vos préférences.");
++      setError(humanizeError(err, "Impossible d’enregistrer vos préférences."));
+     }
+   }
+ 
+@@ -2580,7 +2575,7 @@ export default function App() {
+         await loadAllData(account);
+         setNotice("Document mis à jour.");
+       });
+-    } catch (err) { setError(err.message || "Erreur lors de la mise à jour du document."); }
++    } catch (err) { setError(humanizeError(err, "Erreur lors de la mise à jour du document.")); }
+   }
+ 
+   async function uploadTransporterDocument() {
+@@ -2636,7 +2631,7 @@ export default function App() {
+         setNotice("Pièce justificative envoyée.");
+       });
+     } catch (err) {
+-      setError(err.message || "Erreur lors de l’envoi du document. Vous pouvez réessayer sans créer de doublon.");
++      setError(humanizeError(err, "Erreur lors de l’envoi du document. Vous pouvez réessayer sans créer de doublon."));
+     }
+   }
+ 
+@@ -2827,7 +2822,7 @@ export default function App() {
+         setNotice("Envoi interrompu : les éléments restent chiffrés sur l’appareil et seront réessayés.");
+         if (!fromQueue) setError("");
+       } else {
+-        setError(err.message || "Erreur lors de l’envoi du suivi mission.");
++        setError(humanizeError(err, "Erreur lors de l’envoi du suivi mission."));
+       }
+       return false;
+     }
+@@ -3053,7 +3048,7 @@ export default function App() {
+         text: "Document SECOTO — lien temporaire sécurisé",
+         url: signedUrl,
+       });
+-    } catch (err) { setError(err.message || "Impossible d’ouvrir le document sécurisé."); }
++    } catch (err) { setError(humanizeError(err, "Impossible d’ouvrir le document sécurisé.")); }
+   }
+ 
+   async function signOut() {
+@@ -3109,7 +3104,7 @@ export default function App() {
+       await signOut();
+       window.alert("Votre demande est enregistrée. Les données non soumises à conservation sont supprimées ; les pièces légales sont anonymisées et conservées selon la durée annoncée.");
+     } catch (e) {
+-      setError(e.message || "Suppression du compte impossible. Réessayez ou contactez le support.");
++      setError(humanizeError(e, "Suppression du compte impossible. Réessayez ou contactez le support."));
+     }
+   }
+ 
+@@ -3232,7 +3227,7 @@ export default function App() {
+       setNotice(await emitMissionDocuments(mission.id));
+       await loadAllData(account);
+     } catch (e) {
+-      setError(e.message || "Envoi des documents impossible.");
++      setError(humanizeError(e, "Envoi des documents impossible."));
+     } finally { setActionLoading(false); }
+   }
+ 
+@@ -3244,7 +3239,7 @@ export default function App() {
+       setNotice(await emitFacture(mission.id));
+       await loadAllData(account);
+     } catch (e) {
+-      setError(e.message || "Envoi de la facture impossible.");
++      setError(humanizeError(e, "Envoi de la facture impossible."));
+     } finally { setActionLoading(false); }
+   }
+ 
+diff --git a/src/lib/humanError.js b/src/lib/humanError.js
+new file mode 100644
+index 0000000..3bf400d
+--- /dev/null
++++ b/src/lib/humanError.js
+@@ -0,0 +1,126 @@
++// ============================================================================
++// SECOTO — traduction des erreurs techniques en messages compréhensibles.
++// ----------------------------------------------------------------------------
++// Règle : l'utilisateur ne doit JAMAIS voir un message brut de PostgREST,
++// de PostgreSQL, de Supabase Auth ou du réseau (« schema cache », « candidate
++// function », « JWT expired », « Failed to fetch »…). Ces messages exposent le
++// fonctionnement interne de l'application et sont incompréhensibles.
++//
++// En revanche, les messages métier écrits EN FRANÇAIS par nos fonctions SQL
++// (« Vous avez déjà candidaté à cette mission. », « Le devis doit être signé
++// avant le paiement. »…) sont destinés à l'utilisateur : ils passent tels
++// quels. Le détail technique original est journalisé en console pour le
++// diagnostic, jamais affiché.
++// ============================================================================
++
++// Motifs qui trahissent une erreur technique, jamais destinée à l'écran.
++const TECHNICAL_PATTERNS = [
++  /schema cache/i,
++  /could not find the function/i,
++  /could not choose the best candidate/i,
++  /candidate function/i,
++  /does not exist/i,
++  /permission denied/i,
++  /row-level security/i,
++  /violates .* constraint/i,
++  /invalid input syntax/i,
++  /syntax error/i,
++  /duplicate key value/i,
++  /deadlock detected/i,
++  /stack depth/i,
++  /null value in column/i,
++  /operator does not exist/i,
++  /^(pgrst|22|23|25|28|2d|3d|3f|40|42|53|54|55|57|58|xx|08)/i,
++  /jwt/i,
++  /token is expired/i,
++  /refresh_token/i,
++  /internal server error/i,
++  /unexpected token/i,
++  /json/i,
++  /upstream/i,
++  /service unavailable/i,
++];
++
++const NETWORK_PATTERNS = [
++  /failed to fetch/i,
++  /networkerror/i,
++  /network request failed/i,
++  /load failed/i,
++  /fetch/i,
++  /timeout/i,
++  /timed? out/i,
++  /aborted/i,
++  /socket/i,
++  /connection/i,
++];
++
++// Erreurs Supabase Auth (toujours en anglais) → message français équivalent.
++const AUTH_TRANSLATIONS = [
++  [/invalid login credentials/i, "E-mail ou mot de passe incorrect."],
++  [/email not confirmed/i, "Confirmez votre adresse e-mail avant de vous connecter."],
++  [/user already registered/i, "Un compte existe déjà avec cette adresse e-mail."],
++  [/password should be at least/i, "Le mot de passe est trop court."],
++  [/rate limit|too many requests/i, "Trop de tentatives. Patientez quelques minutes puis réessayez."],
++  [/signup.*disabled/i, "Les inscriptions sont momentanément désactivées."],
++  [/email.*invalid|invalid.*email/i, "Adresse e-mail invalide."],
++];
++
++// Un message métier écrit par nous : français (accents ou tournures usuelles).
++const FRENCH_HINT = /[àâäçéèêëîïôöùûüÀÂÄÇÉÈÊËÎÏÔÖÙÛÜœŒ’]|^(Le |La |Les |L['’]|Un |Une |Votre |Vos |Vous |Cette |Ce |Ces |Aucun|Impossible|Renseignez|Cochez|Toutes?|Tarif|Mission|Compte|Paiement|Demande|Session|Connexion|Envoi|Nouvelle|Choisissez|Ajoutez|Seul)/;
++
++const GENERIC_FALLBACK =
++  "Une erreur est survenue. Réessayez dans un instant ou contactez SECOTO.";
++
++/**
++ * Retourne un message affichable à l'utilisateur.
++ * @param {unknown} err     Erreur levée (Supabase, fetch, Error locale…)
++ * @param {string} fallback Message d'action proposé par l'écran appelant.
++ */
++export function humanizeError(err, fallback = GENERIC_FALLBACK) {
++  const message = String(
++    (err && typeof err === "object" && "message" in err && err.message) || err || "",
++  ).trim();
++  const code = String((err && typeof err === "object" && err.code) || "");
++
++  // Journal technique pour le diagnostic — jamais montré à l'utilisateur.
++  if (typeof console !== "undefined" && message) {
++    console.error("[SECOTO]", code || "-", message, err);
++  }
++
++  if (!message) return fallback;
++
++  // 1. Nos fonctions SQL lèvent leurs messages métier avec le code P0001
++  //    (`raise exception`) : ils sont écrits pour l'utilisateur.
++  if (code === "P0001") return message;
++
++  // 2. Traductions Auth connues.
++  for (const [pattern, translation] of AUTH_TRANSLATIONS) {
++    if (pattern.test(message)) return translation;
++  }
++
++  // 3. Cas techniques ciblés avec un message plus utile que le repli générique.
++  if (/schema cache|candidate function|could not find the function/i.test(message)) {
++    return "Le service est en cours de mise à jour. Réessayez dans une minute — si le problème persiste, contactez SECOTO.";
++  }
++  if (code.startsWith("PGRST") || TECHNICAL_PATTERNS.some((p) => p.test(message))) {
++    // 23505 = doublon : l'action a déjà été prise en compte.
++    if (code === "23505" || /duplicate key value/i.test(message)) {
++      return "Cette action a déjà été enregistrée.";
++    }
++    if (code === "42501" || /permission denied|row-level security/i.test(message)) {
++      return "Vous n'avez pas les droits nécessaires pour cette action.";
++    }
++    return fallback;
++  }
++  if (NETWORK_PATTERNS.some((p) => p.test(message))) {
++    return "Connexion impossible. Vérifiez votre réseau puis réessayez.";
++  }
++
++  // 4. Message métier français (levé par notre code ou notre SQL) : affiché.
++  if (FRENCH_HINT.test(message)) return message;
++
++  // 5. Tout le reste (anglais, inconnu) : repli propre.
++  return fallback;
++}
++
++export { GENERIC_FALLBACK };
+diff --git a/src/lib/payments.js b/src/lib/payments.js
+index 0f868a0..b9cc9f8 100644
+--- a/src/lib/payments.js
++++ b/src/lib/payments.js
+@@ -22,6 +22,7 @@ import { Capacitor } from "@capacitor/core";
+ import { supabase } from "../supabaseClient";
+ import { randomIdempotencyKey } from "./fileSafety";
+ import { getServerFunctionUrl } from "../platform/runtime";
++import { humanizeError } from "./humanError";
+ 
+ export const PAYMENT_STATUS_LABEL = {
+   not_required: "Aucun paiement requis",
+@@ -204,10 +205,5 @@ export async function payNow(paymentId) {
+ }
+ 
+ function explain(error) {
+-  const message = error?.message || String(error);
+-  if (/could not find the function|does not exist/i.test(message)) {
+-    return "La migration 009 n'a pas encore été appliquée dans Supabase.";
+-  }
+-  if (/tarif/i.test(message)) return message;
+-  return message;
++  return humanizeError(error, "Le paiement est momentanément indisponible. Réessayez dans un instant.");
+ }
+diff --git a/supabase/migrations/202608250015_reliability_guards.sql b/supabase/migrations/202608250015_reliability_guards.sql
+new file mode 100644
+index 0000000..c10f489
+--- /dev/null
++++ b/supabase/migrations/202608250015_reliability_guards.sql
+@@ -0,0 +1,333 @@
++-- ============================================================================
++-- SECOTO — migration 015 : garde-fous de fiabilité RPC et paiement.
++-- ----------------------------------------------------------------------------
++-- 1. Incident du 25/08/2026 : deux surcharges de secoto_apply_to_mission
++--    coexistaient (mêmes paramètres, ordre différent) → PostgREST refusait de
++--    choisir et TOUTE candidature transporteur échouait. `create or replace`
++--    ne remplace pas une fonction dont l'ordre des paramètres a changé : il en
++--    AJOUTE une. On supprime donc explicitement toutes les surcharges avant de
++--    recréer l'unique signature canonique.
++-- 2. Le webhook Stripe peut recevoir les événements dans le désordre : un
++--    « failed » retardataire ne doit jamais écraser un paiement encaissé.
++-- 3. Garde de déploiement : aucune fonction public.secoto_% ne doit exister
++--    en plusieurs exemplaires — sinon la migration échoue immédiatement.
++-- Transactionnel, idempotent, aucune donnée modifiée.
++-- ============================================================================
++
++begin;
++
++-- ----------------------------------------------------------------------------
++-- 1. Une seule signature pour secoto_apply_to_mission
++-- ----------------------------------------------------------------------------
++
++do $dedupe$
++declare
++  v_fn record;
++begin
++  for v_fn in
++    select p.oid::regprocedure as signature
++    from pg_proc p
++    join pg_namespace n on n.oid = p.pronamespace
++    where n.nspname = 'public'
++      and p.proname = 'secoto_apply_to_mission'
++  loop
++    execute format('drop function %s', v_fn.signature);
++  end loop;
++end
++$dedupe$;
++
++-- Recréation de la signature canonique — identique à la migration 013.
++-- Règle définitive : ne JAMAIS réordonner les paramètres d'une fonction
++-- exposée via PostgREST ; tout nouveau paramètre s'ajoute À LA FIN avec un
++-- DEFAULT.
++create or replace function public.secoto_apply_to_mission(
++  p_mission_id uuid,
++  p_proposed_price numeric,
++  p_message text,
++  p_idempotency_key uuid,
++  p_pickup_earliest_at timestamptz,
++  p_pickup_latest_at timestamptz,
++  p_delivery_earliest_at timestamptz,
++  p_delivery_latest_at timestamptz,
++  p_proposed_price_grouped numeric
++)
++returns jsonb
++language plpgsql
++volatile
++security definer
++set search_path = ''
++as $function$
++declare
++  v_user_id uuid := secoto_private.assert_authenticated();
++  v_account public.accounts%rowtype;
++  v_mission public.missions%rowtype;
++  v_application public.mission_applications%rowtype;
++  v_existing jsonb;
++begin
++  if not secoto_private.is_verified_transporter(v_user_id) then
++    raise exception 'Compte transporteur vérifié requis.';
++  end if;
++  if p_proposed_price is null
++     or p_proposed_price <= 0
++     or p_proposed_price > 1000000 then
++    raise exception 'Tarif proposé invalide.';
++  end if;
++  if p_proposed_price_grouped is not null
++     and (p_proposed_price_grouped <= 0 or p_proposed_price_grouped > 1000000) then
++    raise exception 'Tarif groupé invalide.';
++  end if;
++  if p_pickup_earliest_at is null or p_pickup_latest_at is null
++     or p_delivery_earliest_at is null or p_delivery_latest_at is null then
++    raise exception 'Toutes les disponibilités sont obligatoires.';
++  end if;
++  if p_pickup_earliest_at > p_pickup_latest_at then
++    raise exception 'La disponibilité d''enlèvement est invalide.';
++  end if;
++  if p_delivery_earliest_at > p_delivery_latest_at then
++    raise exception 'La disponibilité de livraison est invalide.';
++  end if;
++  if p_message is not null and length(p_message) > 2000 then
++    raise exception 'Message de candidature trop long.';
++  end if;
++
++  v_existing := secoto_private.lock_operation(
++    'apply_to_mission', p_idempotency_key
++  );
++  if v_existing is not null then return v_existing; end if;
++
++  select * into v_mission
++  from public.missions m
++  where m.id = p_mission_id
++  for update;
++  if not found
++     or v_mission.status::text <> 'published'
++     or v_mission.assigned_transporter_id is not null then
++    raise exception 'Cette mission n''accepte plus de candidature.';
++  end if;
++  if not secoto_private.transporter_matches_mission(v_user_id, p_mission_id) then
++    raise exception 'Cette mission ne correspond pas à vos capacités transport validées.'
++      using errcode = '42501';
++  end if;
++
++  select * into v_account from public.accounts a where a.id = v_user_id;
++
++  insert into public.mission_applications(
++    mission_id, transporter_id, transporter_name, transporter_company,
++    transporter_status, message, proposed_price, proposed_price_grouped,
++    pickup_earliest_at, pickup_latest_at,
++    delivery_earliest_at, delivery_latest_at,
++    price_note, status
++  ) values (
++    p_mission_id, v_user_id, v_account.full_name, v_account.company_name,
++    'verified', nullif(btrim(p_message), ''), round(p_proposed_price, 2),
++    case when p_proposed_price_grouped is null then null
++         else round(p_proposed_price_grouped, 2) end,
++    p_pickup_earliest_at, p_pickup_latest_at,
++    p_delivery_earliest_at, p_delivery_latest_at,
++    null, 'pending'
++  ) returning * into v_application;
++
++  perform secoto_private.notify_admins(
++    'new_application', p_mission_id, 'applications',
++    'application:' || v_application.id::text
++  );
++
++  return secoto_private.finish_operation(
++    'apply_to_mission', p_idempotency_key, to_jsonb(v_application)
++  );
++exception
++  when unique_violation then
++    raise exception using
++      errcode = '23505',
++      message = 'Vous avez déjà candidaté à cette mission.';
++end;
++$function$;
++
++
++revoke all on function public.secoto_apply_to_mission(
++  uuid, numeric, text, uuid, timestamptz, timestamptz,
++  timestamptz, timestamptz, numeric
++) from public, anon;
++grant execute on function public.secoto_apply_to_mission(
++  uuid, numeric, text, uuid, timestamptz, timestamptz,
++  timestamptz, timestamptz, numeric
++) to authenticated;
++
++-- ----------------------------------------------------------------------------
++-- 2. Un paiement encaissé est définitif (sauf remboursement)
++-- ----------------------------------------------------------------------------
++
++create or replace function public.secoto_settle_payment(
++  p_payment_id uuid,
++  p_provider_intent_id text,
++  p_status text,
++  p_provider_event_id text,
++  p_error text
++)
++returns jsonb
++language plpgsql
++volatile
++security definer
++set search_path = public
++as $function$
++declare
++  v_payment public.payments%rowtype;
++  v_mission public.missions%rowtype;
++  v_released text := '';
++begin
++  if p_status not in ('processing', 'paid', 'failed', 'refunded', 'cancelled') then
++    raise exception 'Statut de paiement non autorise.';
++  end if;
++
++  select * into v_payment from public.payments p where p.id = p_payment_id for update;
++  if not found then raise exception 'Paiement introuvable.'; end if;
++
++  -- Idempotence stricte : un événement Stripe rejoué ne rejoue rien.
++  if p_provider_event_id is not null
++     and exists (
++       select 1 from public.payment_events e
++       where e.provider_event_id = p_provider_event_id
++     ) then
++    return jsonb_build_object('skipped', true, 'reason', 'event_already_processed');
++  end if;
++
++  if v_payment.status = 'paid' and p_status = 'paid' then
++    return jsonb_build_object('skipped', true, 'reason', 'already_paid');
++  end if;
++
++  -- Stripe ne garantit pas l'ordre d'arrivée des événements : un « failed »,
++  -- « cancelled » ou « processing » retardataire ne doit JAMAIS écraser un
++  -- paiement déjà encaissé (le bon de mission est déjà parti). Seul un
++  -- remboursement peut suivre un encaissement.
++  if v_payment.status = 'paid' and p_status <> 'refunded' then
++    return jsonb_build_object('skipped', true, 'reason', 'paid_is_final');
++  end if;
++
++  update public.payments
++     set status             = p_status,
++         provider_intent_id = coalesce(p_provider_intent_id, provider_intent_id),
++         paid_at            = case when p_status = 'paid' then now() else paid_at end,
++         failed_at          = case when p_status = 'failed' then now() else failed_at end,
++         last_error         = case when p_status = 'failed' then left(coalesce(p_error, ''), 500) else last_error end,
++         refunded_amount_cents = case when p_status = 'refunded' then amount_cents else refunded_amount_cents end,
++         updated_at         = now()
++   where id = p_payment_id
++  returning * into v_payment;
++
++  insert into public.payment_events(payment_id, event_type, provider_event_id, payload)
++  values (
++    p_payment_id, p_status, p_provider_event_id,
++    jsonb_build_object('intent', p_provider_intent_id, 'error', p_error)
++  )
++  on conflict (provider_event_id) where provider_event_id is not null do nothing;
++
++  select * into v_mission from public.missions m where m.id = v_payment.mission_id;
++
++  if p_status = 'paid' then
++    update public.missions
++       set payment_status = 'paid',
++           commission_paid_at = case
++             when v_payment.purpose = 'commission_plateau' then now()
++             else commission_paid_at end
++     where id = v_payment.mission_id;
++
++    -- ⚑ LE VERROU. Jusqu'ici le bon partait dès la signature du devis.
++    if v_payment.purpose = 'commission_plateau' then
++      v_released := public.secoto_release_mission_order(v_payment.mission_id);
++    end if;
++
++    perform secoto_private.notify_admins(
++      'payment', v_payment.mission_id, 'paiement',
++      'payment:' || p_payment_id::text || ':paid'
++    );
++    perform secoto_private.notify_one(
++      v_payment.account_id, 'payment', v_payment.mission_id, 'paiement',
++      'payment:' || p_payment_id::text || ':paid:client'
++    );
++    perform secoto_private.queue_email(
++      v_payment.account_id,
++      'SECOTO — confirmation de votre reservation',
++      'Votre reservation de creneau est confirmee.' || chr(10) || chr(10)
++      || 'Frais de reservation SECOTO (20 %) : '
++      || public.secoto_fmt_amount(v_payment.amount_cents / 100.0) || chr(10)
++      || 'Prix du transport, regle directement au transporteur : '
++      || public.secoto_fmt_amount(coalesce(v_mission.transport_amount, 0)) || chr(10) || chr(10)
++      || (select value ->> 'commission_notice' from public.app_settings where key = 'legal_texts')
++      || chr(10) || chr(10)
++      || 'Vous avez demande expressement l''execution immediate de la prestation '
++      || 'de mise en relation et renonce a votre droit de retractation de 14 jours.'
++      || chr(10) || chr(10)
++      || (select value ->> 'refund_policy' from public.app_settings where key = 'legal_texts'),
++      v_payment.mission_id,
++      'email:payment:' || p_payment_id::text || ':paid'
++    );
++
++  elsif p_status = 'failed' then
++    update public.missions set payment_status = 'failed' where id = v_payment.mission_id;
++    perform secoto_private.notify_admins(
++      'payment_failed', v_payment.mission_id, 'paiement',
++      'payment:' || p_payment_id::text || ':failed'
++    );
++    perform secoto_private.notify_one(
++      v_payment.account_id, 'payment_failed', v_payment.mission_id, 'paiement',
++      'payment:' || p_payment_id::text || ':failed:client'
++    );
++    perform secoto_private.queue_email(
++      v_payment.account_id,
++      'SECOTO — votre paiement n''a pas abouti',
++      'Votre paiement n''a pas pu etre encaisse. Votre creneau n''est pas '
++      || 'reserve tant que la commission n''est pas reglee. Vous pouvez '
++      || 'reessayer depuis l''application SECOTO.',
++      v_payment.mission_id,
++      'email:payment:' || p_payment_id::text || ':failed'
++    );
++
++  elsif p_status = 'refunded' then
++    update public.missions set payment_status = 'refunded' where id = v_payment.mission_id;
++    perform secoto_private.notify_one(
++      v_payment.account_id, 'payment', v_payment.mission_id, 'paiement',
++      'payment:' || p_payment_id::text || ':refunded:client'
++    );
++  end if;
++
++  return jsonb_build_object(
++    'payment_id', p_payment_id,
++    'status', p_status,
++    'released', v_released
++  );
++end;
++$function$;
++
++
++revoke all on function public.secoto_settle_payment(uuid, text, text, text, text)
++  from public, anon, authenticated;
++grant execute on function public.secoto_settle_payment(uuid, text, text, text, text)
++  to service_role;
++
++-- ----------------------------------------------------------------------------
++-- 3. Garde de déploiement : zéro doublon de fonction exposée
++-- ----------------------------------------------------------------------------
++
++do $guard$
++declare
++  v_dup record;
++begin
++  for v_dup in
++    select p.proname, count(*) as copies
++    from pg_proc p
++    join pg_namespace n on n.oid = p.pronamespace
++    where n.nspname = 'public'
++      and p.proname like 'secoto\_%'
++    group by p.proname
++    having count(*) > 1
++  loop
++    raise exception
++      'Fonction public.% présente en % exemplaires : surcharge ambiguë pour PostgREST, dédoublonner avant de continuer.',
++      v_dup.proname, v_dup.copies;
++  end loop;
++end
++$guard$;
++
++notify pgrst, 'reload schema';
++
++commit;
+diff --git a/tests/human-error-015.test.js b/tests/human-error-015.test.js
+new file mode 100644
+index 0000000..f000db7
+--- /dev/null
++++ b/tests/human-error-015.test.js
+@@ -0,0 +1,97 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import { humanizeError } from "../src/lib/humanError.js";
++
++const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
++const payments = readFileSync(new URL("../src/lib/payments.js", import.meta.url), "utf8");
++const migration = readFileSync(
++  new URL("../supabase/migrations/202608250015_reliability_guards.sql", import.meta.url),
++  "utf8",
++);
++
++test("les erreurs PostgREST de cache de schéma ne sont jamais affichées brutes", () => {
++  const raw = {
++    code: "PGRST202",
++    message:
++      "Could not find the function public.secoto_apply_to_mission(p_idempotency_key, p_message, p_mission_id, p_proposed_price) in the schema cache",
++  };
++  const shown = humanizeError(raw, "Erreur lors de la candidature.");
++  assert.doesNotMatch(shown, /schema cache|secoto_apply_to_mission/i);
++  assert.match(shown, /mise à jour|Réessayez/);
++});
++
++test("l'ambiguïté de surcharge est masquée elle aussi", () => {
++  const raw = {
++    code: "PGRST203",
++    message:
++      "Could not choose the best candidate function between: public.secoto_apply_to_mission(...), public.secoto_apply_to_mission(...)",
++  };
++  const shown = humanizeError(raw, "Erreur lors de la candidature.");
++  assert.doesNotMatch(shown, /candidate function|public\./i);
++});
++
++test("les messages métier français (raise exception P0001) passent tels quels", () => {
++  assert.equal(
++    humanizeError({ code: "P0001", message: "Le devis doit être signé avant le paiement." }),
++    "Le devis doit être signé avant le paiement.",
++  );
++  assert.equal(
++    humanizeError({ code: "23505", message: "Vous avez déjà candidaté à cette mission." }),
++    "Vous avez déjà candidaté à cette mission.",
++  );
++});
++
++test("les erreurs locales de saisie restent affichées", () => {
++  assert.equal(
++    humanizeError(new Error("Renseignez la disponibilité d’enlèvement au plus tôt.")),
++    "Renseignez la disponibilité d’enlèvement au plus tôt.",
++  );
++});
++
++test("le réseau coupé donne un message réseau, pas un « Failed to fetch »", () => {
++  const shown = humanizeError(new TypeError("Failed to fetch"), "Erreur lors de la candidature.");
++  assert.match(shown, /réseau/i);
++  assert.doesNotMatch(shown, /fetch/i);
++});
++
++test("les erreurs Supabase Auth sont traduites", () => {
++  assert.equal(
++    humanizeError({ message: "Invalid login credentials" }),
++    "E-mail ou mot de passe incorrect.",
++  );
++});
++
++test("un doublon SQL devient un message d'action déjà enregistrée", () => {
++  const shown = humanizeError({
++    code: "23505",
++    message: 'duplicate key value violates unique constraint "mission_applications_unique"',
++  });
++  assert.equal(shown, "Cette action a déjà été enregistrée.");
++});
++
++test("erreur inconnue ou anglaise : repli sur le message de l'écran", () => {
++  assert.equal(
++    humanizeError({ message: "some obscure internal thing" }, "Erreur lors de la candidature."),
++    "Erreur lors de la candidature.",
++  );
++});
++
++test("l'application ne montre plus aucun message brut : tous les setError passent par humanizeError", () => {
++  assert.doesNotMatch(app, /setError\((?:err|e|error|accessError|resetError|updateError|exchangeError|platformError|claimError)\.message/);
++  assert.doesNotMatch(app, /setClaimError\(\s*claimFailure\.message/);
++  assert.match(app, /import \{ humanizeError \} from "\.\/lib\/humanError"/);
++  assert.match(payments, /humanizeError\(/);
++});
++
++test("la migration 015 supprime toutes les surcharges puis n'en recrée qu'une", () => {
++  assert.match(migration, /drop function %s/);
++  assert.match(migration, /create or replace function public\.secoto_apply_to_mission\(/);
++  assert.match(migration, /having count\(\*\) > 1/);
++  assert.match(migration, /notify pgrst, 'reload schema'/);
++});
++
++test("la migration 015 rend l'encaissement définitif face aux webhooks en désordre", () => {
++  assert.match(migration, /paid_is_final/);
++  assert.match(migration, /p_status <> 'refunded'/);
++});
+-- 
+2.43.0
+

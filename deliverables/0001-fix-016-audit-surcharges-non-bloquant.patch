@@ -1,0 +1,269 @@
+From 4198ab89875606c1faed8b5a549063c8169b96a2 Mon Sep 17 00:00:00 2001
+From: SECOTO <contact.secoto@gmail.com>
+Date: Tue, 25 Aug 2026 22:43:19 +0000
+Subject: [PATCH] =?UTF-8?q?fix(016):=20l'audit=20de=20surcharges=20ne=20do?=
+ =?UTF-8?q?it=20plus=20annuler=20la=20r=C3=A9paration?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+La migration 015 livrée plus tôt aujourd'hui se terminait par une garde qui
+levait une exception dès qu'une fonction public.secoto_% existait en
+plusieurs exemplaires. Cette garde était dans la MÊME transaction que la
+réparation : sur une base réelle, où plusieurs fonctions sont légitimement
+surchargées (paramètres différents), elle annulait tout — y compris la
+suppression du doublon de secoto_apply_to_mission. Les candidatures
+restaient donc bloquées, et l'éditeur SQL n'affichait qu'une erreur sur une
+fonction sans rapport.
+
+Deux corrections :
+
+- supabase/migrations/202608250015_reliability_guards.sql : l'audit ne
+  regroupe plus que les surcharges réellement ambiguës pour PostgREST —
+  celles qui partagent les MÊMES noms de paramètres — et se contente d'un
+  `raise warning`. La migration va désormais toujours au bout.
+- supabase/repair/2026-08-25-reparation-candidature.sql : script autonome de
+  remise en service, sans transaction englobante, à coller tel quel dans
+  l'éditeur SQL Supabase. Il conserve l'unique signature la plus récente,
+  restaure les droits, recharge le cache PostgREST, puis affiche un rapport
+  avant/après et la liste des autres fonctions ambiguës. Rejouable.
+
+Validé sur PostgreSQL 16 : reproduction de l'incident AVEC une fonction
+légitimement surchargée et une fonction réellement ambiguë présentes —
+l'ancienne migration annulait tout (2 surcharges après passage), la nouvelle
+commite (1 surcharge, security definer conservé) et se contente de signaler
+l'ambiguïté sans rapport. Script de réparation rejoué deux fois sans effet
+de bord. 13/13 tests.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vtbv5x2quBJjBrk1QkMnJP
+---
+ .../202608250015_reliability_guards.sql       |  45 +++++---
+ .../2026-08-25-reparation-candidature.sql     | 101 ++++++++++++++++++
+ tests/human-error-015.test.js                 |  30 ++++++
+ 3 files changed, 163 insertions(+), 13 deletions(-)
+ create mode 100644 supabase/repair/2026-08-25-reparation-candidature.sql
+
+diff --git a/supabase/migrations/202608250015_reliability_guards.sql b/supabase/migrations/202608250015_reliability_guards.sql
+index c10f489..78a169c 100644
+--- a/supabase/migrations/202608250015_reliability_guards.sql
++++ b/supabase/migrations/202608250015_reliability_guards.sql
+@@ -305,28 +305,47 @@ grant execute on function public.secoto_settle_payment(uuid, text, text, text, t
+   to service_role;
+ 
+ -- ----------------------------------------------------------------------------
+--- 3. Garde de déploiement : zéro doublon de fonction exposée
++-- 3. AUDIT de déploiement — rapport, JAMAIS un blocage
+ -- ----------------------------------------------------------------------------
+-
+-do $guard$
++-- Correction du 25/08/2026 : la première version de cette garde levait une
++-- exception dès qu'une fonction public.secoto_% existait en plusieurs
++-- exemplaires. Or une surcharge n'est dangereuse QUE si les deux versions
++-- portent les MÊMES noms de paramètres : c'est là que PostgREST ne sait plus
++-- laquelle appeler. Des surcharges aux paramètres différents sont légitimes.
++-- La garde annulait donc la transaction — et la réparation avec elle.
++-- Elle signale désormais, sans jamais faire échouer la migration.
++
++do $audit$
+ declare
+   v_dup record;
++  v_found boolean := false;
+ begin
+   for v_dup in
+-    select p.proname, count(*) as copies
+-    from pg_proc p
+-    join pg_namespace n on n.oid = p.pronamespace
+-    where n.nspname = 'public'
+-      and p.proname like 'secoto\_%'
+-    group by p.proname
++    select s.proname, count(*) as copies,
++           string_agg(s.signature, '  |  ') as signatures
++    from (
++      select p.proname,
++             (select array_agg(x order by x)
++                from unnest(coalesce(p.proargnames, '{}'::text[])) x) as argnames,
++             p.oid::regprocedure::text as signature
++      from pg_proc p
++      join pg_namespace n on n.oid = p.pronamespace
++      where n.nspname = 'public' and p.proname like 'secoto\_%'
++    ) s
++    group by s.proname, s.argnames
+     having count(*) > 1
+   loop
+-    raise exception
+-      'Fonction public.% présente en % exemplaires : surcharge ambiguë pour PostgREST, dédoublonner avant de continuer.',
+-      v_dup.proname, v_dup.copies;
++    v_found := true;
++    raise warning
++      'AMBIGUITE POSTGREST — public.% existe en % exemplaires avec les memes noms de parametres (%). Tout appel RPC de cette fonction echouera : dedoublonner.',
++      v_dup.proname, v_dup.copies, v_dup.signatures;
+   end loop;
++
++  if not v_found then
++    raise notice 'Audit des surcharges : aucune ambiguite PostgREST detectee.';
++  end if;
+ end
+-$guard$;
++$audit$;
+ 
+ notify pgrst, 'reload schema';
+ 
+diff --git a/supabase/repair/2026-08-25-reparation-candidature.sql b/supabase/repair/2026-08-25-reparation-candidature.sql
+new file mode 100644
+index 0000000..fb91f22
+--- /dev/null
++++ b/supabase/repair/2026-08-25-reparation-candidature.sql
+@@ -0,0 +1,101 @@
++-- ============================================================================
++-- SECOTO — RÉPARATION IMMÉDIATE des candidatures transporteur.
++-- ----------------------------------------------------------------------------
++-- À coller EN ENTIER dans Supabase → SQL Editor → Run.
++-- Ne modifie aucune donnée. Rejouable sans risque.
++-- Contrairement au script précédent, RIEN ici ne peut annuler la réparation :
++-- l'audit final est un simple rapport, jamais une erreur bloquante.
++-- ============================================================================
++
++-- ----------------------------------------------------------------------------
++-- 1. ÉTAT AVANT — ce que PostgREST voit aujourd'hui
++-- ----------------------------------------------------------------------------
++select 'AVANT' as moment, p.oid::regprocedure::text as signature
++from pg_proc p
++join pg_namespace n on n.oid = p.pronamespace
++where n.nspname = 'public' and p.proname = 'secoto_apply_to_mission';
++
++-- ----------------------------------------------------------------------------
++-- 2. RÉPARATION — ne conserver qu'UNE version de secoto_apply_to_mission
++--    (la plus complète et la plus récente : celle de la migration 013)
++-- ----------------------------------------------------------------------------
++do $repair$
++declare
++  v_keep oid;
++  v_drop record;
++  v_signature text;
++begin
++  select p.oid into v_keep
++  from pg_proc p
++  join pg_namespace n on n.oid = p.pronamespace
++  where n.nspname = 'public' and p.proname = 'secoto_apply_to_mission'
++  order by p.pronargs desc, p.oid desc
++  limit 1;
++
++  if v_keep is null then
++    raise exception
++      'secoto_apply_to_mission est absente de la base : appliquez d''abord la migration 013.';
++  end if;
++
++  for v_drop in
++    select p.oid::regprocedure::text as signature
++    from pg_proc p
++    join pg_namespace n on n.oid = p.pronamespace
++    where n.nspname = 'public'
++      and p.proname = 'secoto_apply_to_mission'
++      and p.oid <> v_keep
++  loop
++    execute format('drop function %s', v_drop.signature);
++    raise notice 'Surcharge en trop supprimée : %', v_drop.signature;
++  end loop;
++
++  select p.oid::regprocedure::text into v_signature
++  from pg_proc p where p.oid = v_keep;
++
++  execute format('revoke all on function %s from public, anon', v_signature);
++  execute format('grant execute on function %s to authenticated', v_signature);
++  raise notice 'Signature conservée : %', v_signature;
++
++  if not (select p.prosecdef from pg_proc p where p.oid = v_keep) then
++    raise warning
++      'La version conservée n''est PAS security definer : rejouez la migration 015 pour restaurer le corps canonique.';
++  end if;
++end
++$repair$;
++
++-- ----------------------------------------------------------------------------
++-- 3. Rechargement du cache de schéma PostgREST
++-- ----------------------------------------------------------------------------
++notify pgrst, 'reload schema';
++
++-- ----------------------------------------------------------------------------
++-- 4. ÉTAT APRÈS — une seule ligne doit apparaître, security definer = true
++-- ----------------------------------------------------------------------------
++select 'APRES' as moment,
++       p.oid::regprocedure::text as signature,
++       p.prosecdef              as security_definer,
++       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_peut_executer
++from pg_proc p
++join pg_namespace n on n.oid = p.pronamespace
++where n.nspname = 'public' and p.proname = 'secoto_apply_to_mission';
++
++-- ----------------------------------------------------------------------------
++-- 5. AUDIT — toute AUTRE fonction réellement ambiguë pour PostgREST,
++--    c'est-à-dire présente plusieurs fois avec les MÊMES noms de paramètres.
++--    Zéro ligne = plus aucune candidature ni action ne peut échouer ainsi.
++--    (Des surcharges aux paramètres DIFFÉRENTS sont normales et sans danger.)
++-- ----------------------------------------------------------------------------
++select s.proname                       as fonction,
++       count(*)                        as exemplaires,
++       string_agg(s.signature, '  |  ') as signatures
++from (
++  select p.proname,
++         (select array_agg(x order by x)
++            from unnest(coalesce(p.proargnames, '{}'::text[])) x) as argnames,
++         p.oid::regprocedure::text as signature
++  from pg_proc p
++  join pg_namespace n on n.oid = p.pronamespace
++  where n.nspname = 'public' and p.proname like 'secoto\_%'
++) s
++group by s.proname, s.argnames
++having count(*) > 1;
+diff --git a/tests/human-error-015.test.js b/tests/human-error-015.test.js
+index f000db7..7210828 100644
+--- a/tests/human-error-015.test.js
++++ b/tests/human-error-015.test.js
+@@ -9,6 +9,10 @@ const migration = readFileSync(
+   new URL("../supabase/migrations/202608250015_reliability_guards.sql", import.meta.url),
+   "utf8",
+ );
++const repair = readFileSync(
++  new URL("../supabase/repair/2026-08-25-reparation-candidature.sql", import.meta.url),
++  "utf8",
++);
+ 
+ test("les erreurs PostgREST de cache de schéma ne sont jamais affichées brutes", () => {
+   const raw = {
+@@ -91,6 +95,32 @@ test("la migration 015 supprime toutes les surcharges puis n'en recrée qu'une",
+   assert.match(migration, /notify pgrst, 'reload schema'/);
+ });
+ 
++test("l'audit des surcharges signale mais ne bloque JAMAIS la migration", () => {
++  // Régression du 25/08/2026 : une garde fatale annulait toute la transaction
++  // — donc la réparation — dès qu'une fonction secoto_% avait une surcharge,
++  // même parfaitement légitime.
++  const audit = migration.slice(migration.indexOf("$audit$"));
++  assert.match(audit, /raise warning/);
++  assert.doesNotMatch(audit, /raise exception/);
++  // Seules les surcharges aux MÊMES noms de paramètres sont ambiguës.
++  assert.match(migration, /proargnames/);
++  assert.match(migration, /group by s\.proname, s\.argnames/);
++});
++
++test("le script de réparation immédiate ne conserve qu'une signature et recharge le cache", () => {
++  assert.match(repair, /drop function %s/);
++  assert.match(repair, /grant execute on function %s to authenticated/);
++  assert.match(repair, /notify pgrst, 'reload schema'/);
++  // Il ne doit rien pouvoir annuler : aucune transaction explicite englobante,
++  // et une seule exception possible — la migration 013 jamais appliquée.
++  assert.doesNotMatch(repair, /^begin;/m);
++  const exceptions = repair.match(/raise exception/g) || [];
++  assert.equal(exceptions.length, 1);
++  assert.match(repair, /raise exception\s*\n?\s*'secoto_apply_to_mission est absente/);
++  // L'audit final est un simple SELECT : il ne peut rien faire échouer.
++  assert.match(repair, /having count\(\*\) > 1;?\s*$/);
++});
++
+ test("la migration 015 rend l'encaissement définitif face aux webhooks en désordre", () => {
+   assert.match(migration, /paid_is_final/);
+   assert.match(migration, /p_status <> 'refunded'/);
+-- 
+2.43.0
+

@@ -1332,124 +1332,36 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
 }
 
 /* ============================================================
-   Landing publique — dépôt sans compte
+   Landing publique — un seul chemin : s'identifier puis commander
 ============================================================ */
 
-const emptyGuestForm = {
-  type: "convoyage",
-  vehicleCategory: "standard",
-  clientName: "",
-  clientPhone: "",
-  clientContact: "",
-  fromCity: "",
-  toCity: "",
-  pickupAddress: "",
-  deliveryAddress: "",
-  missionDate: "",
-  vehicle: "",
-  plate: "",
-  distanceKm: "",
-  proposedPrice: "",
-  notes: "",
-  website: "", // honeypot anti-bot (doit rester vide)
-};
-
 function PublicLanding({ onShowAuth }) {
-  const [form, setForm] = useState(emptyGuestForm);
-  const [showDetails, setShowDetails] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState(null);
-
-  // Pré-remplissage depuis l'URL (redirection depuis le site vitrine)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Le site vitrine peut arriver avec ?from=…&to=…&vehicle=…&service=… .
+  // On garde ce qui est exploitable pour pré-remplir la demande APRÈS
+  // identification : les adresses, elles, seront revérifiées une par une.
+  const prefill = useMemo(() => {
+    if (typeof window === "undefined") return null;
     const q = new URLSearchParams(window.location.search);
-    if (![...q.keys()].length) return;
-    const svc = (q.get("service") || q.get("type") || "").toLowerCase();
-    const patch = {
-      clientName: q.get("name") || q.get("nom") || "",
-      clientPhone: q.get("phone") || q.get("tel") || q.get("telephone") || "",
-      clientContact: q.get("email") || "",
-      fromCity: q.get("from") || q.get("depart") || "",
-      toCity: q.get("to") || q.get("arrivee") || "",
-      vehicle: q.get("vehicle") || q.get("vehicule") || "",
-      distanceKm: q.get("km") || q.get("distance") || "",
-      missionDate: q.get("date") || "",
-      notes: q.get("notes") || q.get("infos") || "",
-      type: svc.includes("moto") || svc === "plateau" ? "plateau" : "convoyage",
+    if (![...q.keys()].length) return null;
+    const service = (q.get("service") || q.get("type") || "").toLowerCase();
+    const data = {
+      model: q.get("vehicle") || q.get("vehicule") || "",
+      mode: service.includes("plateau") || service.includes("camion") ? "plateau" : service.includes("convoyage") ? "convoyage" : "",
+      from: q.get("from") || q.get("depart") || "",
+      to: q.get("to") || q.get("arrivee") || "",
     };
-    queueMicrotask(() => {
-      setForm((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")), type: patch.type }));
-      if (patch.clientContact || patch.distanceKm || patch.missionDate || patch.notes) setShowDetails(true);
-    });
-    setTimeout(() => {
-      const el = document.querySelector(".deposit-card");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 300);
+    return data.model || data.mode || data.from || data.to ? data : null;
   }, []);
 
-  function update(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function submit(e) {
-    e.preventDefault();
-    setError("");
-
-    if (form.website) return; // bot détecté
-    if (!form.clientName.trim()) return setError("Merci d’indiquer votre nom.");
-    if (!form.clientPhone.trim() || form.clientPhone.replace(/\D/g, "").length < 6) return setError("Un numéro de téléphone valide est obligatoire pour vous recontacter.");
-    if (!form.fromCity.trim() || !form.toCity.trim()) return setError("Indiquez la ville de départ et d’arrivée.");
-    if (!form.vehicle.trim()) return setError("Indiquez le véhicule à transporter.");
-
-    setLoading(true);
-    try {
-      const row = requestToDb(form, null, { createdByRole: "guest" });
-      const { data, error } = await supabase.rpc("secoto_create_public_request", {
-        p_payload: row,
-        p_idempotency_key: randomIdempotencyKey(),
-      });
-      if (error) throw error;
-      const created = Array.isArray(data) ? data[0] : data;
-      setDone({ ref: created?.public_ref || row.public_ref, phone: form.clientPhone.trim() });
-      setForm(emptyGuestForm);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (err) {
-      setError(humanizeError(err, "Une erreur est survenue. Réessayez ou appelez-nous."));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (done) {
-    return (
-      <main className="app-shell">
-        <header className="topbar">
-          <div className="topbar-title"><p className="eyebrow">SECOTO</p><h1>Demande envoyée</h1></div>
-          <div className="topbar-actions"><ThemeToggle /><button className="btn ghost small" onClick={onShowAuth}>Se connecter</button></div>
-        </header>
-        <section className="layout">
-          <div className="panel panel-full" style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 46, marginBottom: 6 }}>✅</div>
-            <h2 style={{ justifyContent: "center" }}>C’est enregistré, merci !</h2>
-            <p className="muted" style={{ maxWidth: "48ch", margin: "0 auto 16px" }}>
-              Votre demande <strong>{done.ref}</strong> a bien été transmise à SECOTO. Un conseiller vous rappelle rapidement au <strong>{done.phone}</strong> pour organiser votre transport.
-            </p>
-            <div className="actions-row" style={{ justifyContent: "center" }}>
-              <button className="btn primary" onClick={() => setDone(null)}>Déposer une autre demande</button>
-            </div>
-          </div>
-        </section>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!prefill) return;
+    try { sessionStorage.setItem("secoto:od-prefill", JSON.stringify(prefill)); } catch { /* navigation privée */ }
+  }, [prefill]);
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="topbar-title"><p className="eyebrow">SECOTO</p><h1>Transport de véhicules</h1></div>
+      <header className="app-header">
+        <div><p className="eyebrow">SECOTO</p><h1>Transport de véhicules</h1></div>
         <div className="topbar-actions">
           <ThemeToggle />
           <button className="btn ghost small" onClick={onShowAuth}>Espace pro / Connexion</button>
@@ -1457,76 +1369,48 @@ function PublicLanding({ onShowAuth }) {
       </header>
 
       <section className="hero">
-        <span className="hero-badge">Mise en relation • Auto & Moto • France &amp; Europe</span>
-        <h2 className="hero-title">Faites transporter votre véhicule, sans prise de tête.</h2>
-        <p className="hero-sub">Décrivez votre besoin en 1 minute. Nos transporteurs vérifiés vous recontactent avec leur meilleur tarif. Aucune inscription nécessaire.</p>
+        <span className="hero-badge">Auto • Moto • Utilitaire • France &amp; Europe</span>
+        <h2 className="hero-title">Votre prix en une minute. Vous payez, on s’occupe du reste.</h2>
+        <p className="hero-sub">
+          Renseignez le départ, l’arrivée et le véhicule : le prix s’affiche immédiatement.
+          Vous réglez en ligne, et la mission part à tous nos transporteurs vérifiés.
+        </p>
         <div className="hero-points">
-          <span>✓ Convoyage &amp; plateau</span>
-          <span>✓ Transporteurs assurés</span>
-          <span>✓ Suivi à chaque étape</span>
+          <span>✓ Prix ferme, affiché avant de payer</span>
+          <span>✓ Transporteurs vérifiés et assurés</span>
+          <span>✓ Remboursé si personne n’est disponible</span>
         </div>
       </section>
 
       <section className="layout">
         <div className="panel panel-full deposit-card">
-          <h2>Déposer votre demande</h2>
-          <p className="muted" style={{ marginBottom: 14 }}>Champs marqués d’un * obligatoires. On vous rappelle, pas besoin de créer de compte.</p>
-
-          {error && <div className="alert error">{error}</div>}
-
-          <form className="form-grid" onSubmit={submit}>
-            <Field label="Votre nom" name="clientName" value={form.clientName} onChange={update} required />
-            <Field label="Téléphone" name="clientPhone" value={form.clientPhone} onChange={update} type="tel" placeholder="Pour vous rappeler" required />
-            <label className="field">
-              <span>Type de transport *</span>
-              <select name="type" value={form.type} onChange={update}>
-                <option value="convoyage">Convoyage (un chauffeur conduit)</option>
-                <option value="plateau">Plateau / camion</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Catégorie du véhicule *</span>
-              <select name="vehicleCategory" value={form.vehicleCategory} onChange={update}>
-                <option value="standard">Véhicule standard</option>
-                <option value="luxury">Prestige / collection / grande valeur</option>
-              </select>
-            </label>
-            {form.vehicleCategory === "luxury" && form.type === "plateau" && (
-              <div className="alert field-full luxury-routing-notice">
-                SECOTO recherchera un transporteur validé disposant d’un camion fermé.
-              </div>
-            )}
-            <Field label="Véhicule à transporter" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Yamaha MT-07, Peugeot 208…" required />
-            <AddressAutocomplete label="Ville de départ" name="fromCity" value={form.fromCity} setForm={setForm} kind="city" required />
-            <AddressAutocomplete label="Ville d’arrivée" name="toCity" value={form.toCity} setForm={setForm} kind="city" required />
-
-            {/* Honeypot invisible */}
-            <input type="text" name="website" value={form.website} onChange={update} tabIndex={-1} autoComplete="off" style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} aria-hidden="true" />
-
-            {!showDetails && (
-              <button type="button" className="btn ghost field-full" onClick={() => setShowDetails(true)}>+ Ajouter des détails (facultatif)</button>
-            )}
-
-            {showDetails && (
-              <>
-                <Field label="Email (facultatif)" name="clientContact" value={form.clientContact} onChange={update} type="email" />
-                <Field label="Date / heure souhaitée" name="missionDate" value={form.missionDate} onChange={update} type="datetime-local" />
-                <AddressAutocomplete label="Adresse de prise en charge" name="pickupAddress" value={form.pickupAddress} setForm={setForm} kind="address" />
-                <AddressAutocomplete label="Adresse de livraison" name="deliveryAddress" value={form.deliveryAddress} setForm={setForm} kind="address" />
-                <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
-                <Field label="Distance estimée (km)" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
-                <Field label="Budget indicatif €" name="proposedPrice" value={form.proposedPrice} onChange={update} type="number" />
-                <label className="field field-full">
-                  <span>Précisions</span>
-                  <textarea name="notes" value={form.notes} onChange={update} placeholder="État du véhicule, contraintes horaires, contact sur place…" />
-                </label>
-              </>
-            )}
-
-            <button className="btn primary field-full" type="submit" disabled={loading} style={{ minHeight: 56, fontSize: "1.02rem" }}>
-              {loading ? "Envoi…" : "Déposer ma demande"}
-            </button>
-          </form>
+          <h2>Commander un transport</h2>
+          {prefill && (prefill.from || prefill.to) && (
+            <p className="muted">Votre trajet {prefill.from || "—"} → {prefill.to || "—"} est conservé pour l’étape suivante.</p>
+          )}
+          <p className="muted" style={{ marginBottom: 18 }}>
+            Créez votre compte en quelques secondes : c’est ce qui vous permet de suivre le véhicule,
+            recevoir votre facture et être remboursé automatiquement si aucun transporteur n’accepte.
+          </p>
+          <button
+            className="btn primary field-full"
+            type="button"
+            onClick={onShowAuth}
+            style={{ minHeight: 56, fontSize: "1.02rem" }}
+          >
+            Obtenir mon prix et payer
+          </button>
+          <ul className="od-steps-inline">
+            <li>1. Trajet et véhicule</li>
+            <li>2. Prix affiché immédiatement</li>
+            <li>3. Paiement Apple&nbsp;Pay, Google&nbsp;Pay ou carte</li>
+            <li>4. Diffusion à nos transporteurs vérifiés</li>
+          </ul>
+          <p className="muted" style={{ marginTop: 14 }}>
+            Le paiement est encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.
+            Si aucun ne se rend disponible, vous êtes remboursé intégralement sous 24 h.
+            TVA non applicable, article 293 B du CGI.
+          </p>
         </div>
       </section>
 
@@ -1731,6 +1615,13 @@ export default function App() {
     if (!account?.id) return;
     featureFlags().then((value) => setFlags(value || {})).catch(() => setFlags({}));
   }, [account?.id]);
+
+  // Parcours de commande en ligne ouvert : « Transport à la demande » devient
+  // le seul chemin proposé au client, et l'ancien formulaire disparaît.
+  // On dérive l'onglet affiché au lieu de corriger l'état après coup : pas de
+  // rendu en cascade, et aucun écran mort si les interrupteurs changent.
+  const onDemandOpen = Boolean(flags.auto_pricing || flags.od_payments);
+  const activeClientTab = onDemandOpen && clientTab === "post" ? "ondemand" : clientTab;
 
 
   const actionLocksRef = useRef(new Set());
@@ -4114,19 +4005,22 @@ export default function App() {
   function getNavModel() {
     if (account.role === "client") {
       return {
-        active: clientTab, setActive: setClientTab,
+        active: activeClientTab, setActive: setClientTab,
         sections: [
           { title: "Transport", items: [
-            { key: "post", label: "Nouvelle course", icon: "plus" },
-            { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
-            { key: "documents", label: "Mes documents", icon: "inbox", count: docsToSignCount || undefined },
-            { key: "paiement", label: "Paiement", icon: "check", count: missionsAwaitingPayment.length || undefined },
-            ...(flags.auto_pricing || flags.od_payments
+            // Un seul chemin pour commander : « Transport à la demande ».
+            // L'ancien formulaire « Nouvelle course » ne reste accessible que
+            // si le parcours en ligne est fermé, pour ne laisser personne sans
+            // moyen de déposer une demande.
+            ...(onDemandOpen
               ? [
                 { key: "ondemand", label: "Transport à la demande", icon: "plus" },
                 { key: "orders", label: "Mes commandes", icon: "truck" },
               ]
-              : []),
+              : [{ key: "post", label: "Nouvelle course", icon: "plus" }]),
+            { key: "courses", label: "Mes courses", icon: "truck", count: clientMissions.length },
+            { key: "documents", label: "Mes documents", icon: "inbox", count: docsToSignCount || undefined },
+            { key: "paiement", label: "Paiement", icon: "check", count: missionsAwaitingPayment.length || undefined },
             ...(flags.subscriptions ? [{ key: "abonnement", label: "Abonnement pro", icon: "bank" }] : []),
           ] },
           { title: "Compte", items: [
@@ -4418,7 +4312,7 @@ export default function App() {
       {/* ===================== CLIENT ===================== */}
       {isClient && (
         <>
-          {clientTab === "post" && (
+          {activeClientTab === "post" && (
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Publier une demande de transport</h2>
@@ -4428,7 +4322,7 @@ export default function App() {
             </section>
           )}
 
-          {clientTab === "courses" && (
+          {activeClientTab === "courses" && (
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Mes courses & suivi</h2>
@@ -4508,7 +4402,7 @@ export default function App() {
             </section>
           )}
 
-          {clientTab === "documents" && (
+          {activeClientTab === "documents" && (
             <section className="layout">
               <MyDocumentsPanel
                 account={account}
@@ -4518,7 +4412,7 @@ export default function App() {
             </section>
           )}
 
-          {clientTab === "paiement" && (
+          {activeClientTab === "paiement" && (
             <section className="layout">
               {payingMission ? (
                 <PaymentScreen
@@ -4564,25 +4458,25 @@ export default function App() {
             </section>
           )}
 
-          {clientTab === "ondemand" && (
+          {activeClientTab === "ondemand" && (
             <section className="layout">
               <OnDemandBooking flags={flags} onBooked={() => { setClientTab("orders"); loadAllData(account); }} />
             </section>
           )}
 
-          {clientTab === "orders" && (
+          {activeClientTab === "orders" && (
             <section className="layout">
               <MyOrdersPanel flags={flags} focusMissionId={clientTrackingMissionId} />
             </section>
           )}
 
-          {clientTab === "abonnement" && (
+          {activeClientTab === "abonnement" && (
             <section className="layout">
               <SubscriptionPanel flags={flags} />
             </section>
           )}
 
-          {clientTab === "notifications" && (
+          {activeClientTab === "notifications" && (
             <section className="layout">
               <NotificationPreferencesPanel
                 account={account}
@@ -4592,19 +4486,19 @@ export default function App() {
             </section>
           )}
 
-          {clientTab === "legal" && (
+          {activeClientTab === "legal" && (
             <section className="layout">
               <LegalNoticesPanel />
             </section>
           )}
 
-          {clientTab === "contact" && (
+          {activeClientTab === "contact" && (
             <section className="layout">
               <div className="panel-full"><ContactPanel /></div>
             </section>
           )}
 
-          {clientTab === "profile" && (
+          {activeClientTab === "profile" && (
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Mon profil</h2>
@@ -5316,10 +5210,14 @@ export default function App() {
         />
       )}
 
-      {isClient && clientTab !== "post" && (
-        <button className="fab" onClick={() => setClientTab("post")} aria-label="Nouvelle course">
+      {isClient && activeClientTab !== (onDemandOpen ? "ondemand" : "post") && (
+        <button
+          className="fab"
+          onClick={() => setClientTab(onDemandOpen ? "ondemand" : "post")}
+          aria-label={onDemandOpen ? "Commander un transport" : "Nouvelle course"}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          Nouvelle course
+          {onDemandOpen ? "Commander" : "Nouvelle course"}
         </button>
       )}
     </main>

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SECOTO — Modèle de proposition commerciale</title>
+  <link rel="stylesheet" href="secoto-sales.css">
+  <style>
+    .placeholder {
+      display: inline;
+      padding: .5mm 1.4mm .7mm;
+      border: .35mm dashed rgba(255, 106, 26, .68);
+      border-radius: 1.4mm;
+      color: var(--orange);
+      background: rgba(255, 106, 26, .07);
+      white-space: nowrap;
+    }
+    .placeholder.block {
+      display: block;
+      min-height: 10mm;
+      padding: 2.5mm 3mm;
+      white-space: normal;
+    }
+    .proposal-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: .35mm solid rgba(11, 23, 40, .11);
+      border-radius: 5mm;
+      background: rgba(255, 255, 255, .72);
+      box-shadow: 0 7mm 18mm rgba(26, 47, 77, .08);
+    }
+    .proposal-table th,
+    .proposal-table td {
+      padding: 4mm;
+      border-right: .3mm solid rgba(11, 23, 40, .08);
+      border-bottom: .3mm solid rgba(11, 23, 40, .08);
+      vertical-align: top;
+      text-align: left;
+    }
+    .proposal-table th:last-child,
+    .proposal-table td:last-child { border-right: 0; }
+    .proposal-table tr:last-child td { border-bottom: 0; }
+    .proposal-table th {
+      color: #fff;
+      background: var(--navy-850);
+      font-size: 2.65mm;
+      letter-spacing: .12mm;
+      text-transform: uppercase;
+    }
+    .proposal-table td {
+      color: var(--ink-soft);
+      font-size: 2.75mm;
+      line-height: 1.38;
+    }
+    .proposal-table .money {
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .proposal-table .total td {
+      color: #fff;
+      background: var(--navy-850);
+      font-weight: 800;
+    }
+    .role-card {
+      min-height: 118mm;
+      padding: 7mm;
+      border-radius: 6mm;
+    }
+    .role-card h3 {
+      margin-top: 5mm;
+      font-size: 6mm;
+    }
+    .role-card .check-list {
+      margin-top: 7mm;
+      gap: 4mm;
+    }
+    .role-card .check-list li {
+      font-size: 3mm;
+    }
+  </style>
+</head>
+<body>
+  <main class="document">
+    <!-- PAGE 1 — COUVERTURE PERSONNALISÉE -->
+    <section class="page" aria-label="Proposition commerciale personnalisable — couverture">
+      <div class="corner-label">Modèle à personnaliser</div>
+      <div class="halo" style="right:-2mm; top:55mm; width:102mm; height:102mm;"></div>
+      <svg class="route" style="left:-15mm; bottom:10mm; width:235mm; height:90mm;" viewBox="0 0 600 230" aria-hidden="true">
+        <defs><linearGradient id="routeGradient" x1="0" x2="1"><stop stop-color="#4f8cff"/><stop offset=".6" stop-color="#ff6a1a"/><stop offset="1" stop-color="#ff9a4d"/></linearGradient></defs>
+        <path d="M8 194 C79 130 118 205 184 142 S267 50 342 98 S422 191 472 125 S532 44 592 18"/>
+        <circle cx="8" cy="194" r="5"/><circle cx="592" cy="18" r="5"/>
+      </svg>
+
+      <div class="pad">
+        <header class="topline">
+          <div class="brand">
+            <img class="brand-mark" src="../../../assets/icon-foreground.png" alt="">
+            <div>
+              <div class="wordmark"><span>SEC</span>OTO</div>
+              <small>TRANSPORT DE VÉHICULES</small>
+            </div>
+          </div>
+          <span class="kicker">Proposition commerciale</span>
+        </header>
+
+        <div style="margin-top:29mm; max-width:142mm;">
+          <p class="eyebrow">Préparée pour <span class="placeholder">VOTRE ENTREPRISE</span></p>
+          <h1 class="hero-title" style="margin-top:8mm;">
+            Proposition de coordination de
+            <span class="accent">transports de véhicules.</span>
+          </h1>
+          <p class="subtitle" style="max-width:115mm; margin-top:9mm;">
+            Un parcours unique pour centraliser la demande, la coordination, le suivi par étapes
+            et les documents liés à chaque mission.
+          </p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:5mm; width:120mm; margin-top:16mm;">
+          <div class="glass card">
+            <p class="eyebrow">Contact client</p>
+            <h3 style="margin-top:3mm;"><span class="placeholder">NOM DU CONTACT</span></h3>
+            <p><span class="placeholder">FONCTION</span></p>
+          </div>
+          <div class="glass card">
+            <p class="eyebrow">Date de proposition</p>
+            <h3 style="margin-top:3mm;"><span class="placeholder">DATE</span></h3>
+            <p>Référence : <span class="placeholder">PROPOSITION</span></p>
+          </div>
+        </div>
+
+        <div style="position:absolute; right:14mm; top:120mm; width:63mm; height:63mm;">
+          <img src="../../../assets/icon-foreground.png" alt="Emblème SECOTO" style="width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 10mm 16mm rgba(0,0,0,.44));">
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div class="legal">Document confidentiel · Proposition à adapter au besoin réel du prospect avant envoi.</div>
+        <div class="folio">01 / 05</div>
+      </footer>
+    </section>
+
+    <!-- PAGE 2 — CONTEXTE -->
+    <section class="page light" aria-label="Contexte et priorités">
+      <div class="pad">
+        <header class="topline">
+          <div class="brand">
+            <img class="brand-mark" src="../../../assets/icon-foreground.png" alt="">
+            <div>
+              <div class="wordmark"><span>SEC</span>OTO</div>
+              <small>TRANSPORT DE VÉHICULES</small>
+            </div>
+          </div>
+          <span class="page-index">Votre contexte</span>
+        </header>
+
+        <div style="margin-top:11mm;">
+          <p class="eyebrow">Ce que nous avons retenu</p>
+          <h2 class="title-xl" style="margin-top:5mm;">Vos priorités deviennent <span class="accent">le cadre de la mission.</span></h2>
+          <p class="lede" style="margin-top:6mm;">
+            À la suite de nos échanges, SECOTO organise la proposition autour des informations
+            et contraintes propres à votre entreprise.
+          </p>
+        </div>
+
+        <div class="feature-grid" style="margin-top:8mm; gap:3mm;">
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Typologie de véhicules</p>
+            <span class="placeholder block" style="margin-top:5mm;">Véhicules légers, motos, utilitaires ou véhicules non roulants</span>
+          </article>
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Sites concernés</p>
+            <span class="placeholder block" style="margin-top:5mm;">Concession, parc, atelier ou lieu de livraison client</span>
+          </article>
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Trajets habituels</p>
+            <span class="placeholder block" style="margin-top:5mm;">Trajets nationaux, transfrontaliers ou inter-sites</span>
+          </article>
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Rythme et volume</p>
+            <span class="placeholder block" style="margin-top:5mm;">Mission ponctuelle, pic d’activité ou besoin récurrent</span>
+          </article>
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Mode privilégié</p>
+            <span class="placeholder block" style="margin-top:5mm;">Convoyage, plateau ou arbitrage selon la mission</span>
+          </article>
+          <article class="feature glass" style="min-height:41mm; padding:4.5mm;">
+            <p class="eyebrow">Contraintes majeures</p>
+            <span class="placeholder block" style="margin-top:5mm;">Délais, accès, état du véhicule, interlocuteurs et documents</span>
+          </article>
+        </div>
+
+        <div class="glass" style="display:grid; grid-template-columns:62mm 1fr; gap:5mm; align-items:center; margin-top:7mm; padding:5mm 6mm; border-radius:5mm; background:var(--navy-850); color:#fff;">
+          <blockquote style="margin:0; font-family:'Bahnschrift PDF'; font-size:4.4mm; line-height:1.15;">Notre objectif : <span class="accent">un parcours clair pour chaque mouvement.</span></blockquote>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:2mm;">
+            <span class="placeholder block" style="min-height:8mm; font-size:2.3mm;">FIABILITÉ</span>
+            <span class="placeholder block" style="min-height:8mm; font-size:2.3mm;">VISIBILITÉ</span>
+            <span class="placeholder block" style="min-height:8mm; font-size:2.3mm;">TRAÇABILITÉ</span>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div class="legal">Les champs orange entre crochets doivent être remplacés par des informations validées lors de la découverte client.</div>
+        <div class="folio">02 / 05</div>
+      </footer>
+    </section>
+
+    <!-- PAGE 3 — PÉRIMÈTRE -->
+    <section class="page" aria-label="Périmètre proposé">
+      <div class="pad">
+        <header class="topline">
+          <div class="brand">
+            <img class="brand-mark" src="../../../assets/icon-foreground.png" alt="">
+            <div>
+              <div class="wordmark"><span>SEC</span>OTO</div>
+              <small>TRANSPORT DE VÉHICULES</small>
+            </div>
+          </div>
+          <span class="page-index">Le périmètre</span>
+        </header>
+
+        <div style="margin-top:11mm;">
+          <p class="eyebrow">L’organisation proposée</p>
+          <h2 class="title-xl" style="margin-top:5mm;">Une prestation de coordination <span class="accent">de bout en bout.</span></h2>
+          <p class="lede" style="margin-top:6mm;">
+            Le socle ci-dessous est à ajuster selon les sites, les véhicules et le niveau
+            d’accompagnement retenu avec votre entreprise.
+          </p>
+        </div>
+
+        <div class="feature-grid" style="margin-top:8mm; gap:3mm;">
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">01</span>
+            <h3>Centralisation des demandes</h3>
+            <p>Trajet, véhicule, date, adresses, contacts et consignes dans un dossier unique.</p>
+          </article>
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">02</span>
+            <h3>Coordination de l’attribution</h3>
+            <p>SECOTO organise la mise en relation avec un partenaire et protège les données privées avant attribution.</p>
+          </article>
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">03</span>
+            <h3>Devis et validation</h3>
+            <p>Le devis est transmis au client et peut être signé directement dans l’application.</p>
+          </article>
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">04</span>
+            <h3>Suivi par étapes</h3>
+            <p>Prise en charge, incident éventuel et livraison sont rattachés à la timeline de la mission.</p>
+          </article>
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">05</span>
+            <h3>États des lieux et photos</h3>
+            <p>Kilométrage, carburant, commentaires et photos peuvent être transmis aux étapes terrain.</p>
+          </article>
+          <article class="feature glass" style="min-height:45mm; padding:4.5mm;">
+            <span class="card-number">06</span>
+            <h3>Documents centralisés</h3>
+            <p>Devis, bon de mission, facture et historique restent liés au dossier de transport.</p>
+          </article>
+        </div>
+
+        <p class="fine-print" style="margin-top:6mm;">
+          SECOTO intervient comme coordinateur logistique et intermédiaire de mise en relation.
+          Le transport physique est exécuté par un partenaire indépendant.
+        </p>
+      </div>
+
+      <footer class="footer">
+        <div class="legal">Le périmètre final, les exclusions et les délais applicables doivent être repris dans le devis émis pour la mission.</div>
+        <div class="folio">03 / 05</div>
+      </footer>
+    </section>
+
+    <!-- PAGE 4 — RESPONSABILITÉS -->
+    <section class="page light" aria-label="Responsabilités de chaque partie">
+      <div class="pad">
+        <header class="topline">
+          <div class="brand">
+            <img class="brand-mark" src="../../../assets/icon-foreground.png" alt="">
+            <div>
+              <div class="wordmark"><span>SEC</span>OTO</div>
+              <small>TRANSPORT DE VÉHICULES</small>
+            </div>
+          </div>
+          <span class="page-index">Qui fait quoi</span>
+        </header>
+
+        <div style="margin-top:11mm;">
+          <p class="eyebrow">Un cadre lisible avant le départ</p>
+          <h2 class="title-xl" style="margin-top:5mm;">Trois acteurs. <span class="accent">Des responsabilités claires.</span></h2>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:5mm; margin-top:11mm;">
+          <article class="role-card glass">
+            <span class="mode-tag" style="display:inline-flex; min-height:7mm; padding:0 3mm; border-radius:99mm; color:#fff; background:var(--navy-850); font-size:2.4mm; font-weight:800;">Entreprise cliente</span>
+            <h3><span class="placeholder">ENTREPRISE CLIENTE</span></h3>
+            <ul class="check-list">
+              <li>Transmet des informations exactes sur le véhicule et le trajet.</li>
+              <li>Confirme les contacts, disponibilités et contraintes d’accès.</li>
+              <li>Consulte et valide les documents reçus.</li>
+              <li>Signale toute exigence particulière avant confirmation.</li>
+            </ul>
+          </article>
+          <article class="role-card glass" style="background:var(--navy-850); color:#fff;">
+            <span class="mode-tag" style="display:inline-flex; min-height:7mm; padding:0 3mm; border-radius:99mm; color:#fff; background:var(--orange); font-size:2.4mm; font-weight:800;">Coordinateur</span>
+            <h3>SECOTO</h3>
+            <ul class="check-list">
+              <li>Structure la demande et coordonne l’attribution.</li>
+              <li>Émet les documents dans le circuit de l’application.</li>
+              <li>Centralise les mises à jour liées à la mission.</li>
+              <li>Reste le point de contact de coordination.</li>
+            </ul>
+          </article>
+          <article class="role-card glass">
+            <span class="mode-tag" style="display:inline-flex; min-height:7mm; padding:0 3mm; border-radius:99mm; color:#fff; background:#536b8b; font-size:2.4mm; font-weight:800;">Exécutant</span>
+            <h3>Partenaire transporteur</h3>
+            <ul class="check-list">
+              <li>Réalise la mission attribuée selon le devis et le bon de mission.</li>
+              <li>Renseigne les étapes terrain et les éventuels incidents.</li>
+              <li>Transmet les états des lieux et photos demandés.</li>
+              <li>Respecte les consignes opérationnelles validées.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="process-rail" style="grid-template-columns:repeat(4,1fr); margin-top:11mm;">
+          <div class="process-step glass" style="min-height:38mm; padding:5mm;"><span class="card-number">01</span><h3 style="font-size:4mm; margin-top:5mm;">Brief</h3><p>Informations validées</p></div>
+          <div class="process-step glass" style="min-height:38mm; padding:5mm;"><span class="card-number">02</span><h3 style="font-size:4mm; margin-top:5mm;">Devis</h3><p>Périmètre confirmé</p></div>
+          <div class="process-step glass" style="min-height:38mm; padding:5mm;"><span class="card-number">03</span><h3 style="font-size:4mm; margin-top:5mm;">Mission</h3><p>Exécution coordonnée</p></div>
+          <div class="process-step glass" style="min-height:38mm; padding:5mm;"><span class="card-number">04</span><h3 style="font-size:4mm; margin-top:5mm;">Clôture</h3><p>Livraison et documents</p></div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div class="legal">Cette répartition doit être cohérente avec le devis, le bon de mission et les conditions applicables au dossier.</div>
+        <div class="folio">04 / 05</div>
+      </footer>
+    </section>
+
+    <!-- PAGE 5 — CONDITIONS & DÉMARRAGE -->
+    <section class="page light" aria-label="Conditions et démarrage">
+      <div class="pad">
+        <header class="topline">
+          <div class="brand">
+            <img class="brand-mark" src="../../../assets/icon-foreground.png" alt="">
+            <div>
+              <div class="wordmark"><span>SEC</span>OTO</div>
+              <small>TRANSPORT DE VÉHICULES</small>
+            </div>
+          </div>
+          <span class="page-index">Démarrage</span>
+        </header>
+
+        <div style="margin-top:11mm;">
+          <p class="eyebrow">Proposition pour une mission pilote</p>
+          <h2 class="title-xl" style="margin-top:5mm;">Un périmètre validé. <span class="accent">Un prix lisible.</span></h2>
+          <p class="lede" style="margin-top:5mm;">
+            Les montants ci-dessous sont établis à partir du devis client et du périmètre
+            confirmé pour la mission.
+          </p>
+        </div>
+
+        <table class="proposal-table" style="margin-top:7mm;">
+          <thead>
+            <tr>
+              <th>Mission</th>
+              <th>Mode</th>
+              <th>Trajet</th>
+              <th>Véhicule</th>
+              <th>Date</th>
+              <th style="text-align:right;">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="height:24mm;">
+              <td><span class="placeholder">MISSION</span></td>
+              <td><span class="placeholder">MODE</span></td>
+              <td><span class="placeholder">DÉPART</span><br>→<br><span class="placeholder">ARRIVÉE</span></td>
+              <td><span class="placeholder">VÉHICULE</span></td>
+              <td><span class="placeholder">DATE</span></td>
+              <td class="money"><span class="placeholder">SUR DEVIS</span></td>
+            </tr>
+            <tr>
+              <td colspan="5"><strong>Frais éventuels précisés au devis</strong><br><span class="placeholder">DÉTAIL SELON LA MISSION</span></td>
+              <td class="money"><span class="placeholder">SUR DEVIS</span></td>
+            </tr>
+            <tr class="total">
+              <td colspan="5">TOTAL NET À PAYER</td>
+              <td class="money"><span class="placeholder">SUR DEVIS</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:5mm; margin-top:5mm;">
+          <div class="glass card" style="padding:4.5mm; min-height:28mm;">
+            <p class="eyebrow">Validité de la proposition</p>
+            <h3 style="margin-top:3mm;"><span class="placeholder">VALIDITÉ PRÉCISÉE AU DEVIS</span></h3>
+            <p>Sous réserve de disponibilité, de faisabilité et d’informations complètes.</p>
+          </div>
+          <div class="glass card" style="padding:4.5mm; min-height:28mm;">
+            <p class="eyebrow">Modalités de règlement</p>
+            <h3 style="margin-top:3mm;"><span class="placeholder">MODALITÉS PRÉCISÉES AU DEVIS</span></h3>
+            <p>À reprendre à l’identique du devis et des conditions applicables.</p>
+          </div>
+        </div>
+
+        <div style="margin-top:4mm;">
+          <p class="eyebrow">Lancement en quatre temps</p>
+          <div class="process-rail" style="grid-template-columns:repeat(4,1fr); margin-top:4mm;">
+            <div class="process-step glass" style="min-height:28mm; padding:3.5mm;"><span class="card-number">01</span><h3 style="font-size:3.6mm; margin-top:2mm;">Confirmer</h3><p style="margin-top:1.5mm; font-size:2.35mm;">Valider le besoin et les informations.</p></div>
+            <div class="process-step glass" style="min-height:28mm; padding:3.5mm;"><span class="card-number">02</span><h3 style="font-size:3.6mm; margin-top:2mm;">Émettre</h3><p style="margin-top:1.5mm; font-size:2.35mm;">Adresser le devis correspondant.</p></div>
+            <div class="process-step glass" style="min-height:28mm; padding:3.5mm;"><span class="card-number">03</span><h3 style="font-size:3.6mm; margin-top:2mm;">Signer</h3><p style="margin-top:1.5mm; font-size:2.35mm;">Valider le document dans l’application.</p></div>
+            <div class="process-step glass" style="min-height:28mm; padding:3.5mm;"><span class="card-number">04</span><h3 style="font-size:3.6mm; margin-top:2mm;">Lancer</h3><p style="margin-top:1.5mm; font-size:2.35mm;">Coordonner la première mission.</p></div>
+          </div>
+        </div>
+
+        <div style="margin-top:4mm;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:7mm; padding:4mm 7mm; border-radius:6mm; background:var(--navy-850); color:#fff;">
+            <div>
+            <p class="eyebrow">Validation de la mission pilote</p>
+              <h3 style="margin-top:2mm; font-size:5mm;">Prêt à confier votre prochain trajet ?</h3>
+            </div>
+            <p style="color:var(--steel); font-size:2.8mm; text-align:right;">07 83 27 82 31<br>contact.secoto@gmail.com</p>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div class="legal">SECOTO — EI · SIRET 951 857 531 00028 · TVA non applicable, art. 293 B du CGI · Coordination logistique et mise en relation.</div>
+        <div class="folio">05 / 05</div>
+      </footer>
+    </section>
+  </main>
+  <script src="preview.js"></script>
+</body>
+</html>

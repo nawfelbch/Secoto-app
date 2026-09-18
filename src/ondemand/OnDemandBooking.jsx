@@ -25,7 +25,20 @@ function todayIso() {
 
 export default function OnDemandBooking({ flags, onBooked, initialQuote = null }) {
   const [step, setStep] = useState(initialQuote ? 4 : 0);
-  const [form, setForm] = useState(emptyForm);
+  // Repris du site vitrine (?vehicle=…&service=…) : le modele et le mode sont
+  // pre-remplis. Les adresses, elles, sont toujours resaisies et verifiees.
+  const [form, setForm] = useState(() => {
+    const base = emptyForm();
+    try {
+      const brut = sessionStorage.getItem("secoto:od-prefill");
+      if (!brut) return base;
+      sessionStorage.removeItem("secoto:od-prefill");
+      const p = JSON.parse(brut);
+      if (p?.model) base.vehicle.model = String(p.model).slice(0, 120);
+      if (p?.mode === "plateau" || p?.mode === "convoyage") base.mode = p.mode;
+    } catch { /* stockage indisponible : on part du formulaire vide */ }
+    return base;
+  });
   const [quote, setQuote] = useState(initialQuote);
   const [order, setOrder] = useState(null);
   const [payment, setPayment] = useState(null);

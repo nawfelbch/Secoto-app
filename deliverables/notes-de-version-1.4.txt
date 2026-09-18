@@ -1,0 +1,92 @@
+================================================================================
+SECOTO 1.4 — NOTES DE VERSION
+================================================================================
+
+
+--------------------------------------------------------------------------------
+1) APP STORE — « Nouveautés de cette version »  (français, 4 000 car. max)
+--------------------------------------------------------------------------------
+
+Cette version fiabilise le parcours d'un transport de bout en bout.
+
+Devis et bons de mission
+Correction d'une anomalie qui empêchait l'émission de certains devis. Le devis
+arrive désormais systématiquement dans « Mes documents » dès qu'une mission est
+attribuée, et le bon de mission n'est plus retenu en attente.
+
+Missions confirmées par téléphone
+Une commande passée par téléphone est maintenant enregistrée directement dans
+l'application : la mission, son transporteur et ses documents se retrouvent au
+même endroit que toutes les autres.
+
+Montants exacts
+La rémunération du transporteur et les frais SECOTO s'affichent au montant
+réellement convenu pour chaque transport.
+
+Information du client
+Le client est prévenu dès qu'un transporteur est retenu, avec le trajet, le
+véhicule et le montant.
+
+Suivi
+L'étape de chaque mission est mise à jour plus fidèlement, de l'attribution à
+la livraison.
+
+
+--------------------------------------------------------------------------------
+2) GOOGLE PLAY — « Nouveautés »  (français, 500 car. max)
+--------------------------------------------------------------------------------
+
+Correction : certains devis n'étaient pas émis. Devis et bon de mission
+arrivent désormais systématiquement dans « Mes documents ».
+Les missions confirmées par téléphone sont enregistrées dans l'application,
+transporteur et documents compris.
+Rémunération du transporteur et frais SECOTO affichés au montant exact convenu.
+Le client est prévenu dès qu'un transporteur est retenu : trajet, véhicule,
+montant.
+Suivi des étapes plus fidèle, de l'attribution à la livraison.
+
+
+--------------------------------------------------------------------------------
+3) VERSION COURTE — 3 lignes (réseaux, e-mail client, message TestFlight)
+--------------------------------------------------------------------------------
+
+SECOTO 1.4 : les devis et bons de mission partent maintenant sans accroc, les
+transports confirmés par téléphone sont suivis dans l'application comme les
+autres, et le client est prévenu dès qu'un transporteur est retenu.
+
+
+--------------------------------------------------------------------------------
+4) APP STORE — English (si la fiche a une locale anglaise)
+--------------------------------------------------------------------------------
+
+This release makes the whole journey of a transport more reliable.
+
+Quotes and mission orders
+Fixed an issue that prevented some quotes from being issued. The quote now
+always appears in "My documents" as soon as a mission is assigned, and the
+mission order is no longer held back.
+
+Transports confirmed by phone
+An order placed over the phone is now recorded directly in the app: the
+mission, its carrier and its documents all sit alongside every other transport.
+
+Exact amounts
+Carrier pay and SECOTO fees are shown at the amount actually agreed for each
+transport.
+
+Keeping the customer informed
+The customer is notified as soon as a carrier is selected, with the route, the
+vehicle and the amount.
+
+Tracking
+Each mission's stage is updated more faithfully, from assignment to delivery.
+
+
+================================================================================
+NOTE INTERNE — ne pas publier
+================================================================================
+Le pilotage manuel (choix du transporteur sans candidature, saisie de la marge
+SECOTO, dépôt du devis signé, réglage de l'étape, SMS pré-rempli) est réservé au
+compte administrateur. Il n'est volontairement pas détaillé dans les notes
+publiques : ce sont des outils internes, et Apple attend des nouveautés
+formulées du point de vue de l'utilisateur.

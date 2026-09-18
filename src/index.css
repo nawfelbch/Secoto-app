@@ -543,7 +543,32 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px var(--accent-soft);
   background: var(--glass);
 }
-.field select option { color: #0f1f38; }
+/* Listes déroulantes : le navigateur dessine les options avec ses propres
+   couleurs. Sans fond explicite, un thème sombre donne du texte sombre sur
+   fond sombre — options illisibles. On impose les deux, par thème. */
+.field select option,
+.field select optgroup,
+select option,
+select optgroup {
+  background-color: #10192c;
+  color: #f4f8ff;
+}
+html[data-theme="light"] .field select option,
+html[data-theme="light"] .field select optgroup,
+html[data-theme="light"] select option,
+html[data-theme="light"] select optgroup {
+  background-color: #ffffff;
+  color: #0f1f38;
+}
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]) .field select option,
+  html:not([data-theme="dark"]) .field select optgroup,
+  html:not([data-theme="dark"]) select option,
+  html:not([data-theme="dark"]) select optgroup {
+    background-color: #ffffff;
+    color: #0f1f38;
+  }
+}
 
 .message-box { margin-top: 10px; }
 

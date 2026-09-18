@@ -1,0 +1,167 @@
+================================================================================
+SECOTO — TEXTES PROMOTIONNELS DES STORES
+================================================================================
+Tous les champs sont dans l'ordre où les stores les demandent.
+Les compteurs de caractères sont vérifiés en bas de ce fichier.
+
+
+================================================================================
+A. APP STORE
+================================================================================
+
+--------------------------------------------------------------------------------
+A1. SOUS-TITRE  (30 caractères max — sous le nom de l'app)
+--------------------------------------------------------------------------------
+Convoyage auto et moto 7j/7
+
+--------------------------------------------------------------------------------
+A2. TEXTE PROMOTIONNEL  (170 caractères max)
+--------------------------------------------------------------------------------
+Un véhicule à déplacer ? Devis en moins de 2 h, 7j/7. Transporteurs vérifiés, état des lieux photo au départ et à l'arrivée, documents signés dans l'application.
+
+--------------------------------------------------------------------------------
+A3. DESCRIPTION  (4 000 caractères max)
+--------------------------------------------------------------------------------
+Votre véhicule doit changer de ville. Vous, non.
+
+SECOTO déplace voitures et motos partout en France, en confiant chaque trajet à
+un professionnel vérifié. Vous demandez, vous suivez, vous recevez. Le reste se
+passe sans vous.
+
+DEMANDER PREND DEUX MINUTES
+Le départ, l'arrivée, le véhicule, la date. C'est tout. Votre demande part
+immédiatement aux transporteurs concernés, et vous recevez un devis en moins de
+deux heures — y compris le week-end et le soir.
+
+VOUS SAVEZ TOUJOURS OÙ EN EST VOTRE VÉHICULE
+Chaque étape est horodatée dans l'application : prise en charge, route,
+livraison. Le transporteur photographie le véhicule au départ et à l'arrivée,
+relève le kilométrage et le niveau de carburant. Ces preuves restent dans votre
+espace, consultables et téléchargeables à tout moment.
+
+DEUX FAÇONS DE FAIRE VOYAGER UN VÉHICULE
+Le convoyage : un conducteur professionnel prend le volant et livre le véhicule
+par la route. Rapide, économique, idéal pour les trajets courants. Le tarif au
+kilomètre est dégressif : plus la distance est longue, moins le kilomètre coûte.
+Le transport par plateau : le véhicule ne roule pas. C'est la solution pour un
+véhicule non roulant, sans carte grise à jour, de collection ou de grande valeur.
+
+LA MOTO, VRAIMENT PRISE AU SÉRIEUX
+Les deux-roues voyagent sanglés en fourgon fermé, à l'abri des regards et des
+intempéries. Une spécialité que peu de plateformes proposent réellement.
+
+DES TRANSPORTEURS QUI ONT ÉTÉ CONTRÔLÉS
+Assurance responsabilité civile professionnelle, Kbis, licence de transport,
+pièce d'identité : chaque professionnel est vérifié avant d'accéder aux
+missions. Vous savez qui prend le volant.
+
+DEVIS, BON DE MISSION, FACTURE — TOUT EST DANS L'APP
+Le devis se signe du bout du doigt. La facture arrive au même endroit. Rien à
+imprimer, rien à scanner, rien à chercher dans ses e-mails six mois plus tard.
+Les frais de service sont affichés avant validation : vous savez exactement ce
+que vous payez, et à qui.
+
+POUR LES PROFESSIONNELS
+Concessions, garages, loueurs, marchands, vendeurs de motos : suivez plusieurs
+transports en parallèle, retrouvez l'historique complet de chaque véhicule et
+récupérez vos documents comptables quand vous en avez besoin. Un interlocuteur
+unique, joignable 7j/7 et 24h/24.
+
+VOUS ÊTES TRANSPORTEUR OU CONVOYEUR ?
+SECOTO vous ouvre des missions près de chez vous. Vous fixez librement votre
+tarif et vos disponibilités, vous candidatez en un geste, vous suivez vos
+courses et vos frais depuis l'application, et vous êtes payé par virement sur le
+compte que vous avez renseigné.
+
+L'ENGAGEMENT SECOTO
+Devis en moins de deux heures. Disponibilité 7j/7 et 24h/24. Des transporteurs
+vérifiés. Et un prix annoncé avant le départ, jamais après.
+
+Téléchargez SECOTO et demandez votre premier devis.
+
+--------------------------------------------------------------------------------
+A4. MOTS-CLÉS  (100 caractères max — séparés par des virgules, sans espace)
+--------------------------------------------------------------------------------
+convoyage,transport véhicule,moto,voiture,plateau,livraison auto,transporteur,devis,fourgon
+
+
+================================================================================
+B. GOOGLE PLAY
+================================================================================
+
+--------------------------------------------------------------------------------
+B1. DESCRIPTION COURTE  (80 caractères max)
+--------------------------------------------------------------------------------
+Faites convoyer ou transporter votre véhicule. Devis en moins de 2 h, 7j/7.
+
+--------------------------------------------------------------------------------
+B2. DESCRIPTION COMPLÈTE  (4 000 caractères max)
+--------------------------------------------------------------------------------
+Votre véhicule doit changer de ville. Vous, non.
+
+SECOTO déplace voitures et motos partout en France, en confiant chaque trajet à
+un professionnel vérifié. Vous demandez, vous suivez, vous recevez.
+
+DEMANDER PREND DEUX MINUTES
+Le départ, l'arrivée, le véhicule, la date. Votre demande part immédiatement aux
+transporteurs concernés et vous recevez un devis en moins de deux heures, y
+compris le week-end et le soir.
+
+VOUS SAVEZ TOUJOURS OÙ EN EST VOTRE VÉHICULE
+Prise en charge, route, livraison : chaque étape est horodatée. Le transporteur
+photographie le véhicule au départ et à l'arrivée, relève le kilométrage et le
+niveau de carburant. Ces preuves restent dans votre espace.
+
+DEUX FAÇONS DE FAIRE VOYAGER UN VÉHICULE
+Le convoyage : un conducteur professionnel livre le véhicule par la route.
+Rapide, économique, avec un tarif au kilomètre dégressif.
+Le transport par plateau : le véhicule ne roule pas. La solution pour un
+véhicule non roulant, de collection ou de grande valeur.
+
+LA MOTO, VRAIMENT PRISE AU SÉRIEUX
+Les deux-roues voyagent sanglés en fourgon fermé, à l'abri des regards et des
+intempéries. Une spécialité que peu de plateformes proposent réellement.
+
+DES TRANSPORTEURS QUI ONT ÉTÉ CONTRÔLÉS
+Assurance RC professionnelle, Kbis, licence de transport, pièce d'identité :
+chaque professionnel est vérifié avant d'accéder aux missions.
+
+DEVIS, BON DE MISSION, FACTURE — TOUT EST DANS L'APP
+Le devis se signe du bout du doigt, la facture arrive au même endroit. Les frais
+de service sont affichés avant validation : vous savez ce que vous payez.
+
+POUR LES PROFESSIONNELS
+Concessions, garages, loueurs, marchands, vendeurs de motos : plusieurs
+transports suivis en parallèle, l'historique de chaque véhicule et vos documents
+comptables quand vous en avez besoin. Un interlocuteur unique, 7j/7 et 24h/24.
+
+VOUS ÊTES TRANSPORTEUR OU CONVOYEUR ?
+Des missions près de chez vous. Vous fixez librement votre tarif et vos
+disponibilités, vous candidatez en un geste, vous suivez vos courses et vos
+frais, et vous êtes payé par virement.
+
+L'ENGAGEMENT SECOTO
+Devis en moins de deux heures. Disponibilité 7j/7 et 24h/24. Des transporteurs
+vérifiés. Un prix annoncé avant le départ, jamais après.
+
+Téléchargez SECOTO et demandez votre premier devis.
+
+
+================================================================================
+C. VARIANTES COURTES (site, réseaux, signature e-mail)
+================================================================================
+
+Une ligne
+Votre véhicule change de ville, pas vous. Devis en moins de 2 h, 7j/7.
+
+Deux lignes
+SECOTO déplace voitures et motos partout en France, avec des transporteurs
+vérifiés et un suivi photo du départ à la livraison. Devis en moins de 2 h.
+
+Accroche moto
+Votre moto ne voyage pas à découvert : fourgon fermé, sanglage professionnel,
+photos au départ et à l'arrivée. Devis en moins de 2 h.
+
+Accroche pro
+Vous livrez des véhicules toute l'année. Un interlocuteur, des transporteurs
+vérifiés, vos documents au même endroit. Devis en moins de 2 h, 7j/7.

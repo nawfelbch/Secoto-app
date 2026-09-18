@@ -1,6 +1,7 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
 // SECOTO — paiement récurrent de l'abonnement professionnel (Stripe Billing).
 // Le montant vient de la proposition ACCEPTÉE en base, jamais du téléphone.
+import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient } from "../lib/secoto-server.js";
 
@@ -11,6 +12,13 @@ const {
   STRIPE_AUTOMATIC_TAX = "false",
 } = process.env;
 const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
+
+// Voir create-payment-intent : l'empreinte des parametres evite qu'un
+// abonnement reste bloque apres un changement de prix ou de fiscalite.
+function idempotencyKey(prefix, id, params) {
+  const empreinte = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
+  return `${prefix}-${id}-${empreinte}`;
+}
 
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
@@ -70,7 +78,14 @@ const handler = async (event) => {
     metadata: { secoto_subscription_id: sub.id },
     success_url: `${SECOTO_APP_URL}/?ecran=abonnement&abonnement=ok`,
     cancel_url: `${SECOTO_APP_URL}/?ecran=abonnement&abonnement=annule`,
-  }, { idempotencyKey: `secoto-sub-checkout-${sub.id}-${proposal.id}` });
+  }, {
+    idempotencyKey: idempotencyKey("secoto-sub-checkout", `${sub.id}-${proposal.id}`, {
+      amount: proposal.monthly_price_cents,
+      taxCode: STRIPE_TAX_CODE,
+      automaticTax: AUTOMATIC_TAX_ENABLED,
+      customerId,
+    }),
+  });
   return json(200, { checkoutUrl: session.url });
 };
 

@@ -3,13 +3,22 @@
 .od-steps li { font-size: .78rem; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-soft); color: var(--muted); }
 .od-steps li.is-current { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 .od-steps li.is-done { color: var(--text-soft); }
-.od-choice { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.od-choice { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
 .od-choice label { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--glass-soft); cursor: pointer; }
 .od-choice label.is-selected { border-color: var(--accent); background: var(--accent-soft); }
 .od-choice label.is-disabled { opacity: .5; cursor: not-allowed; }
 .od-choice small { display: block; color: var(--muted); margin-top: 3px; line-height: 1.35; }
-.od-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
-.od-checks label { display: inline-flex; gap: 8px; align-items: center; font-size: .92rem; }
+/* Cases a cocher (zones, categories, jours). En ligne flexible, les libelles
+   les plus longs debordaient et se chevauchaient sur telephone : on passe en
+   grille, chaque libelle peut revenir a la ligne dans sa propre colonne. */
+.od-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px 16px; }
+.od-checks label {
+  display: flex; gap: 8px; align-items: flex-start; font-size: .92rem;
+  min-width: 0; line-height: 1.35; overflow-wrap: anywhere;
+}
+.od-checks input { flex: 0 0 auto; margin-top: .15em; }
+@media (max-width: 520px) { .od-checks { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 340px) { .od-checks { grid-template-columns: 1fr; } }
 .od-price { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px; border-radius: var(--radius-md); background: var(--accent-soft); border: 1px solid var(--accent); margin: 12px 0; }
 .od-price strong { font-size: 1.7rem; font-family: var(--font-display); }
 .od-lines { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; font-size: .9rem; }
@@ -68,3 +77,15 @@
 .od-json { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
 .od-inline-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
 .od-inline-form .field { min-width: 140px; flex: 1; }
+
+
+/* Etapes annoncees sur la page d'accueil publique. */
+.od-steps-inline {
+  list-style: none; margin: 16px 0 0; padding: 0;
+  display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+}
+.od-steps-inline li {
+  padding: 10px 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft); background: var(--glass-soft);
+  color: var(--text-soft); font-size: .9rem;
+}

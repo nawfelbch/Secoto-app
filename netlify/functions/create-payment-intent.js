@@ -9,6 +9,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // véhicules sont des services du monde réel consommés hors de l'application,
 // explicitement exclus de l'obligation d'achat intégré côté Apple comme côté
 // Google. Implémenter StoreKit ou Play Billing serait un motif de rejet.
+import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
@@ -32,6 +33,18 @@ const {
 } = process.env;
 
 const AUTOMATIC_TAX_ENABLED = String(STRIPE_AUTOMATIC_TAX).toLowerCase() === "true";
+
+// Une cle d'idempotence Stripe est liee A VIE aux parametres de son premier
+// usage : rejouee avec des parametres differents, Stripe refuse la requete
+// (« Keys for idempotent requests can only be used with the same parameters »).
+// Une cle basee sur le seul identifiant de paiement condamne donc ce paiement
+// des que le montant, le libelle ou la fiscalite changent. On y ajoute
+// l'empreinte des parametres : un double appui reste protege (memes parametres,
+// meme cle), une modification legitime repart proprement.
+function idempotencyKey(prefix, id, params) {
+  const empreinte = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
+  return `${prefix}-${id}-${empreinte}`;
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_PLATFORMS = new Set(["ios", "android", "web"]);
@@ -156,7 +169,6 @@ const handler = async (event) => {
       const session = await stripe.checkout.sessions.create(
         {
           mode: "payment",
-          managed_payments: { enabled: false },
           customer: customerId,
           line_items: [{
             price_data: {
@@ -181,7 +193,19 @@ const handler = async (event) => {
           success_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`,
           cancel_url: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`,
         },
-        { idempotencyKey: `secoto-checkout-v2-${payment.id}` },
+        {
+          idempotencyKey: idempotencyKey("secoto-checkout", payment.id, {
+            amount: payment.amount_cents,
+            currency: payment.currency || "eur",
+            description,
+            captureMethod,
+            taxCode: STRIPE_TAX_CODE,
+            automaticTax: AUTOMATIC_TAX_ENABLED,
+            customerId,
+            returnScreen,
+            returnQuery,
+          }),
+        },
       );
 
       await admin
@@ -189,7 +213,6 @@ const handler = async (event) => {
         .update({
           provider_intent_id: session.payment_intent || payment.provider_intent_id,
           status: "processing",
-          last_error: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", payment.id);
@@ -223,7 +246,15 @@ const handler = async (event) => {
           setup_future_usage: "on_session",
           metadata: intentMetadata,
         },
-        { idempotencyKey: `secoto-payment-${payment.id}` },
+        {
+          idempotencyKey: idempotencyKey("secoto-payment", payment.id, {
+            amount: payment.amount_cents,
+            currency: payment.currency || "eur",
+            description,
+            captureMethod,
+            customerId,
+          }),
+        },
       );
     }
 
@@ -232,7 +263,6 @@ const handler = async (event) => {
       .update({
         provider_intent_id: intent.id,
         status: "processing",
-        last_error: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", payment.id);

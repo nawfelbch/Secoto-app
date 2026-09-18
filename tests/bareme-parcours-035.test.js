@@ -216,3 +216,24 @@ test("le message d'erreur de paiement dit ce qui ne va pas", async () => {
   }
   assert.doesNotMatch(src, /throw new Error\("Le service de paiement est momentanément indisponible\."\)/);
 });
+
+// ---------------------------------------------------------------------------
+// Une cle d'idempotence Stripe est liee a vie aux parametres de son premier
+// usage. Basee sur le seul identifiant, elle condamne le paiement des que le
+// montant, le libelle ou la fiscalite changent.
+// ---------------------------------------------------------------------------
+test("les clés d'idempotence Stripe portent l'empreinte des paramètres", async () => {
+  const { createHash } = await import("node:crypto");
+  for (const nom of ["create-payment-intent", "subscription-checkout"]) {
+    const src = readFileSync(new URL(`../netlify/functions/${nom}.js`, import.meta.url), "utf8");
+    assert.match(src, /function idempotencyKey\(prefix, id, params\)/, nom);
+    assert.match(src, /createHash\("sha256"\)\.update\(JSON\.stringify\(params\)\)/, nom);
+    // Plus aucune clé construite sur le seul identifiant.
+    assert.doesNotMatch(src, /idempotencyKey: `secoto-(checkout|payment|sub-checkout)-\$\{[^`]*\}`/, nom);
+  }
+  // Mêmes paramètres → même clé (un double appui reste protégé).
+  const cle = (p) => createHash("sha256").update(JSON.stringify(p)).digest("hex").slice(0, 16);
+  assert.equal(cle({ amount: 82746, taxCode: "txcd_20030000" }), cle({ amount: 82746, taxCode: "txcd_20030000" }));
+  // Paramètre différent → clé différente (la reprise est possible).
+  assert.notEqual(cle({ amount: 82746, taxCode: null }), cle({ amount: 82746, taxCode: "txcd_20030000" }));
+});
