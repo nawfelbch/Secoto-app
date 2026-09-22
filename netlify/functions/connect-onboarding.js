@@ -100,7 +100,13 @@ const handler = async (event) => {
     return json(400, { error: "unknown_action" });
   } catch (error) {
     console.error("[connect-onboarding]", action, error?.message);
-    return json(502, { error: "stripe_unavailable" });
+    // Le motif exact vient de Stripe (configuration de la plateforme, capacite
+    // manquante...). Sans lui, le transporteur et l'admin restent aveugles.
+    return json(502, {
+      error: "stripe_unavailable",
+      detail: error?.raw?.message || error?.message || null,
+      code: error?.code || error?.raw?.code || null,
+    });
   }
 };
 

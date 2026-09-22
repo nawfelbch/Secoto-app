@@ -1493,6 +1493,9 @@ function PublicEntry({ pendingClaim, onMissionAccessComplete }) {
    Application
 ============================================================ */
 
+// Fichiers dont l'URL signee a deja echoue : inutile de les redemander.
+const signatureImpossible = new Set();
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [account, setAccount] = useState(null);
@@ -2352,12 +2355,17 @@ export default function App() {
     return Promise.all(mapped.map(async (document) => {
       if (!document.filePath) return document;
       const bucket = document.docType ? "documents-pdf" : "documents";
+      // Un fichier absent du stockage renvoie une erreur a CHAQUE rechargement :
+      // on ne le redemande plus, sinon la console se remplit en continu.
+      const cle = `${bucket}/${document.filePath}`;
+      if (signatureImpossible.has(cle)) return { ...document, fileUrl: null };
       try {
         return {
           ...document,
           fileUrl: await createShortSignedUrl(bucket, document.filePath, 120),
         };
       } catch {
+        signatureImpossible.add(cle);
         return { ...document, fileUrl: null };
       }
     }));

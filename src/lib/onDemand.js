@@ -104,6 +104,9 @@ async function callFunction(name, body) {
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) {
+    // Motif technique renvoye par le serveur (Stripe, configuration) : invisible
+    // pour l'utilisateur, mais lisible dans la console pour le diagnostic.
+    if (payload.detail) console.error("[SECOTO] %s: %s", name, payload.detail);
     const message = payload.message ? humanizeError({ message: payload.message }, payload.message) : null;
     throw new Error(message || (res.status === 503 ? "Service momentanément indisponible." : "La demande n’a pas abouti."));
   }
