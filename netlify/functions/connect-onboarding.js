@@ -75,7 +75,10 @@ const handler = async (event) => {
           capabilities: { transfers: { requested: true } },
           business_profile: { mcc: "4214", product_description: "Transport de véhicules réalisé pour SECOTO" },
           metadata: { secoto_account_id: userId },
-        }, { idempotencyKey: `secoto-connect-account-${userId}` });
+          // La cle d'idempotence protege du double-clic, mais Stripe rejoue aussi
+          // les ERREURS memorisees pendant 24 h : une panne passagere bloquerait
+          // le transporteur une journee entiere. La cle change donc chaque heure.
+        }, { idempotencyKey: `secoto-connect-account-${userId}-${new Date().toISOString().slice(0, 13)}` });
         await admin.from("accounts")
           .update({ stripe_connect_account_id: acct.id, stripe_connect_status: "incomplete", stripe_connect_updated_at: new Date().toISOString() })
           .eq("id", userId).is("stripe_connect_account_id", null);
