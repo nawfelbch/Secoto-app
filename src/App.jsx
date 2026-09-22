@@ -104,6 +104,7 @@ import DocumentModal from "./DocumentModal";
 import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
+import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
 import AdminMissionPilot, {
   AssignmentPanel,
   ManualPricingFields,
@@ -4851,7 +4852,7 @@ export default function App() {
                               Le transporteur accepte ou refuse : rien d'autre. */}
                           <p className="od-offer-pay">{formatCents(Math.round(Number(mission.carrierPay || 0) * 100))}</p>
                           <p className="muted">
-                            Votre rémunération pour cette mission, versée par SECOTO sous 48 h après la livraison.
+                            Votre rémunération pour cette mission. Paiement déclenché sous 48 h après la livraison.
                             Véhicule {mission.vehicleRolling === false ? "NON ROULANT" : "roulant"}.
                           </p>
                           <div className="actions-row">
@@ -5067,6 +5068,7 @@ export default function App() {
 
           {transporterTab === "bank" && !isAdmin && (
             <section className="layout">
+              <ConnectPayoutsPanel />
               <BankAccountPanel account={account} />
             </section>
           )}

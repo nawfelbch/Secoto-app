@@ -133,6 +133,8 @@ export const acceptOffer = (offerId, idempotencyKey) => callFunction("offer-acce
 export const acceptMission = (missionId) =>
   rpc("secoto_mission_accept", { p_mission_id: missionId, p_idempotency_key: randomIdempotencyKey() });
 export const declineMission = (missionId) => rpc("secoto_mission_decline", { p_mission_id: missionId });
+// Compte de versement Stripe Connect : "status", "link" ou "dashboard".
+export const connectOnboarding = (action) => callFunction("connect-onboarding", { action });
 
 // ---- Suivi -----------------------------------------------------------------
 export const liveView = (missionId) => rpc("secoto_live_view", { p_mission_id: missionId });

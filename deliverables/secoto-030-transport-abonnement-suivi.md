@@ -316,3 +316,50 @@ notify pgrst, 'reload schema';
 
 Ce qui n'a **pas** été fait, volontairement : aucun déploiement, aucun paiement
 réel, aucune notification envoyée à un vrai utilisateur, aucun interrupteur ouvert.
+
+---
+
+## 9. Versements transporteurs par Stripe Connect (migration 036)
+
+**Principe** : charges et transferts séparés. Le client paie SECOTO, comme avant ;
+SECOTO déclenche ensuite un Stripe Transfer vers le compte Connect Express du
+transporteur. Le paiement client (`create-payment-intent.js`) n'est pas modifié.
+
+- **Quand** : quand `partner_payouts` est dû (livraison + 48 h), réservé
+  atomiquement par `secoto_payouts_claim_due`, exécuté par `od-maintenance`.
+  Jamais à l'acceptation, jamais si le versement est annulé.
+- **Combien** : exactement `partner_payouts.amount_cents`, relu au moment du
+  transfert. Les frais Stripe restent à la charge de SECOTO.
+- **Rattachement** : `source_transaction` = la charge (`ch_…`) du paiement client.
+  Missions manuelles réglées par virement bancaire : transfert depuis le solde
+  Stripe de SECOTO — **il faut que le solde soit suffisant**, sinon le versement
+  passe en nouvel essai puis en échec, et se règle à la main.
+- **Annulation tardive après acceptation** : 50 % remboursés au client, **45 % du
+  prix client au transporteur**, 5 % pour SECOTO (600 € → 300 / 270 / 30).
+- **Missions manuelles** : versement programmé à la livraison, sauf espèces. Pas de
+  versement sur un plateau antérieur à la sous-traitance totale (le client payait
+  alors le transporteur en direct).
+- **Frais réels du convoyage** : restent en virement, hors Connect.
+- **Secours** : le virement manuel reste possible (`to_pay` ou `failed`), jamais
+  pendant un transfert en cours. Un versement ne se solde qu'une fois.
+- **Nouveaux essais** : 15 min, 30 min, 1 h, 2 h… jusqu'à 5 essais, puis échec et
+  alerte admin. Un traitement interrompu plus de 24 h passe en échec pour
+  vérification dans Stripe avant tout nouveau versement.
+- **Transporteur** : écran « Paiements SECOTO » (onglet Coordonnées bancaires),
+  inscription hébergée par Stripe. SECOTO ne voit jamais l'IBAN. Les colonnes
+  Connect du compte ne sont modifiables que par le serveur.
+- **Libellé** : « Paiement déclenché sous 48 h après la livraison ». Le virement
+  bancaire suit ensuite le calendrier du compte Stripe du transporteur.
+
+**Mise en service**
+
+1. Coller `SECOTO-036-a-coller-dans-Supabase.sql` dans Supabase.
+2. Tableau de bord Stripe → Connect : activer Connect, pays France, comptes Express.
+3. Déployer (push `main`). La fonction `connect-onboarding` utilise la clé
+   `STRIPE_SECRET_KEY` existante ; rien à ajouter sur Netlify.
+4. Faire l'inscription d'un transporteur test **en mode test Stripe**, puis
+   ouvrir l'interrupteur :
+   `update public.secoto_feature_flags set enabled = true where key = 'connect_payouts';`
+
+Tant que `connect_payouts` est fermé, aucun transfert ne part : les versements
+restent visibles et payables à la main comme aujourd'hui.

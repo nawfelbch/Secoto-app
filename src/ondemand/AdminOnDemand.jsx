@@ -324,18 +324,31 @@ function AdminPartners({ partners, busy, run }) {
   );
 }
 
+const PAYOUT_STATE_LABEL = {
+  to_pay: "À payer",
+  processing: "Transfert Stripe en cours",
+  failed: "Échec — à régler à la main",
+  paid: "Réglé",
+  cancelled: "Annulé",
+};
+
 function AdminPayouts({ payouts, busy, run }) {
   if (!payouts) return <p className="muted">Chargement…</p>;
   if (!payouts.length) return <p className="muted">Aucun versement en attente.</p>;
   return (
     <div className="od-scroll">
       <table className="od-table">
-        <thead><tr><th>Mission</th><th>Partenaire</th><th>Montant</th><th>Paiement client</th><th /></tr></thead>
+        <thead><tr><th>Mission</th><th>Partenaire</th><th>Montant</th><th>Échéance</th><th>État</th><th>Paiement client</th><th /></tr></thead>
         <tbody>
           {payouts.map((p) => (
             <tr key={p.id}>
-              <td>{p.mission_ref}</td><td>{p.partner_name}</td><td>{formatCents(p.amount_cents)}</td><td>{PAYMENT_STATE_LABEL[p.client_payment_status] || "—"}</td>
-              <td><button className="btn ghost small" type="button" disabled={busy}
+              <td>{p.mission_ref}{p.kind === "late_cancel" ? " · indemnité" : ""}</td>
+              <td>{p.partner_name}{p.partner_transfers_enabled ? "" : " · Stripe non actif"}</td>
+              <td>{formatCents(p.amount_cents)}</td>
+              <td>{formatDateTime(p.due_at)}</td>
+              <td title={p.last_error || ""}>{PAYOUT_STATE_LABEL[p.status] || p.status}{p.attempt_count ? ` (${p.attempt_count})` : ""}</td>
+              <td>{PAYMENT_STATE_LABEL[p.client_payment_status] || "—"}</td>
+              <td><button className="btn ghost small" type="button" disabled={busy || p.status === "processing"}
                 onClick={() => run(() => admin.markPayout(p.id, window.prompt("Référence du virement ?") || ""), "Versement marqué réglé.")}>Marquer réglé</button></td>
             </tr>
           ))}

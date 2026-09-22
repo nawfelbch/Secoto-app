@@ -4,7 +4,9 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 //    passage « aucun partenaire » ;
 //  • verrous de capture expirés : décision selon l'état RÉEL chez Stripe ;
 //  • libération des autorisations et remboursements intégraux demandés ;
-//  • abonnements : suspension après délai de grâce.
+//  • abonnements : suspension après délai de grâce ;
+//  • versements transporteurs dus : Stripe Transfer vers le compte Connect
+//    (migration 036, interrupteur connect_payouts).
 import Stripe from "stripe";
 import { json, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
@@ -61,6 +63,60 @@ export async function runMaintenance({ admin, stripe }) {
 
   const sub = await admin.rpc("secoto_sub_maintenance_tick");
   report.subscriptions = sub.error ? { error: sub.error.message } : sub.data;
+  report.payouts = await processPayouts({ admin, stripe });
+  return report;
+}
+
+// ---------------------------------------------------------------------------
+// Versements transporteurs (charges et transferts séparés).
+// La base réserve atomiquement les versements dus (secoto_payouts_claim_due) :
+// deux exécutions simultanées ne traitent jamais le même. Le montant est celui
+// de partner_payouts, jamais recalculé ici. La clé d'idempotence porte le
+// montant : une reprise après incident renvoie le même transfert, une
+// correction de montant par l'admin en crée un nouveau.
+// ---------------------------------------------------------------------------
+export async function processPayouts({ admin, stripe }) {
+  const report = [];
+  const { data: due, error } = await admin.rpc("secoto_payouts_claim_due", { p_limit: 20 });
+  if (error) return [{ error: error.message }];
+  for (const p of due || []) {
+    let chargeId = null;
+    try {
+      if (p.intent_id) {
+        // source_transaction attend la CHARGE (ch_…), pas le PaymentIntent :
+        // le transfert attend alors que les fonds de ce paiement soient disponibles.
+        const intent = await stripe.paymentIntents.retrieve(p.intent_id);
+        chargeId = typeof intent.latest_charge === "string" ? intent.latest_charge : intent.latest_charge?.id || null;
+        if (!chargeId) throw new Error("Paiement client sans charge Stripe : versement suspendu.");
+      }
+      const transfer = await stripe.transfers.create(
+        {
+          amount: p.amount_cents,
+          currency: "eur",
+          destination: p.destination,
+          ...(chargeId ? { source_transaction: chargeId } : {}),
+          description: p.kind === "late_cancel" ? "SECOTO — indemnité d'annulation" : "SECOTO — rémunération de mission",
+          metadata: {
+            secoto_payout_id: p.payout_id,
+            secoto_order_id: p.order_id || "",
+            secoto_mission_id: p.mission_id || "",
+            secoto_kind: p.kind || "mission",
+          },
+        },
+        { idempotencyKey: `secoto-partner-payout-${p.payout_id}-${p.amount_cents}` },
+      );
+      await admin.rpc("secoto_payout_transfer_result", {
+        p_payout_id: p.payout_id, p_success: true, p_transfer_id: transfer.id, p_charge_id: chargeId, p_error: null,
+      });
+      report.push({ payout: p.payout_id, outcome: "paid", transfer: transfer.id });
+    } catch (stripeError) {
+      await admin.rpc("secoto_payout_transfer_result", {
+        p_payout_id: p.payout_id, p_success: false, p_transfer_id: null, p_charge_id: chargeId,
+        p_error: String(stripeError?.message || "transfer_failed").slice(0, 500),
+      });
+      report.push({ payout: p.payout_id, outcome: "error" });
+    }
+  }
   return report;
 }
 
