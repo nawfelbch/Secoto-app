@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // SECOTO — utilitaires serveur partagés par les fonctions Netlify (030-032).
 // Aucun secret n'est codé ici : tout vient des variables d'environnement.
 import { createClient } from "@supabase/supabase-js";
@@ -275,4 +276,12 @@ export async function createWithManagedPaymentsFallback(creer) {
     if (!isUnknownParameterError(error, "managed_payments")) throw error;
     return creer({});
   }
+}
+
+// Cle d'idempotence Stripe : l'identifiant seul condamnerait le paiement des
+// que le montant ou le libelle change. L'empreinte des parametres protege du
+// double appui sans figer une correction legitime.
+export function idempotencyKey(prefix, id, params) {
+  const empreinte = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
+  return `${prefix}-${id}-${empreinte}`;
 }

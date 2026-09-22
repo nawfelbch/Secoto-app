@@ -61,6 +61,11 @@ export async function runMaintenance({ admin, stripe }) {
     }
   }
 
+  // Relance des commissions reglees en especes : la base decide seule si
+  // l'echeance est atteinte, la maintenance ne fait que lui donner la main.
+  const relances = await admin.rpc("secoto_commission_relances");
+  report.commissions = relances.error ? { error: relances.error.message } : relances.data;
+
   const sub = await admin.rpc("secoto_sub_maintenance_tick");
   report.subscriptions = sub.error ? { error: sub.error.message } : sub.data;
   report.payouts = await processPayouts({ admin, stripe });

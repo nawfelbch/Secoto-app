@@ -29,6 +29,7 @@ import {
   displayPhone,
   normalizePhone,
 } from "./lib/missionMessage";
+import { createDevisPaymentLink, paymentLine } from "./lib/devisPayment";
 import { openExternal } from "./platform/runtime";
 
 function toAmountInput(value) {
@@ -361,6 +362,28 @@ export function ClientSmsPanel({ mission, transporter = null, trackingUrl = "", 
   }
 
   const phone = normalizePhone(mission.clientPhone);
+  const [lienEnCours, setLienEnCours] = useState(false);
+  // Especes : le client paie le transporteur de la main a la main. Proposer un
+  // lien de paiement ferait payer la course deux fois.
+  const reglementEspeces = ["especes", "espèces", "cash"].includes(
+    String(mission.paymentMethod || "").toLowerCase(),
+  );
+
+  // Le lien de paiement est ajoute a la demande : l'administrateur voit le
+  // montant qu'il envoie avant d'envoyer, et garde la main sur le texte.
+  async function ajouterLienPaiement() {
+    setLienEnCours(true);
+    try {
+      const { url, amountCents } = await createDevisPaymentLink(mission.id);
+      setMessage((texte) => (texte.includes(url) ? texte : `${texte.trimEnd()}\n\n${paymentLine(url, amountCents)}`));
+      setCopied(false);
+      onNotice?.("Lien de paiement ajouté au message.");
+    } catch (error) {
+      onError?.(error?.message || "Lien de paiement indisponible.");
+    } finally {
+      setLienEnCours(false);
+    }
+  }
 
   async function send() {
     try {
@@ -376,6 +399,12 @@ export function ClientSmsPanel({ mission, transporter = null, trackingUrl = "", 
         Message prêt pour {displayPhone(mission.clientPhone) || "le client"}
         {phone ? "" : " — aucun numéro sur la fiche, le message s’ouvrira sans destinataire."}
       </p>
+      {reglementEspeces && (
+        <p className="muted" style={{ marginTop: 0 }}>
+          Règlement en espèces : le client paie le transporteur sur place. SECOTO relancera
+          le transporteur pour la commission deux jours après la livraison.
+        </p>
+      )}
       <textarea
         value={message}
         rows={8}
@@ -386,6 +415,16 @@ export function ClientSmsPanel({ mission, transporter = null, trackingUrl = "", 
         <button className="btn primary small" type="button" onClick={send}>
           Envoyer par SMS
         </button>
+        {!reglementEspeces && (
+          <button
+            className="btn ghost small"
+            type="button"
+            disabled={lienEnCours}
+            onClick={ajouterLienPaiement}
+          >
+            {lienEnCours ? "Création du lien…" : "Ajouter le lien de paiement"}
+          </button>
+        )}
         <button
           className="btn ghost small"
           type="button"
