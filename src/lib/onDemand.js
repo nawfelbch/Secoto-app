@@ -175,6 +175,10 @@ export const admin = {
   quotes: (status = null) => rpc("secoto_admin_quotes", { p_status: status }),
   priceQuote: (id, clientCents, partnerCents, hours, note, override) =>
     rpc("secoto_admin_price_quote", { p_quote_id: id, p_client_price_cents: clientCents, p_partner_pay_cents: partnerCents, p_validity_hours: hours, p_note: note, p_override_margin: override }),
+  // Lien de paiement du devis : le client paie sans compte, et le paiement
+  // vaut reservation.
+  quotePaymentLink: (quoteId, days = 30) =>
+    rpc("secoto_admin_devis_link_quote", { p_quote: quoteId, p_validity_days: days }),
   rebroadcast: (id) => rpc("secoto_admin_od_rebroadcast", { p_order_id: id }),
   setPartnerPay: (id, cents, override, note) => rpc("secoto_admin_od_set_partner_pay", { p_order_id: id, p_partner_pay_cents: cents, p_override: override, p_note: note }),
   lockForPartner: (orderId, partnerId) => callFunction("offer-accept", { adminOrderId: orderId, partnerId }),

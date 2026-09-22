@@ -28,6 +28,7 @@ const MOTIFS = {
   lien_revoque: "Ce lien a été remplacé par un nouveau. Utilisez le dernier message reçu.",
   deja_paye: "Cette course est déjà réglée. Merci !",
   course_annulee: "Cette course a été annulée. Aucun paiement n'est dû.",
+  date_depassee: "La date d'enlèvement est passée. Contactez SECOTO pour un nouveau devis.",
   reglement_especes: "Cette course se règle en espèces auprès du transporteur, le jour de la prestation.",
   compte_introuvable: "Paiement momentanément indisponible. Contactez SECOTO.",
 };
@@ -45,6 +46,36 @@ export function page(titre, message, ton = "info") {
 </div></body></html>`;
 }
 
+// Le particulier qui paie en ligne doit demander expressement l'execution
+// immediate : sans cette trace, il garde 14 jours pour annuler, meme une fois
+// le vehicule livre. La case n'est jamais pre-cochee.
+export function pageRenonciation(token, montantCents, trajet) {
+  const montant = (Number(montantCents || 0) / 100).toFixed(2).replace(".", ",");
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SECOTO — confirmation avant paiement</title></head>
+<body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f6f7f9;color:#101828">
+<div style="max-width:560px;margin:8vh auto;padding:32px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(16,24,40,.08)">
+<p style="letter-spacing:.32em;font-weight:700;color:#e8622a;margin:0 0 18px">S E C O T O</p>
+<h1 style="font-size:20px;margin:0 0 6px">Transport de véhicule${trajet ? ` — ${trajet}` : ""}</h1>
+<p style="font-size:26px;font-weight:700;margin:0 0 20px">${montant} €</p>
+<form method="post" action="?t=${token}">
+<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:22px">
+<input type="checkbox" name="consent" value="oui" required style="margin-top:4px;width:20px;height:20px">
+<span>Je demande l'exécution de la prestation avant la fin du délai de rétractation de 14 jours,
+et je reconnais perdre ce droit une fois le transport intégralement exécuté.</span>
+</label>
+<button type="submit" style="width:100%;padding:16px;border:0;border-radius:10px;background:#e8622a;color:#fff;font-size:16px;font-weight:700">
+Continuer vers le paiement
+</button>
+</form>
+<p style="font-size:12px;color:#667085;margin:18px 0 0;line-height:1.5">
+Paiement sécurisé par Stripe. Le règlement vaut acceptation du devis. En cas d'annulation plus de
+24 h avant l'enlèvement, vous êtes intégralement remboursé.
+</p>
+</div></body></html>`;
+}
+
 function html(statusCode, body) {
   return {
     statusCode,
@@ -54,7 +85,9 @@ function html(statusCode, body) {
 }
 
 const handler = async (event) => {
-  if (event.httpMethod !== "GET") return html(405, page("Méthode non autorisée", "Ouvrez ce lien depuis votre navigateur."));
+  if (event.httpMethod !== "GET" && event.httpMethod !== "POST") {
+    return html(405, page("Méthode non autorisée", "Ouvrez ce lien depuis votre navigateur."));
+  }
   if (!STRIPE_SECRET_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
   }
@@ -84,6 +117,22 @@ const handler = async (event) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // Consentement envoye par la page de renonciation.
+  if (event.httpMethod === "POST") {
+    const corps = event.isBase64Encoded
+      ? Buffer.from(event.body || "", "base64").toString("utf8")
+      : String(event.body || "");
+    const consent = new URLSearchParams(corps).get("consent") === "oui";
+    if (!consent) {
+      return html(200, page("Confirmation requise", "Cochez la case pour continuer vers le paiement."));
+    }
+    await admin.rpc("secoto_devis_link_open", { p_token: token });
+    const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
+    if (accord.error || accord.data?.error) {
+      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    }
+  }
+
   const { data, error } = await admin.rpc("secoto_devis_link_open", { p_token: token });
   if (error) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
   if (data?.error) {
@@ -93,6 +142,11 @@ const handler = async (event) => {
   }
 
   const trajet = String(data.trajet || "").replace(/^ - $/, "").trim();
+
+  // Particulier : la renonciation d'abord, le paiement ensuite.
+  if (data.waiver_required) {
+    return html(200, pageRenonciation(token, data.amount_cents, trajet));
+  }
   const description = ["SECOTO — transport de véhicule", trajet, data.vehicule]
     .filter((part) => part && String(part).trim())
     .join(" · ")
@@ -118,7 +172,7 @@ const handler = async (event) => {
           description,
           metadata: {
             secoto_payment_id: data.payment_id,
-            secoto_purpose: "devis_course",
+            secoto_purpose: data.purpose || "devis_course",
             secoto_reference: data.reference || "",
           },
         },

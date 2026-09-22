@@ -60,3 +60,43 @@ test("la page client reste lisible et sans jargon", () => {
   assert.match(html, /Ce lien a expiré\./);
   assert.doesNotMatch(html, /mission_id|payment_id|acct_/);
 });
+
+// ---------------------------------------------------------------------------
+// Migration 039 — deux voies de règlement pour la mise en relation.
+// ---------------------------------------------------------------------------
+const SQL39 = readFileSync(new URL("../supabase/migrations/202609230039_deux_voies_de_reglement.sql", import.meta.url), "utf8");
+const MAINTENANCE = readFileSync(new URL("../netlify/functions/od-maintenance.js", import.meta.url), "utf8");
+
+test("espèces : le lien de paiement est refusé au client", () => {
+  // Il a déjà payé le transporteur sur place : encaisser serait payer deux fois.
+  assert.match(SQL39, /''error'', ''reglement_especes''/);
+  assert.match(FONCTION, /reglement_especes: "Cette course se règle en espèces/);
+});
+
+test("espèces : la dette de commission démarre à la livraison", () => {
+  const trigger = SQL39.slice(SQL39.indexOf("trg_commission_especes_due"));
+  assert.match(trigger, /new\.type::text <> 'plateau'/);
+  assert.match(trigger, /commission_due_since = coalesce\(commission_due_since, now\(\)\)/);
+});
+
+test("une seule relance, et jamais après encaissement", () => {
+  const relance = SQL39.slice(SQL39.indexOf("function public.secoto_commission_relances"));
+  assert.match(relance, /m\.commission_reminder_sent_at is null/);
+  assert.match(relance, /commission_settled_offline, false\) = false/);
+  assert.match(relance, /m\.commission_paid_at is null/);
+  assert.match(relance, /set commission_reminder_sent_at = now\(\)/);
+  // L'administrateur reçoit un récapitulatif, pas une notification par course.
+  assert.equal((relance.match(/notify_admins_event/g) || []).length, 1);
+});
+
+test("la maintenance déclenche les relances à chaque passage", () => {
+  assert.match(MAINTENANCE, /rpc\("secoto_commission_relances"\)/);
+});
+
+test("carte : la course réglée à SECOTO débloque le versement du transporteur", () => {
+  const payout = SQL39.slice(SQL39.indexOf("function secoto_private.trg_manual_mission_payout"));
+  assert.match(payout, /purpose = 'devis_course' and p\.status = 'paid'/);
+  assert.match(payout, /and not v_regle_par_carte/);
+  // Les espèces restent exclues du versement automatique.
+  assert.match(payout, /in \('especes', 'espèces', 'cash'\) then return new/);
+});

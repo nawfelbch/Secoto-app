@@ -190,10 +190,69 @@ function AdminOrders({ orders, busy, run, transporters }) {
 
 function AdminQuotes({ quotes, busy, run }) {
   const [form, setForm] = useState({});
+  // Dernier lien fabrique : la carte disparait des que le devis est tarife,
+  // le lien doit donc survivre a sa disparition.
+  const [lien, setLien] = useState(null);
+  const [copie, setCopie] = useState(false);
+
+  async function envoyerAvecLien(quote, f) {
+    await admin.priceQuote(
+      quote.id,
+      Math.round(Number(f.client) * 100),
+      Math.round(Number(f.partner) * 100),
+      f.hours,
+      f.note,
+      f.override,
+    );
+    const resultat = await admin.quotePaymentLink(quote.id, 30);
+    setLien({
+      quoteId: quote.id,
+      url: resultat?.url || "",
+      amountCents: Number(resultat?.amount_cents || 0),
+      client: quote.client_name || "",
+      phone: quote.client_phone || "",
+      trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
+    });
+    setCopie(false);
+    return resultat;
+  }
+
+  function messageSms(l) {
+    const montant = (l.amountCents / 100).toFixed(2).replace(".", ",");
+    return `Bonjour, votre devis SECOTO pour le transport ${l.trajet} est prêt : ${montant} €.`
+      + `\nRéglez en ligne ici : ${l.url}`
+      + `\nLe paiement vaut acceptation du devis et lance la recherche du transporteur.`;
+  }
   if (!quotes) return <p className="muted">Chargement…</p>;
   const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
   return (
     <>
+      {lien && (
+        <article className="mission-card" style={{ marginBottom: 14 }}>
+          <div className="card-top"><span className="badge">lien de paiement</span></div>
+          <h3>{lien.trajet}</h3>
+          <p className="muted">
+            {lien.client} · {(lien.amountCents / 100).toFixed(2).replace(".", ",")} € · valable 30 jours
+          </p>
+          <p style={{ wordBreak: "break-all", fontSize: 13 }}>{lien.url}</p>
+          <div className="actions-row" style={{ flexWrap: "wrap" }}>
+            <button className="btn ghost small" type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(lien.url);
+                  setCopie(true);
+                } catch { setCopie(false); }
+              }}>
+              {copie ? "Lien copié" : "Copier le lien"}
+            </button>
+            <a className="btn primary small" href={`sms:${lien.phone || ""}?&body=${encodeURIComponent(messageSms(lien))}`}>
+              Envoyer par SMS
+            </a>
+            <button className="btn ghost small" type="button" onClick={() => setLien(null)}>Masquer</button>
+          </div>
+          {!lien.phone && <p className="muted">Aucun numéro sur la fiche client : le message s’ouvrira sans destinataire.</p>}
+        </article>
+      )}
       {pending.length === 0 && <p className="muted">Aucun devis à établir.</p>}
       <div className="cards">
         {pending.map((q) => {
@@ -215,9 +274,15 @@ function AdminQuotes({ quotes, busy, run }) {
               <p className="muted">Marge : {Number.isFinite(margin) ? `${margin.toFixed(2)} €` : "—"}{Number.isFinite(margin) && Number(f.client) > 0 ? ` (${((margin / Number(f.client)) * 100).toFixed(1)} %)` : ""}</p>
               <label className="od-checks"><input type="checkbox" checked={f.override} onChange={(e) => set({ override: e.target.checked })} /> Déroger au seuil de marge</label>
               <label className="field"><span>Note interne</span><input value={f.note} onChange={(e) => set({ note: e.target.value })} /></label>
-              <div className="actions-row">
+              <div className="actions-row" style={{ flexWrap: "wrap" }}>
                 <button className="btn primary small" type="button" disabled={busy || !f.client || !f.partner}
-                  onClick={() => run(() => admin.priceQuote(q.id, Math.round(Number(f.client) * 100), Math.round(Number(f.partner) * 100), f.hours, f.note, f.override), "Devis transmis au client.")}>Envoyer le devis</button>
+                  onClick={() => run(() => envoyerAvecLien(q, f), "Devis envoyé, lien de paiement prêt.")}>
+                  Envoyer le devis + lien de paiement
+                </button>
+                <button className="btn ghost small" type="button" disabled={busy || !f.client || !f.partner}
+                  onClick={() => run(() => admin.priceQuote(q.id, Math.round(Number(f.client) * 100), Math.round(Number(f.partner) * 100), f.hours, f.note, f.override), "Devis transmis au client.")}>
+                  Devis seul (règlement en espèces)
+                </button>
               </div>
             </article>
           );
