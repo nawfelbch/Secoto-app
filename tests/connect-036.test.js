@@ -84,3 +84,12 @@ test("décisions du 22/09/2026 écrites dans la migration", () => {
   assert.doesNotMatch(SQL, /versée par SECOTO sous 48 h/);
   assert.match(SQL, /insert into public\.secoto_feature_flags\(key\) values \('connect_payouts'\) on conflict \(key\) do nothing;/);
 });
+
+// Stripe rejoue pendant 24 h la reponse memorisee pour une cle d'idempotence,
+// erreurs comprises : une cle figee bloquerait le transporteur une journee.
+test("création du compte : la clé d'idempotence change d'heure en heure", () => {
+  const source = readFileSync(new URL("../netlify/functions/connect-onboarding.js", import.meta.url), "utf8");
+  const ligne = source.split("\n").find((l) => l.includes("secoto-connect-account-"));
+  assert.ok(ligne, "la clé d'idempotence du compte Connect est introuvable");
+  assert.match(ligne, /toISOString\(\)\.slice\(0, 13\)/);
+});
