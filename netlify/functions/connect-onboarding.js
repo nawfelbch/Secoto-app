@@ -91,6 +91,13 @@ const handler = async (event) => {
       return json(200, { url: link.url });
     }
 
+    // Diagnostic : identifie le compte Stripe derriere la cle du serveur, sans
+    // jamais exposer la cle elle-meme.
+    if (action === "diag") {
+      const me = await stripe.accounts.retrieve();
+      return json(200, { account: me?.id || null, livemode: me?.charges_enabled ?? null, country: me?.country || null });
+    }
+
     if (action === "dashboard") {
       if (!acctId) return json(409, { error: "no_account" });
       const login = await stripe.accounts.createLoginLink(acctId);
