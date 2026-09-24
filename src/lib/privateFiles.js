@@ -203,3 +203,58 @@ export async function uploadPrivateFiles({
     return { file, path, index };
   });
 }
+
+// ============================================================================
+// SIGNATURE A LA DEMANDE
+// ----------------------------------------------------------------------------
+// L'espace admin demandait une URL signee pour CHAQUE document et CHAQUE photo
+// des l'ouverture : jusqu'a 400 requetes en rafale, que Supabase finissait par
+// refuser (429). Tout ce qui partait ensuite — y compris les actions de
+// l'administrateur — tombait dans le meme embouteillage.
+//
+// On ne signe donc plus qu'au moment ou une vignette s'affiche vraiment, avec
+// au plus quatre demandes simultanees, et on garde l'URL en memoire le temps
+// de sa validite. Recharger un ecran ne resigne rien.
+// ============================================================================
+
+const urlsSignees = new Map();
+const attente = [];
+let enCours = 0;
+const MAX_PARALLELE = 4;
+const MARGE_EXPIRATION_MS = 30_000;
+
+function suivant() {
+  if (enCours >= MAX_PARALLELE) return;
+  const tache = attente.shift();
+  if (!tache) return;
+  enCours += 1;
+  tache().finally(() => { enCours -= 1; suivant(); });
+}
+
+/**
+ * URL signee d'un fichier prive, mise en cache et limitee en parallelisme.
+ * Renvoie null si le fichier est introuvable : l'appelant affiche un repli
+ * plutot qu'une image cassee.
+ */
+export function signedUrlCached(bucket, path, expiresIn = SIGNED_URL_DEFAULT_SECONDS) {
+  if (!bucket || !path) return Promise.resolve(null);
+  const cle = `${bucket}/${path}`;
+  const connue = urlsSignees.get(cle);
+  if (connue && connue.expireA > Date.now() + MARGE_EXPIRATION_MS) return connue.promesse;
+
+  let resoudre;
+  const promesse = new Promise((r) => { resoudre = r; });
+  urlsSignees.set(cle, { promesse, expireA: Date.now() + expiresIn * 1000 });
+
+  attente.push(async () => {
+    try {
+      resoudre(await createShortSignedUrl(bucket, path, expiresIn));
+    } catch {
+      // Fichier absent du stockage : on memorise l'echec pour ne pas boucler.
+      urlsSignees.set(cle, { promesse, expireA: Date.now() + 10 * 60 * 1000 });
+      resoudre(null);
+    }
+  });
+  suivant();
+  return promesse;
+}

@@ -63,7 +63,6 @@ import {
 } from "./lib/fileSafety";
 import {
   createShortSignedUrl,
-  hydrateSignedFileUrls,
   uploadPrivateFile,
   uploadPrivateFiles,
 } from "./lib/privateFiles";
@@ -105,6 +104,7 @@ import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
 import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
+import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
   AssignmentPanel,
   ManualPricingFields,
@@ -982,16 +982,7 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
                 {ev.comment && <p className="muted" style={{ margin: "4px 0 0" }}>{ev.comment}</p>}
                 {photos.length > 0 && (
                   <div className="cards" style={{ marginTop: 10, gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))" }}>
-                    {photos.map((p) => {
-                      const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(p.fileName || p.fileUrl || "");
-                      return isImage ? (
-                        <a href={p.fileUrl} key={p.id} target="_blank" rel="noreferrer">
-                          <img src={p.fileUrl} alt={p.fileName || "photo"} style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 12, border: "1px solid var(--border)" }} />
-                        </a>
-                      ) : (
-                        <a className="btn ghost small" key={p.id} href={p.fileUrl} target="_blank" rel="noreferrer">Document</a>
-                      );
-                    })}
+                    {photos.map((p) => <PhotoPrivee key={p.id} photo={p} />)}
                   </div>
                 )}
               </>
@@ -2350,26 +2341,14 @@ export default function App() {
   }), [missions.length, publishedMissions.length, activeAssignedMissions.length, completedOrDeliveredMissions.length, pendingRequests.length, pendingApplications.length]);
 
   /* ---------- Data loading ---------- */
-  async function signDocuments(rows) {
-    const mapped = (rows || []).map(documentFromDb);
-    return Promise.all(mapped.map(async (document) => {
-      if (!document.filePath) return document;
-      const bucket = document.docType ? "documents-pdf" : "documents";
-      // Un fichier absent du stockage renvoie une erreur a CHAQUE rechargement :
-      // on ne le redemande plus, sinon la console se remplit en continu.
-      const cle = `${bucket}/${document.filePath}`;
-      if (signatureImpossible.has(cle)) return { ...document, fileUrl: null };
-      try {
-        return {
-          ...document,
-          fileUrl: await createShortSignedUrl(bucket, document.filePath, 120),
-        };
-      } catch {
-        signatureImpossible.add(cle);
-        return { ...document, fileUrl: null };
-      }
-    }));
+  // Les documents ne sont plus signes au chargement : une URL signee par
+  // document, sur des centaines de documents, saturait Supabase (429) et
+  // faisait echouer les actions lancees ensuite. Chaque document est signe au
+  // moment ou on l'ouvre (openPrivateDocument).
+  function signDocuments(rows) {
+    return (rows || []).map(documentFromDb);
   }
+
 
   // Le suivi terrain est charge avec les colonnes de la migration 024 ; si elle
   // n'est pas encore appliquee, on retombe sur le socle plutot que de faire
@@ -2435,7 +2414,7 @@ export default function App() {
         );
         const [signedDocuments, signedPhotos] = await Promise.all([
           signDocuments(documentsResult.data),
-          hydrateSignedFileUrls((trackingPhotosResult.data || []).map(trackingPhotoFromDb), "mission-photos", 120),
+          (trackingPhotosResult.data || []).map(trackingPhotoFromDb),
         ]);
         if (!isCurrentLoad()) return;
         setMissions(
@@ -2458,11 +2437,7 @@ export default function App() {
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
         for (const r of [missionsResult, trackingEventsResult, trackingPhotosResult]) { if (r.error) throw r.error; }
-        const signedPhotos = await hydrateSignedFileUrls(
-          (trackingPhotosResult.data || []).map(trackingPhotoFromDb),
-          "mission-photos",
-          120,
-        );
+        const signedPhotos = (trackingPhotosResult.data || []).map(trackingPhotoFromDb);
         if (!isCurrentLoad()) return;
         setMissions((missionsResult.data || []).map(missionFromDb));
         setTrackingEvents((trackingEventsResult.data || []).map(trackingEventFromDb));
@@ -2483,7 +2458,7 @@ export default function App() {
         }
         const [signedDocuments, signedPhotos] = await Promise.all([
           signDocuments(documentsResult.data),
-          hydrateSignedFileUrls((trackingPhotosResult.data || []).map(trackingPhotoFromDb), "mission-photos", 120),
+          (trackingPhotosResult.data || []).map(trackingPhotoFromDb),
         ]);
         if (!isCurrentLoad()) return;
         setPublicMissions((publicResult.data || []).map(publicMissionFromDb));
@@ -3480,23 +3455,15 @@ export default function App() {
               </div>
               <div className="cards" style={{ marginTop: 12 }}>
                 {photos.length === 0 && <p className="muted">Aucune photo jointe.</p>}
-                {photos.map((photo) => {
-                  const isImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(photo.fileName || photo.fileUrl || "");
-                  return (
-                    <article className="mission-card" key={photo.id}>
-                      <div className="card-top">
-                        <span className="badge">{photo.photoType || "photo"}</span>
-                        <a className="btn ghost small" href={photo.fileUrl} target="_blank" rel="noreferrer">Ouvrir</a>
-                      </div>
-                      {isImage && (
-                        <a href={photo.fileUrl} target="_blank" rel="noreferrer">
-                          <img src={photo.fileUrl} alt={photo.fileName || "Photo état des lieux"} style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 16, marginTop: 12, border: "1px solid var(--border)" }} />
-                        </a>
-                      )}
-                      <p className="muted" style={{ marginTop: 10 }}>{photo.fileName}</p>
-                    </article>
-                  );
-                })}
+                {photos.map((photo) => (
+                  <article className="mission-card" key={photo.id}>
+                    <div className="card-top">
+                      <span className="badge">{photo.photoType || "photo"}</span>
+                    </div>
+                    <PhotoPrivee photo={photo} hauteur={220} />
+                    <p className="muted" style={{ marginTop: 10 }}>{photo.fileName}</p>
+                  </article>
+                ))}
               </div>
             </div>
           );
