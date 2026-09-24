@@ -225,6 +225,25 @@ function AdminQuotes({ quotes, busy, run }) {
   }
   if (!quotes) return <p className="muted">Chargement…</p>;
   const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
+  // Un devis deja tarife quittait cette liste : si le lien n'avait pas pu etre
+  // cree, plus aucun ecran ne permettait de le refabriquer.
+  const tarifes = quotes
+    .filter((q) => q.status === "priced" && (!q.valid_until || new Date(q.valid_until) > new Date()))
+    .slice(0, 12);
+
+  async function creerLien(quote) {
+    const resultat = await admin.quotePaymentLink(quote.id, 30);
+    setLien({
+      quoteId: quote.id,
+      url: resultat?.url || "",
+      amountCents: Number(resultat?.amount_cents || 0),
+      client: quote.client_name || "",
+      phone: quote.client_phone || "",
+      trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
+    });
+    setCopie(false);
+    return resultat;
+  }
   return (
     <>
       {lien && (
@@ -252,6 +271,28 @@ function AdminQuotes({ quotes, busy, run }) {
           </div>
           {!lien.phone && <p className="muted">Aucun numéro sur la fiche client : le message s’ouvrira sans destinataire.</p>}
         </article>
+      )}
+      {tarifes.length > 0 && (
+        <details style={{ marginBottom: 14 }}>
+          <summary className="muted">Devis déjà tarifés ({tarifes.length}) — créer ou refaire un lien de paiement</summary>
+          <div className="cards" style={{ marginTop: 10 }}>
+            {tarifes.map((q) => (
+              <article className="mission-card" key={q.id}>
+                <div className="card-top"><span className="badge">{q.mode}</span></div>
+                <h3>{q.pickup?.city} → {q.delivery?.city}</h3>
+                <p className="muted">
+                  {q.client_name} · {formatCents(q.client_price_cents)} · prise en charge {formatDateTime(q.pickup_at)}
+                </p>
+                <div className="actions-row">
+                  <button className="btn primary small" type="button" disabled={busy}
+                    onClick={() => run(() => creerLien(q), "Lien de paiement prêt.")}>
+                    Créer le lien de paiement
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </details>
       )}
       {pending.length === 0 && <p className="muted">Aucun devis à établir.</p>}
       <div className="cards">

@@ -100,3 +100,46 @@ test("carte : la course réglée à SECOTO débloque le versement du transporteu
   // Les espèces restent exclues du versement automatique.
   assert.match(payout, /in \('especes', 'espèces', 'cash'\) then return new/);
 });
+
+// ---------------------------------------------------------------------------
+// Migration 040 — tout se fait depuis « Devis à établir ».
+// ---------------------------------------------------------------------------
+const SQL40 = readFileSync(new URL("../supabase/migrations/202609230040_devis_a_la_demande_payable.sql", import.meta.url), "utf8");
+const { pageRenonciation } = await import("../netlify/functions/devis-pay.js");
+
+test("un lien porte une mission OU un devis, jamais les deux", () => {
+  assert.match(SQL40, /check \(num_nonnulls\(mission_id, quote_id\) = 1\)/);
+  assert.match(SQL40, /devis_payment_links_actif_quote_idx/);
+});
+
+test("payer vaut réserver : la commande et le paiement sont créés", () => {
+  const book = SQL40.slice(SQL40.indexOf("function secoto_private.od_book_for_link"));
+  assert.match(book, /insert into public\.transport_orders/);
+  assert.match(book, /update public\.transport_quotes set status = 'accepted'/);
+  assert.match(book, /'od_plateau' else 'od_convoyage'/);
+  // Une commande déjà réservée ne crée pas de doublon.
+  assert.match(book, /select \* into v_order from public\.transport_orders o where o\.quote_id = p_quote/);
+});
+
+test("le devis doit être tarifé et la date encore à venir", () => {
+  const book = SQL40.slice(SQL40.indexOf("function secoto_private.od_book_for_link"));
+  assert.match(book, /status not in \('priced', 'manual_priced', 'accepted'\)/);
+  assert.match(book, /v_quote\.pickup_at <= now\(\) then raise exception 'QUOTE_DATE_DEPASSEE'/);
+});
+
+test("le particulier renonce à la rétractation avant de payer", () => {
+  assert.match(SQL40, /function public\.secoto_devis_link_waiver/);
+  assert.match(SQL40, /waiver_accepted    = true/);
+  // La case n'est jamais pré-cochée et le refus ne déclenche rien.
+  const page = pageRenonciation("abc123", 42000, "Sénas → Loguivy");
+  assert.match(page, /type="checkbox" name="consent" value="oui" required/);
+  assert.doesNotMatch(page, /checked/);
+  assert.match(page, /420,00 €/);
+  assert.match(SQL40, /not coalesce\(p_accepted, false\) then return jsonb_build_object\('error', 'consentement_refuse'\)/);
+});
+
+test("le paiement n'est proposé qu'après le consentement", () => {
+  const ordre = FONCTION.indexOf("data.waiver_required") < FONCTION.indexOf("checkout.sessions.create");
+  assert.ok(ordre, "la page de renonciation doit précéder la session Stripe");
+  assert.match(FONCTION, /secoto_devis_link_waiver", \{ p_token: token, p_accepted: true \}/);
+});
