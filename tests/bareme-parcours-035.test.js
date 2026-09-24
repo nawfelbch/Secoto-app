@@ -151,7 +151,10 @@ test("les libellés client disent exactement ce qui se passe", () => {
   const texte = od.paymentExplanation({ funding: "card", mode: "plateau", client_price_cents: 56000 });
   assert.match(texte, /560\s*€/);
   assert.match(texte, /réserve 48 h/);
-  assert.match(texte, /remboursé intégralement sous 24 h/);
+  // Depuis la 045, le texte distingue le déclenchement du remboursement du
+  // délai bancaire : promettre « remboursé sous 24 h » générait des relances.
+  assert.match(texte, /remboursement intégral est lancé sous 24 h/);
+  assert.match(texte, /banque le crédite sous 5 à 10 jours/);
   assert.doesNotMatch(texte, /mise en relation/);
 
   assert.match(od.cancellationPolicy(), /jusqu’à 24 h avant/);

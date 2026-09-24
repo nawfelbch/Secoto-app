@@ -59,6 +59,11 @@ export function formatDateTime(value) {
   return date.toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+// Un remboursement Stripe part tout de suite, mais c'est la banque du client
+// qui le credite : annoncer « rembourse sous 24 h » sans le dire ferait croire
+// a un retard, et generait des relances inutiles.
+const BANK_REFUND_DELAY = "votre banque le crédite sous 5 à 10 jours";
+
 export function paymentExplanation(order) {
   if (!order) return "";
   if (order.funding === "subscription") {
@@ -67,7 +72,7 @@ export function paymentExplanation(order) {
   const amount = formatCents(order.client_price_cents ?? order.collect_cents);
   return `${amount} sont encaissés dès la validation et gardés en réserve ${OFFER_WINDOW_HOURS} h, `
     + `le temps qu’un transporteur accepte la mission. Si aucun transporteur ne se rend disponible, `
-    + `vous êtes remboursé intégralement sous ${NO_PARTNER_REFUND_HOURS} h.`;
+    + `le remboursement intégral est lancé sous ${NO_PARTNER_REFUND_HOURS} h ; ${BANK_REFUND_DELAY}.`;
 }
 
 // Règle d'annulation, écrite exactement comme elle est appliquée en base.
@@ -79,8 +84,9 @@ export function cancellationPolicy() {
 export function cancellationNotice(preview) {
   if (!preview) return "";
   if (!preview.cancellable) return "Cette commande ne peut plus être annulée depuis l’application.";
-  if (!preview.late) return "Annulation sans frais : vous êtes remboursé intégralement.";
+  if (!preview.late) return `Annulation sans frais : vous êtes remboursé intégralement, ${BANK_REFUND_DELAY}.`;
   return `Annulation à moins de ${FREE_CANCEL_HOURS} h de la prise en charge : `
-    + `${preview.retained_pct} % sont retenus, ${formatCents(preview.refund_cents)} vous sont remboursés.`;
+    + `${preview.retained_pct} % sont retenus, ${formatCents(preview.refund_cents)} vous sont remboursés, `
+    + `${BANK_REFUND_DELAY}.`;
 }
 

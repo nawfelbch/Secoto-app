@@ -118,7 +118,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { acceptMission, declineMission, featureFlags, formatCents } from "./lib/onDemand";
+import { acceptMission, connectOnboarding, declineMission, featureFlags, formatCents } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -1543,6 +1543,9 @@ export default function App() {
   // Migration 030 : fonctionnalités activées par l'administrateur (toutes
   // désactivées par défaut : aucun écran n'apparaît tant qu'elles sont fermées).
   const [flags, setFlags] = useState({});
+  // Etat du compte de versement Stripe du transporteur : sans lui, une course
+  // livree ne peut pas etre payee automatiquement.
+  const [versements, setVersements] = useState(null);
   const [focusOfferId, setFocusOfferId] = useState(null);
   const [clientTrackingMissionId, setClientTrackingMissionId] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
@@ -1610,6 +1613,39 @@ export default function App() {
     if (!account?.id) return;
     featureFlags().then((value) => setFlags(value || {})).catch(() => setFlags({}));
   }, [account?.id]);
+
+  // L'etat des versements est relu a chaque ouverture de l'espace : le
+  // transporteur peut s'etre inscrit depuis un autre appareil, et Stripe peut
+  // avoir termine sa verification entre-temps.
+  useEffect(() => {
+    if (!account?.id || account.role !== "transporter" || !flags.connect_payouts) {
+      setVersements(null);
+      return;
+    }
+    let vivant = true;
+    connectOnboarding("status")
+      .then((etat) => { if (vivant) setVersements(etat?.status || "none"); })
+      .catch(() => { if (vivant) setVersements(null); });
+    return () => { vivant = false; };
+  }, [account?.id, account?.role, flags.connect_payouts]);
+
+  // « actif » = Stripe accepte de verser. Tout le reste doit etre signale.
+  const versementsAConfigurer = Boolean(flags.connect_payouts)
+    && account?.role === "transporter"
+    && versements !== null
+    && versements !== "active";
+
+  const cleInvitationVersements = account?.id ? `secoto:versements-invite:${account.id}` : "";
+
+  function dejaInviteAuxVersements() {
+    if (!cleInvitationVersements) return true;
+    try { return localStorage.getItem(cleInvitationVersements) === "1"; } catch { return true; }
+  }
+
+  function marquerInvitationVersements() {
+    if (!cleInvitationVersements) return;
+    try { localStorage.setItem(cleInvitationVersements, "1"); } catch { /* navigation privee */ }
+  }
 
   // Parcours de commande en ligne ouvert : « Transport à la demande » devient
   // le seul chemin proposé au client, et l'ancien formulaire disparaît.
@@ -2646,8 +2682,16 @@ export default function App() {
     try {
       await runLocked(`accept:${missionId}`, async () => {
         await acceptMission(missionId);
-        setNotice("Mission acceptée. Elle est maintenant dans vos missions attribuées.");
-        setTransporterTab("assigned");
+        // Premiere course acceptee sans compte de versement : on emmene le
+        // transporteur au bon endroit, une seule fois. Ensuite, le bandeau suffit.
+        if (versementsAConfigurer && !dejaInviteAuxVersements()) {
+          marquerInvitationVersements();
+          setNotice("Mission acceptée. Dernière étape : indiquez où vous voulez être payé — sans cela, SECOTO ne peut pas vous virer votre rémunération 48 h après la livraison.");
+          setTransporterTab("bank");
+        } else {
+          setNotice("Mission acceptée. Elle est maintenant dans vos missions attribuées.");
+          setTransporterTab("assigned");
+        }
         await loadAllData(account, { silent: true });
       });
     } catch (err) { setError(humanizeError(err, "Cette mission n'a pas pu être acceptée.")); }
@@ -4222,7 +4266,13 @@ export default function App() {
           suppressed={Boolean(docModal) || navOpen}
           onOpenMission={(missionId) => {
             if (missionId) setFocusMissionId(missionId);
-            setTransporterTab("assigned");
+            if (versementsAConfigurer && !dejaInviteAuxVersements()) {
+              marquerInvitationVersements();
+              setNotice("Course confirmée. Dernière étape : indiquez où vous voulez être payé — sans cela, SECOTO ne peut pas vous virer votre rémunération 48 h après la livraison.");
+              setTransporterTab("bank");
+            } else {
+              setTransporterTab("assigned");
+            }
             loadAllData(account);
           }}
         />
@@ -4275,6 +4325,19 @@ export default function App() {
       )}
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
+      {versementsAConfigurer && transporterTab !== "bank" && (
+        <div className="alert" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+          <span>
+            <strong>Vos versements ne sont pas encore activés.</strong>{" "}
+            {versements === "pending"
+              ? "Stripe vérifie vos informations : vous serez payé automatiquement dès que c'est validé."
+              : "SECOTO vous paie 48 h après chaque livraison, sur le compte de votre choix. Sans cette étape, vos courses restent à régler à la main."}
+          </span>
+          <button className="btn primary small" type="button" onClick={() => setTransporterTab("bank")}>
+            Activer mes versements
+          </button>
+        </div>
+      )}
       {pendingClaim && !isClient && (
         <div className="alert">
           Ce lien est réservé au client concerné. Déconnectez ce compte puis utilisez

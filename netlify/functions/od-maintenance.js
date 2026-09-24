@@ -117,7 +117,9 @@ export async function processPayouts({ admin, stripe }) {
     } catch (stripeError) {
       await admin.rpc("secoto_payout_transfer_result", {
         p_payout_id: p.payout_id, p_success: false, p_transfer_id: null, p_charge_id: chargeId,
-        p_error: String(stripeError?.message || "transfer_failed").slice(0, 500),
+        // Le code Stripe voyage avec le message : la base distingue ainsi une
+        // attente de fonds (balance_insufficient) d'un vrai refus.
+        p_error: [stripeError?.code, stripeError?.message || "transfer_failed"].filter(Boolean).join(" · ").slice(0, 500),
       });
       report.push({ payout: p.payout_id, outcome: "error" });
     }
