@@ -78,7 +78,10 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
           // Annulable jusqu'à la prise en charge du véhicule, y compris après
           // confirmation : la retenue éventuelle est annoncée avant de valider.
           const cancellable = ["awaiting_payment", "searching_partner", "partner_confirmed"].includes(order.status);
-          const canTrack = flags?.live_tracking && order.mission_id && ["partner_confirmed", "picked_up", "delivered"].includes(order.status);
+          // Le suivi n'a de sens qu'une fois le vehicule a bord : avant, il
+          // montrerait le transporteur chez lui ou sur une autre course, et
+          // apres la livraison, la session est deja arretee.
+          const canTrack = flags?.live_tracking && order.mission_id && order.status === "picked_up";
           return (
             <article id={`order-${order.id}`} className={`mission-card${focusOrderId === order.id ? " is-focused" : ""}`} key={order.id}>
               <div className="card-top">

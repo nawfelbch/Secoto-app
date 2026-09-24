@@ -4424,7 +4424,9 @@ export default function App() {
                         {mission.proposedPrice ? <p><strong>Budget indiqué :</strong> {mission.proposedPrice} €</p> : null}
                       </div>
                       <ClientTrackingTimeline mission={mission} events={getTrackingEventsForMission(mission.id)} getPhotos={getTrackingPhotosForEvent} />
-                      {flags.live_tracking && mission.status === "assigned" && clientTrackingMissionId !== mission.id && (
+                      {flags.live_tracking && mission.status === "assigned"
+                        && ["pickup_completed", "in_transit", "incident_reported", "delivery_started"].includes(mission.progressStatus)
+                        && clientTrackingMissionId !== mission.id && (
                         <div className="actions-row">
                           <button className="btn ghost small" type="button" onClick={() => setClientTrackingMissionId(mission.id)}>Suivre en direct</button>
                         </div>
