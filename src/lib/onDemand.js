@@ -113,10 +113,48 @@ async function callFunction(name, body) {
   return payload;
 }
 
+// Appel sans session : le visiteur n'a pas encore de compte, et c'est le but.
+async function callPublicFunction(name, body) {
+  const res = await fetch(getServerFunctionUrl(name), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = payload.message ? humanizeError({ message: payload.message }, payload.message) : null;
+    throw new Error(message || (res.status === 503
+      ? "Service momentanément indisponible."
+      : "Le prix n’a pas pu être calculé. Vérifiez les adresses et réessayez."));
+  }
+  return payload;
+}
+
 export const featureFlags = () => rpc("secoto_feature_flags", {});
 
 // ---- Client ----------------------------------------------------------------
 export const requestQuote = (payload) => callFunction("quote-transport", { payload });
+// Devis sans compte : le prix s'affiche d'abord, le compte vient pour réserver.
+export const publicQuote = (payload) => callPublicFunction("quote-public", { payload });
+export const claimAnonQuote = (token) => rpc("secoto_anon_quote_claim", { p_token: token });
+
+// Le jeton du devis anonyme survit à la création du compte : sans lui, le
+// client devrait tout resaisir, et on aurait déplacé la friction au lieu de
+// la supprimer.
+const CLE_DEVIS_ANONYME = "secoto:devis-anonyme";
+
+export function rememberAnonQuote(token) {
+  if (!token) return;
+  try { sessionStorage.setItem(CLE_DEVIS_ANONYME, token); } catch { /* navigation privée */ }
+}
+
+export function takeAnonQuote() {
+  try {
+    const token = sessionStorage.getItem(CLE_DEVIS_ANONYME);
+    if (token) sessionStorage.removeItem(CLE_DEVIS_ANONYME);
+    return token || null;
+  } catch { return null; }
+}
 export const myQuotes = () => rpc("secoto_my_quotes", {});
 export const myOrders = () => rpc("secoto_od_my_orders", {});
 export const bookQuote = (quoteId, useSubscription = false) =>

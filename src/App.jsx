@@ -118,7 +118,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { acceptMission, connectOnboarding, declineMission, featureFlags, formatCents } from "./lib/onDemand";
+import { acceptMission, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -1381,22 +1381,21 @@ function PublicLanding({ onShowAuth }) {
             <p className="muted">Votre trajet {prefill.from || "—"} → {prefill.to || "—"} est conservé pour l’étape suivante.</p>
           )}
           <p className="muted" style={{ marginBottom: 18 }}>
-            Créez votre compte en quelques secondes : c’est ce qui vous permet de suivre le véhicule,
-            recevoir votre facture et être remboursé automatiquement si aucun transporteur n’accepte.
+            Le prix s’affiche tout de suite, sans compte et sans engagement.
+            Vous ne créez votre compte qu’au moment de réserver.
           </p>
-          <button
-            className="btn primary field-full"
-            type="button"
-            onClick={onShowAuth}
-            style={{ minHeight: 56, fontSize: "1.02rem" }}
-          >
-            Obtenir mon prix et payer
-          </button>
+          {/* Le prix AVANT le compte : c'est la promesse de la publicite, et
+              c'est ce que le visiteur obtient ici, sans donner son nom. */}
+          <OnDemandBooking
+            anonyme
+            flags={{ od_payments: true }}
+            onNeedAccount={onShowAuth}
+          />
           <ul className="od-steps-inline">
             <li>1. Trajet et véhicule</li>
             <li>2. Prix affiché immédiatement</li>
-            <li>3. Paiement Apple&nbsp;Pay, Google&nbsp;Pay ou carte</li>
-            <li>4. Diffusion à nos transporteurs vérifiés</li>
+            <li>3. Compte créé pour réserver</li>
+            <li>4. Paiement, puis diffusion à nos transporteurs vérifiés</li>
           </ul>
           <p className="muted" style={{ marginTop: 14 }}>
             Le paiement est encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.
@@ -1546,6 +1545,8 @@ export default function App() {
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
   // livree ne peut pas etre payee automatiquement.
   const [versements, setVersements] = useState(null);
+  // Devis etabli avant la creation du compte, repris tel quel juste apres.
+  const [devisRepris, setDevisRepris] = useState(null);
   const [focusOfferId, setFocusOfferId] = useState(null);
   const [clientTrackingMissionId, setClientTrackingMissionId] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
@@ -1613,6 +1614,22 @@ export default function App() {
     if (!account?.id) return;
     featureFlags().then((value) => setFlags(value || {})).catch(() => setFlags({}));
   }, [account?.id]);
+
+  // Le compte vient d'etre cree apres l'affichage d'un prix : on rattache le
+  // devis a ce compte. Sans cela, le client devrait tout resaisir et on aurait
+  // deplace la friction au lieu de la supprimer.
+  useEffect(() => {
+    if (!account?.id || !["client", "admin"].includes(String(account.role))) return;
+    const token = takeAnonQuote();
+    if (!token) return;
+    claimAnonQuote(token)
+      .then((quote) => {
+        setDevisRepris(quote);
+        setClientTab("ondemand");
+        setNotice("Votre prix est conservé : il ne reste qu'à réserver.");
+      })
+      .catch((err) => setError(humanizeError(err, "Votre devis n'a pas pu être repris. Recalculez votre prix, cela prend une minute.")));
+  }, [account?.id, account?.role]);
 
   // L'etat des versements est relu a chaque ouverture de l'espace : le
   // transporteur peut s'etre inscrit depuis un autre appareil, et Stripe peut
@@ -4501,7 +4518,11 @@ export default function App() {
 
           {activeClientTab === "ondemand" && (
             <section className="layout">
-              <OnDemandBooking flags={flags} onBooked={() => { setClientTab("orders"); loadAllData(account); }} />
+              <OnDemandBooking
+                flags={flags}
+                initialQuote={devisRepris}
+                onBooked={() => { setDevisRepris(null); setClientTab("orders"); loadAllData(account); }}
+              />
             </section>
           )}
 

@@ -4,7 +4,8 @@ import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
   OFFER_WINDOW_HOURS, TVA_MENTION,
-  bookQuote, cancellationPolicy, formatCents, formatDateTime, paymentExplanation, requestQuote, subscriptionOverview,
+  bookQuote, cancellationPolicy, formatCents, formatDateTime, paymentExplanation, publicQuote,
+  rememberAnonQuote, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 
@@ -24,7 +25,9 @@ function todayIso() {
   return d.toISOString().slice(0, 10);
 }
 
-export default function OnDemandBooking({ flags, onBooked, initialQuote = null }) {
+// `anonyme` : le visiteur n'a pas encore de compte. Il obtient son prix, puis
+// crée son compte pour réserver — jamais l'inverse.
+export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null }) {
   const [step, setStep] = useState(initialQuote ? 4 : 0);
   // Repris du site vitrine (?vehicle=…&service=…) : le modele et le mode sont
   // pre-remplis. Les adresses, elles, sont toujours resaisies et verifiees.
@@ -59,9 +62,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
   }, []);
 
   useEffect(() => {
-    if (!flags?.subscriptions) return;
+    // Sans compte, il n'y a pas de forfait a interroger : l'appel echouerait.
+    if (anonyme || !flags?.subscriptions) return;
     subscriptionOverview().then(setOverview).catch(() => setOverview(null));
-  }, [flags?.subscriptions]);
+  }, [anonyme, flags?.subscriptions]);
 
   useEffect(() => {
     if (!payment?.id) return undefined;
@@ -117,7 +121,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
         schedule: { ...form.schedule, flexibility_days: Number(form.schedule.flexibility_days) || 0 },
         ...(subscriptionActive && overview?.business?.id ? { business_id: overview.business.id } : {}),
       };
-      const result = await requestQuote(payload);
+      const result = anonyme ? await publicQuote(payload) : await requestQuote(payload);
+      if (anonyme) rememberAnonQuote(result.token);
       setQuote(result.quote);
       setStep(4);
     } catch (e) {
@@ -290,8 +295,11 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
             <div className="alert error">Ce devis a expiré. Recalculez le prix.</div>
           ) : (
             <div className="alert">
-              {MANUAL_REASONS[quote.manual_reason] || "Ce transport fait l’objet d’un devis personnalisé."} Votre demande est transmise à SECOTO :
-              vous recevrez le prix dans l’application. Aucun paiement n’est demandé à ce stade.
+              {MANUAL_REASONS[quote.manual_reason] || "Ce transport fait l’objet d’un devis personnalisé."}{" "}
+              {anonyme
+                ? "Créez votre compte pour que SECOTO puisse vous transmettre le prix : c’est le seul moyen de vous recontacter."
+                : "Votre demande est transmise à SECOTO : vous recevrez le prix dans l’application."}{" "}
+              Aucun paiement n’est demandé à ce stade.
             </div>
           )}
         </div>
@@ -331,10 +339,18 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null }
         {step > 0 && step < 5 && <button className="btn ghost" type="button" disabled={busy} onClick={() => { setError(""); setStep(step === 4 ? 3 : step - 1); }}>Retour</button>}
         {step < 3 && <button className="btn primary" type="button" disabled={Boolean(stepError)} onClick={() => setStep(step + 1)}>Continuer</button>}
         {step === 3 && <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online} onClick={computePrice}>{busy ? "Calcul de l’itinéraire…" : "Calculer le prix"}</button>}
-        {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && (
+        {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && anonyme && (
+          <button className="btn primary" type="button" disabled={busy || !online} onClick={() => onNeedAccount?.(quote)}>
+            Réserver ce transport
+          </button>
+        )}
+        {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (
           <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription)} onClick={book}>
             {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait" : "Réserver et passer au paiement"}
           </button>
+        )}
+        {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && anonyme && quote.status !== "expired" && (
+          <button className="btn primary" type="button" onClick={() => onNeedAccount?.(quote)}>Créer mon compte et recevoir le prix</button>
         )}
         {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && (
           <button className="btn ghost" type="button" onClick={() => { setQuote(null); setForm(emptyForm()); setStep(0); }}>Nouvelle demande</button>
