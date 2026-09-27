@@ -112,6 +112,7 @@ import AdminMissionPilot, {
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
 // Migration 030-032 : transport à la demande, offres partenaires, abonnement, suivi.
 import OnDemandBooking from "./ondemand/OnDemandBooking";
+import PaiementAFinaliser from "./ondemand/PaiementAFinaliser";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
@@ -4369,6 +4370,14 @@ export default function App() {
       )}
 
       {/* ===================== CLIENT ===================== */}
+      {/* Une course reservee et non payee suit le client sur tous ses ecrans :
+          sans cela, il doit la retrouver dans « Mes commandes » pour payer, et
+          il abandonne. L'ecran de commande porte deja son propre paiement. */}
+      {isClient && activeClientTab !== "ondemand" && (
+        <section className="layout">
+          <PaiementAFinaliser onPaid={() => loadAllData(account, { silent: true })} />
+        </section>
+      )}
       {isClient && (
         <>
           {activeClientTab === "post" && (
