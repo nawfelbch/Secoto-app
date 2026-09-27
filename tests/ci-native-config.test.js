@@ -12,7 +12,10 @@ test("le workflow iOS utilise le projet SPM réel, Node 24 et Xcode 26", async (
   assert.match(yaml, /node:\s+24/);
   assert.match(yaml, /xcode:\s+26\.0/);
   assert.doesNotMatch(yaml, /pod install|--workspace|App\.xcworkspace/);
-  assert.match(yaml, /submit_to_testflight:\s+true/);
+  // La revue bêta ne concerne que les testeurs externes, et Apple n'en accepte
+  // qu'une à la fois par version : la demander automatiquement faisait échouer
+  // la publication d'une build pourtant valide.
+  assert.match(yaml, /submit_to_testflight:\s+false/);
   assert.match(yaml, /VITE_APPLE_PAY_MERCHANT_ID/);
   assert.match(yaml, /merchant\.fr\.secoto\.app/);
 });

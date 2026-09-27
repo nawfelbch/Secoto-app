@@ -15,7 +15,7 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
         APP_STORE_APPLE_ID: "6794878696"
-        IOS_MARKETING_VERSION: "2.1"
+        IOS_MARKETING_VERSION: "1.5"
       node: 24
       xcode: 26.0
     cache:
@@ -270,7 +270,14 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # La build monte sur TestFlight et les testeurs INTERNES l'installent
+        # aussitot : aucune revue n'est requise pour eux. La demande de revue
+        # beta ne sert qu'aux testeurs externes, et Apple n'en accepte qu'une a
+        # la fois par version : une seconde build faisait echouer toute la
+        # publication (422 « Another build is in review »), alors que l'IPA
+        # etait bonne. On la demande donc a la main, quand on ouvre vraiment la
+        # version a des testeurs externes.
+        submit_to_testflight: false
 
   android-secoto:
     name: SECOTO Android — API 36 / Play Internal
