@@ -43,8 +43,20 @@ test("un visiteur compare, il n'aspire pas le barème", () => {
 });
 
 test("un devis sans propriétaire porte toujours un jeton", () => {
-  assert.match(SQL49, /check \(account_id is not null or anon_token is not null\)/);
+  // Pas de contrainte CHECK : PostgreSQL la vérifierait dès l'insertion, avant
+  // que le jeton soit posé — elle refusait tous les devis anonymes (voir 050).
+  assert.doesNotMatch(SQL49, /check \(account_id is not null or anon_token is not null\)/);
   assert.match(SQL49, /create unique index if not exists transport_quotes_anon_token_idx/);
+  const creation = SQL49.slice(SQL49.indexOf("function public.secoto_anon_quote_create"));
+  assert.match(creation, /set anon_token = v_token, anon_ip_hash = p_ip_hash/);
+});
+
+test("le correctif 050 retire la contrainte et accepte les villes courtes", () => {
+  const sql50 = readFileSync(new URL("../supabase/migrations/202609270050_correctifs_devis_sans_compte.sql", import.meta.url), "utf8");
+  assert.match(sql50, /drop constraint if exists transport_quotes_anon_check/);
+  // « Nice », « Lyon », « Caen » font quatre lettres.
+  assert.match(sql50, /not between 2 and 300/);
+  assert.match(sql50, /devis_orphelins_sans_jeton/);
 });
 
 test("le rattachement efface le jeton et refuse une date dépassée", () => {
@@ -81,4 +93,29 @@ test("la page d'accueil affiche le prix, pas un bouton d'inscription", () => {
   const landing = APP.slice(APP.indexOf("function PublicLanding"), APP.indexOf("function PasswordRecoveryScreen"));
   assert.match(landing, /<OnDemandBooking\s+anonyme/);
   assert.doesNotMatch(landing, /Obtenir mon prix et payer/);
+});
+
+// ---------------------------------------------------------------------------
+// Reprise du devis : le client atterrit sur le paiement, pas sur un formulaire.
+// ---------------------------------------------------------------------------
+test("le jeton survit à un changement d'onglet", () => {
+  // La création du compte peut passer par un e-mail de confirmation, donc par
+  // un autre onglet : sessionStorage seul perdait le prix.
+  assert.match(API, /localStorage\.setItem\(CLE_DEVIS_ANONYME, token\)/);
+  assert.match(API, /localStorage\.getItem\(CLE_DEVIS_ANONYME\)/);
+  assert.match(API, /export function forgetAnonQuote/);
+});
+
+test("après le compte, la réservation part toute seule", () => {
+  assert.match(ECRAN, /if \(!reserverAussitot \|\| reservationLancee\.current\) return/);
+  // Une seule fois, et seulement sur un devis réellement tarifé.
+  assert.match(ECRAN, /reservationLancee\.current = true/);
+  assert.match(ECRAN, /\["priced", "manual_priced"\]\.includes\(quote\.status\)\) return/);
+  assert.match(APP, /setReserverAussitot\(\["priced", "manual_priced"\]\.includes\(quote\?\.status\)\)/);
+});
+
+test("les fonctions du parcours identifié restent exportées", () => {
+  for (const nom of ["bookQuote", "myQuotes", "myOrders", "cancelOrder", "cancelPreview"]) {
+    assert.match(API, new RegExp(`export const ${nom}`), `${nom} doit rester exporté`);
+  }
 });

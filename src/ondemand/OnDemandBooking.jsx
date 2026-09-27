@@ -1,5 +1,5 @@
 import { humanizeError } from "../lib/humanError";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
@@ -27,7 +27,7 @@ function todayIso() {
 
 // `anonyme` : le visiteur n'a pas encore de compte. Il obtient son prix, puis
 // crée son compte pour réserver — jamais l'inverse.
-export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null }) {
+export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null, reserverAussitot = false }) {
   const [step, setStep] = useState(initialQuote ? 4 : 0);
   // Repris du site vitrine (?vehicle=…&service=…) : le modele et le mode sont
   // pre-remplis. Les adresses, elles, sont toujours resaisies et verifiees.
@@ -131,6 +131,17 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       setBusy(false);
     }
   }
+
+  // Le client a deja clique « Reserver » avant de creer son compte : on ne le
+  // renvoie pas sur un bouton, on l'emmene directement au paiement.
+  const reservationLancee = useRef(false);
+  useEffect(() => {
+    if (!reserverAussitot || reservationLancee.current) return;
+    if (!quote?.id || !["priced", "manual_priced"].includes(quote.status)) return;
+    reservationLancee.current = true;
+    book();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reserverAussitot, quote?.id, quote?.status]);
 
   async function book() {
     setBusy(true);

@@ -1545,8 +1545,10 @@ export default function App() {
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
   // livree ne peut pas etre payee automatiquement.
   const [versements, setVersements] = useState(null);
-  // Devis etabli avant la creation du compte, repris tel quel juste apres.
+  // Devis etabli avant la creation du compte, repris tel quel juste apres, et
+  // mene directement jusqu'a l'ecran de paiement.
   const [devisRepris, setDevisRepris] = useState(null);
+  const [reserverAussitot, setReserverAussitot] = useState(false);
   const [focusOfferId, setFocusOfferId] = useState(null);
   const [clientTrackingMissionId, setClientTrackingMissionId] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
@@ -1625,8 +1627,9 @@ export default function App() {
     claimAnonQuote(token)
       .then((quote) => {
         setDevisRepris(quote);
+        setReserverAussitot(["priced", "manual_priced"].includes(quote?.status));
         setClientTab("ondemand");
-        setNotice("Votre prix est conservé : il ne reste qu'à réserver.");
+        setNotice("Votre prix est conservé : il ne reste plus qu'à régler.");
       })
       .catch((err) => setError(humanizeError(err, "Votre devis n'a pas pu être repris. Recalculez votre prix, cela prend une minute.")));
   }, [account?.id, account?.role]);
@@ -4521,7 +4524,13 @@ export default function App() {
               <OnDemandBooking
                 flags={flags}
                 initialQuote={devisRepris}
-                onBooked={() => { setDevisRepris(null); setClientTab("orders"); loadAllData(account); }}
+                reserverAussitot={reserverAussitot}
+                onBooked={() => {
+                  setDevisRepris(null);
+                  setReserverAussitot(false);
+                  setClientTab("orders");
+                  loadAllData(account);
+                }}
               />
             </section>
           )}

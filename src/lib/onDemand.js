@@ -145,16 +145,28 @@ const CLE_DEVIS_ANONYME = "secoto:devis-anonyme";
 
 export function rememberAnonQuote(token) {
   if (!token) return;
-  try { sessionStorage.setItem(CLE_DEVIS_ANONYME, token); } catch { /* navigation privée */ }
+  // localStorage et non sessionStorage : la creation du compte peut passer par
+  // un e-mail de confirmation, donc par un autre onglet. Avec sessionStorage,
+  // le client perdait son prix et devait tout resaisir.
+  try { localStorage.setItem(CLE_DEVIS_ANONYME, token); } catch { /* navigation privée */ }
+  try { sessionStorage.setItem(CLE_DEVIS_ANONYME, token); } catch { /* idem */ }
 }
 
 export function takeAnonQuote() {
-  try {
-    const token = sessionStorage.getItem(CLE_DEVIS_ANONYME);
-    if (token) sessionStorage.removeItem(CLE_DEVIS_ANONYME);
-    return token || null;
-  } catch { return null; }
+  let token = null;
+  try { token = localStorage.getItem(CLE_DEVIS_ANONYME); } catch { /* indisponible */ }
+  if (!token) {
+    try { token = sessionStorage.getItem(CLE_DEVIS_ANONYME); } catch { /* indisponible */ }
+  }
+  forgetAnonQuote();
+  return token || null;
 }
+
+export function forgetAnonQuote() {
+  try { localStorage.removeItem(CLE_DEVIS_ANONYME); } catch { /* indisponible */ }
+  try { sessionStorage.removeItem(CLE_DEVIS_ANONYME); } catch { /* indisponible */ }
+}
+
 export const myQuotes = () => rpc("secoto_my_quotes", {});
 export const myOrders = () => rpc("secoto_od_my_orders", {});
 export const bookQuote = (quoteId, useSubscription = false) =>

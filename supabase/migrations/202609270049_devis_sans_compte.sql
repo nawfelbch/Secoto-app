@@ -33,16 +33,9 @@ create unique index if not exists transport_quotes_anon_token_idx
 create index if not exists transport_quotes_anon_ip_idx
   on public.transport_quotes (anon_ip_hash, created_at desc) where anon_ip_hash is not null;
 
--- Un devis sans proprietaire doit porter un jeton, et inversement : pas de
--- ligne orpheline invisible et irrecuperable.
-do $c$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'transport_quotes_anon_check') then
-    alter table public.transport_quotes add constraint transport_quotes_anon_check
-      check (account_id is not null or anon_token is not null);
-  end if;
-end;
-$c$;
+-- Un devis sans proprietaire porte toujours un jeton, pose par la fonction qui
+-- le cree. Ce n'est pas une contrainte CHECK : PostgreSQL la verifierait des
+-- l'insertion, avant que le jeton existe (voir le correctif 050).
 
 -- 2. Le calcul accepte un devis sans compte -----------------------------------
 do $patch$
