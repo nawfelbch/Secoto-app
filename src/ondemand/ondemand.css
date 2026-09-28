@@ -38,6 +38,8 @@ label.od-checks {
 .od-choice label > *, .od-offer-sheet label > * { min-width: 0; }
 .od-price { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 16px; border-radius: var(--radius-md); background: var(--accent-soft); border: 1px solid var(--accent); margin: 12px 0; }
 .od-price strong { font-size: 1.7rem; font-family: var(--font-display); }
+/* Economie de groupage : annoncee en euros, jamais en euros par kilometre. */
+.od-remise { margin: 8px 0 12px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--accent-soft); border: 1px solid var(--accent); }
 .od-lines { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; font-size: .9rem; }
 .od-lines li { display: flex; justify-content: space-between; gap: 12px; color: var(--text-soft); }
 .od-two { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }

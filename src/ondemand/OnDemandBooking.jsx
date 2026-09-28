@@ -15,6 +15,8 @@ const emptyForm = () => ({
   pickup: null,
   delivery: null,
   vehicle: { model: "", class: "voiture", category: "standard", rolling: true, constraints: [], length_m: "", weight_kg: "", notes: "" },
+  // Groupage : jusqu'a deux vehicules de plus sur le meme trajet.
+  extras: [],
   mode: "convoyage",
   schedule: { pickup_date: "", slot: "matin", flexibility_days: 0 },
 });
@@ -92,6 +94,18 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
 
   const subscriptionActive = overview?.subscription?.status === "active";
   const setVehicle = (patch) => setForm((f) => ({ ...f, vehicle: { ...f.vehicle, ...patch } }));
+  const extras = form.extras || [];
+  const setExtra = (i, patch) => setForm((f) => ({
+    ...f,
+    extras: (f.extras || []).map((v, j) => (j === i ? { ...v, ...patch } : v)),
+  }));
+  const addExtra = () => setForm((f) => ({
+    ...f,
+    extras: [...(f.extras || []), { model: "", class: "voiture", category: "standard", rolling: true, constraints: [], notes: "" }],
+  }));
+  const removeExtra = (i) => setForm((f) => ({ ...f, extras: (f.extras || []).filter((_, j) => j !== i) }));
+  // Un seul vehicule non roulant suffit a exclure le convoyage.
+  const toutRoule = form.vehicle.rolling && extras.every((v) => v.rolling);
   const setSchedule = (patch) => setForm((f) => ({ ...f, schedule: { ...f.schedule, ...patch } }));
 
   const stepError = useMemo(() => {
@@ -100,7 +114,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       if (form.pickup.label === form.delivery.label) return "Le départ et l’arrivée sont identiques.";
     }
     if (step === 1 && form.vehicle.model.trim().length < 2) return "Indiquez le modèle du véhicule.";
+    if (step === 1 && (form.extras || []).some((v) => v.model.trim().length < 2)) return "Indiquez le modèle de chaque véhicule.";
     if (step === 2 && form.mode === "convoyage" && !form.vehicle.rolling) return "Un véhicule non roulant se transporte sur plateau.";
+    if (step === 2 && form.mode === "convoyage" && (form.extras || []).some((v) => !v.rolling)) return "Un véhicule non roulant se transporte sur plateau.";
     if (step === 3 && (!form.schedule.pickup_date || form.schedule.pickup_date < todayIso())) return "Choisissez une date de prise en charge à venir.";
     return "";
   }, [step, form]);
@@ -118,6 +134,18 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           length_m: form.vehicle.length_m ? Number(form.vehicle.length_m) : null,
           weight_kg: form.vehicle.weight_kg ? Number(form.vehicle.weight_kg) : null,
         },
+        ...((form.extras || []).length
+          ? {
+              vehicles: [
+                {
+                  ...form.vehicle,
+                  length_m: form.vehicle.length_m ? Number(form.vehicle.length_m) : null,
+                  weight_kg: form.vehicle.weight_kg ? Number(form.vehicle.weight_kg) : null,
+                },
+                ...form.extras,
+              ],
+            }
+          : {}),
         schedule: { ...form.schedule, flexibility_days: Number(form.schedule.flexibility_days) || 0 },
         ...(subscriptionActive && overview?.business?.id ? { business_id: overview.business.id } : {}),
       };
@@ -241,6 +269,51 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           <label className="field field-full"><span>Précisions</span>
             <textarea maxLength={500} rows={2} value={form.vehicle.notes} onChange={(e) => setVehicle({ notes: e.target.value })} placeholder="Accès, horaires du site…" />
           </label>
+
+          {extras.map((v, i) => (
+            <fieldset className="field field-full" key={i}>
+              <span>Véhicule {i + 2}</span>
+              <div className="form-grid">
+                <label className="field"><span>Modèle *</span>
+                  <input value={v.model} maxLength={120} placeholder="Ex. Yamaha MT-07" onChange={(e) => setExtra(i, { model: e.target.value })} />
+                </label>
+                <label className="field"><span>Catégorie</span>
+                  <select value={v.class} onChange={(e) => setExtra(i, { class: e.target.value })}>
+                    {VEHICLE_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </label>
+                <label className="field"><span>Gamme</span>
+                  <select value={v.category} onChange={(e) => setExtra(i, { category: e.target.value })}>
+                    <option value="standard">Standard</option>
+                    <option value="luxury">Prestige / collection</option>
+                  </select>
+                </label>
+                <label className="field"><span>État</span>
+                  <select value={v.rolling ? "roulant" : "non_roulant"} onChange={(e) => setExtra(i, { rolling: e.target.value === "roulant" })}>
+                    <option value="roulant">Roulant</option>
+                    <option value="non_roulant">Non roulant</option>
+                  </select>
+                </label>
+                <label className="field field-full"><span>Précisions</span>
+                  <textarea maxLength={500} rows={2} value={v.notes} onChange={(e) => setExtra(i, { notes: e.target.value })} placeholder="Facultatif" />
+                </label>
+              </div>
+              <button className="btn" type="button" onClick={() => removeExtra(i)}>Retirer ce véhicule</button>
+            </fieldset>
+          ))}
+
+          {extras.length < 2 && (
+            <div className="field field-full">
+              <button className="btn" type="button" onClick={addExtra}>
+                Ajouter un véhicule sur le même trajet
+              </button>
+              <small className="muted">
+                {form.mode === "plateau" || !toutRoule
+                  ? "Plusieurs véhicules sur le même camion : le prix baisse pour chacun d’eux."
+                  : "Jusqu’à 3 véhicules. Sur plateau, le prix baisse pour chacun d’eux."}
+              </small>
+            </div>
+          )}
         </div>
       )}
 
@@ -288,7 +361,18 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <span>Prix total du transport</span>
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
-              <p className="muted">Tout compris, réglé en une seule fois à SECOTO. {TVA_MENTION}</p>
+              <p className="muted">
+                {(quote.vehicles?.length || 1) > 1
+                  ? `${quote.vehicles.length} véhicules sur le même trajet. Tout compris, réglé en une seule fois à SECOTO. `
+                  : "Tout compris, réglé en une seule fois à SECOTO. "}
+                {TVA_MENTION}
+              </p>
+              {quote.group_discount_cents > 0 && quote.vehicles?.length > 1 && (
+                <p className="od-remise">
+                  <strong>Groupage : vous économisez {formatCents(quote.group_discount_cents)}</strong>
+                  {" "}par rapport à {quote.vehicles.length} transports commandés séparément.
+                </p>
+              )}
               {quote.lines?.length > 0 && (
                 <ul className="od-lines">{quote.lines.map((l, i) => <li key={i}><span>{l.label}</span><span>{Number(l.eur).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</span></li>)}</ul>
               )}
