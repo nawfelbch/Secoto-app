@@ -54,7 +54,7 @@ test("une decision se prend en un seul clic", () => {
   assert.match(ECRAN, /Confier à \{s\.employee_name\}/);
   assert.match(ECRAN, /carrierAssignEmployee\(s\.mission_id, s\.employee_id\)/);
   // Designer depuis une mission sans convoyeur : un seul choix dans une liste.
-  assert.match(ECRAN, /Désigner un convoyeur…/);
+  assert.match(ECRAN, /Désigner un chauffeur…/);
 });
 
 test("l'invitation part sans que le convoyeur ait rien a recopier", () => {

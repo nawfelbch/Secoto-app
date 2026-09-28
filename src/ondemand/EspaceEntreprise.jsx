@@ -24,12 +24,12 @@ const euros = (v) =>
 const jour = (d) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }) : "—";
 
-// Le lien d'invitation évite au convoyeur de recopier un code : il clique,
+// Le lien d'invitation évite au chauffeur de recopier un code : il clique,
 // il est dans l'entreprise.
 const lienInvitation = (token) =>
   `${typeof window === "undefined" ? "" : window.location.origin}/?invitation=${encodeURIComponent(token)}`;
 
-// Le convoyeur clique souvent le lien AVANT d'avoir un compte. Le jeton doit
+// Le chauffeur clique souvent le lien AVANT d'avoir un compte. Le jeton doit
 // donc survivre a l'inscription, sinon il se retrouve devant un ecran vide
 // sans savoir quoi faire — la friction qu'on a deja payee cher cote client.
 const CLE_INVITATION = "secoto:carrier-invite";
@@ -58,7 +58,7 @@ function oublierInvitation() {
   try { localStorage.removeItem(CLE_INVITATION); } catch { /* stockage indisponible */ }
 }
 
-// Une societe qui coche « j'emploie des convoyeurs » a l'inscription ne doit
+// Une societe qui coche « j'emploie des chauffeurs » a l'inscription ne doit
 // pas avoir a re-decouvrir cet ecran ni a resaisir son nom : l'intention la
 // suit, exactement comme l'invitation.
 const CLE_CREATION = "secoto:carrier-create";
@@ -152,7 +152,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
       <div className="panel panel-full">
         <h2>Mon entreprise</h2>
         <p className="muted">
-          Si vous employez des convoyeurs, créez votre entreprise : vous acceptez les missions,
+          Si vous employez des chauffeurs, créez votre entreprise : vous acceptez les missions,
           vous désignez qui les exécute, et <strong>SECOTO ne verse qu’à vous</strong>.
           Si vous travaillez seul, vous n’avez rien à faire ici.
         </p>
@@ -216,7 +216,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
       <div className="panel panel-full">
         <h2>{company.name}</h2>
         <p className="muted">
-          Vous êtes convoyeur chez {company.name}. Votre employeur accepte les missions et vous désigne ;
+          Vous êtes chauffeur chez {company.name}. Votre employeur accepte les missions et vous désigne ;
           vous pouvez lui en suggérer depuis l’onglet « Disponibles ».
         </p>
         {error && <div className="alert error">{error}</div>}
@@ -296,14 +296,14 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
 
           {aDesigner.map((m) => (
             <div className="alert" key={m.id}>
-              <strong>{m.from_city} → {m.to_city}</strong> du {jour(m.mission_date)} : aucun convoyeur désigné.
+              <strong>{m.from_city} → {m.to_city}</strong> du {jour(m.mission_date)} : aucun chauffeur désigné.
               <div className="actions-row">
                 <select defaultValue="" disabled={busy}
                   onChange={(e) => e.target.value && agir(
                     () => carrierAssignEmployee(m.id, e.target.value),
-                    "Convoyeur désigné.",
+                    "Chauffeur désigné.",
                   )}>
-                  <option value="">Désigner un convoyeur…</option>
+                  <option value="">Désigner un chauffeur…</option>
                   {membres.map((x) => (
                     <option key={x.account_id} value={x.account_id}>
                       {x.name}{x.missions_en_cours ? ` (${x.missions_en_cours} en cours)` : ""}
@@ -319,7 +319,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
       {/* 2. L'équipe */}
       <h3>Mon équipe</h3>
       <p className="muted">
-        Un convoyeur voit ses missions et peut vous en suggérer. Il ne voit aucun montant,
+        Un chauffeur voit ses missions et peut vous en suggérer. Il ne voit aucun montant,
         et <strong>aucun paiement ne peut lui être versé</strong> : SECOTO ne verse qu’à l’entreprise.
       </p>
 
@@ -327,7 +327,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
         {membres.map((x) => (
           <li key={x.account_id}>
             <span>
-              <strong>{x.name}</strong> · {x.role === "owner" ? "Gérant" : "Convoyeur"}
+              <strong>{x.name}</strong> · {x.role === "owner" ? "Gérant" : "Chauffeur"}
               {x.account_id === company.payout_account_id ? " · reçoit les versements" : ""}
               {x.missions_en_cours ? ` · ${x.missions_en_cours} mission(s) en cours` : ""}
             </span>
@@ -335,9 +335,9 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
               <button className="btn ghost small" type="button" disabled={busy}
                 onClick={() => agir(
                   () => carrierSetRole(x.account_id, x.role === "owner" ? "member" : "owner"),
-                  x.role === "owner" ? "Passé convoyeur." : "Passé gérant.",
+                  x.role === "owner" ? "Passé chauffeur." : "Passé gérant.",
                 )}>
-                {x.role === "owner" ? "Passer convoyeur" : "Passer gérant"}
+                {x.role === "owner" ? "Passer chauffeur" : "Passer gérant"}
               </button>
               {x.role === "owner" && x.account_id !== company.payout_account_id && (
                 <button className="btn ghost small" type="button" disabled={busy}
@@ -350,7 +350,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
               )}
               {x.role !== "owner" && (
                 <button className="btn ghost small" type="button" disabled={busy}
-                  onClick={() => agir(() => carrierRemoveMember(x.account_id), "Convoyeur retiré.")}>
+                  onClick={() => agir(() => carrierRemoveMember(x.account_id), "Chauffeur retiré.")}>
                   Retirer
                 </button>
               )}
@@ -359,7 +359,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
         ))}
       </ul>
 
-      <h3>Inviter un convoyeur</h3>
+      <h3>Inviter un chauffeur</h3>
       <div className="actions-row">
         <input type="email" value={email} placeholder="son.email@exemple.fr" onChange={(e) => setEmail(e.target.value)} />
         <button className="btn primary small" type="button" disabled={busy || !email.includes("@")}
@@ -431,7 +431,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
         <button className="btn ghost small" type="button" disabled={busy}
           onClick={() => {
             if (!window.confirm(
-              `Fermer ${company.name} ? Les convoyeurs redeviendront indépendants. `
+              `Fermer ${company.name} ? Les chauffeurs redeviendront indépendants. `
               + "Les missions déjà livrées restent rattachées à l’entreprise, votre comptabilité est conservée.",
             )) return;
             agir(() => carrierDissolve(), "Entreprise fermée.");
@@ -450,7 +450,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
                 <span>
                   <strong>{m.from_city} → {m.to_city}</strong> · {m.vehicle} · {jour(m.mission_date)}
                   {m.employee_id
-                    ? ` · ${membres.find((x) => x.account_id === m.employee_id)?.name || "convoyeur désigné"}`
+                    ? ` · ${membres.find((x) => x.account_id === m.employee_id)?.name || "chauffeur désigné"}`
                     : " · à désigner"}
                 </span>
                 <span>{euros(m.carrier_pay)}</span>

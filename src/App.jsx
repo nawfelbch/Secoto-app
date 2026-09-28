@@ -1099,7 +1099,8 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       receives_standard_plateau: receivesStandardPlateau,
       luxury_closed_transport_requested: luxuryClosedTransportRequested,
     });
-    if (effectiveRole === "transporter" && emploieDesConvoyeurs) {
+    if (effectiveRole === "transporter" && emploieDesConvoyeurs
+        && ["vl", "pl"].includes(transporterType)) {
       memoriserCreationEntreprise(companyName);
     }
     const { data, error } = await supabase.auth.signUp({
@@ -1266,20 +1267,24 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
                     ))}
                   </div>
 
-                  <label className="preference-card" style={{ marginTop: 12 }}>
-                    <input
-                      type="checkbox"
-                      checked={emploieDesConvoyeurs}
-                      onChange={(event) => setEmploieDesConvoyeurs(event.target.checked)}
-                    />
-                    <span>
-                      <strong>J’emploie des convoyeurs</strong>
-                      <small>
-                        Votre entreprise sera créée avec votre compte. Vous inviterez vos convoyeurs,
-                        vous accepterez les missions, et SECOTO ne versera qu’à l’entreprise.
-                      </small>
-                    </span>
-                  </label>
+                  {/* Le modele employeur ne vaut que pour le transport sur plateau :
+                      un convoyeur conduit lui-meme le vehicule, il n'a pas d'equipe. */}
+                  {["vl", "pl"].includes(transporterType) && (
+                    <label className="preference-card" style={{ marginTop: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={emploieDesConvoyeurs}
+                        onChange={(event) => setEmploieDesConvoyeurs(event.target.checked)}
+                      />
+                      <span>
+                        <strong>J’emploie des chauffeurs</strong>
+                        <small>
+                          Votre entreprise sera créée avec votre compte. Vous inviterez vos chauffeurs,
+                          vous accepterez les missions, et SECOTO ne versera qu’à l’entreprise.
+                        </small>
+                      </span>
+                    </label>
+                  )}
 
                   {["vl", "pl"].includes(transporterType) && (
                     <div className="transporter-capabilities">

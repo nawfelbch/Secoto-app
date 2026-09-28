@@ -32,10 +32,13 @@ test("mais accepter une mission reste verrouille", () => {
   assert.match(SQL, /Le verrou sur l''acceptation des missions a disparu/);
 });
 
-test("l'inscription propose l'entreprise", () => {
-  assert.match(APP, /J’emploie des convoyeurs/);
+test("l'inscription propose l'entreprise, aux seules entreprises de plateau", () => {
+  // Un convoyeur conduit lui-meme le vehicule : il n'a pas d'equipe. Le modele
+  // employeur ne vaut que pour le transport sur plateau, VL ou PL.
+  assert.match(APP, /J’emploie des chauffeurs/);
+  assert.match(APP, /\{\["vl", "pl"\]\.includes\(transporterType\) && \(\s*<label className="preference-card"/);
   assert.match(APP, /memoriserCreationEntreprise\(companyName\);/);
-  assert.match(APP, /effectiveRole === "transporter" && emploieDesConvoyeurs/);
+  assert.match(APP, /effectiveRole === "transporter" && emploieDesConvoyeurs\s*\n?\s*&& \["vl", "pl"\]\.includes\(transporterType\)/);
 });
 
 test("l'intention survit a l'inscription et ouvre l'ecran", () => {
