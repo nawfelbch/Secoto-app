@@ -26,8 +26,13 @@ const jour = (d) =>
 
 // Le lien d'invitation évite au chauffeur de recopier un code : il clique,
 // il est dans l'entreprise.
+//
+// L'adresse est FIXE, jamais window.location.origin : dans l'app iOS, l'origine
+// vaut capacitor://localhost, et un SMS parti de là n'est cliquable par
+// personne. Même convention que les autres liens partagés de l'application.
+const WEB_APP_URL = "https://app.secoto-transport.fr";
 const lienInvitation = (token) =>
-  `${typeof window === "undefined" ? "" : window.location.origin}/?invitation=${encodeURIComponent(token)}`;
+  `${WEB_APP_URL}/?invitation=${encodeURIComponent(token)}`;
 
 // Le chauffeur clique souvent le lien AVANT d'avoir un compte. Le jeton doit
 // donc survivre a l'inscription, sinon il se retrouve devant un ecran vide
@@ -174,8 +179,19 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
           <label className="field"><span>Nom de l’entreprise *</span>
             <input value={nom} maxLength={160} placeholder="Ex. Bad Motors" onChange={(e) => setNom(e.target.value)} />
           </label>
-          <label className="field"><span>SIREN</span>
-            <input value={siren} inputMode="numeric" placeholder="Facultatif" onChange={(e) => setSiren(e.target.value)} />
+          <label className="field"><span>SIREN ou SIRET</span>
+            <input
+              value={siren}
+              inputMode="numeric"
+              maxLength={14}
+              placeholder="Facultatif — 9 ou 14 chiffres"
+              onChange={(e) => setSiren(e.target.value.replace(/\D/g, "").slice(0, 14))}
+            />
+            {siren.length > 0 && siren.length !== 9 && siren.length !== 14 && (
+              <small className="muted">
+                {siren.length} chiffre{siren.length > 1 ? "s" : ""} : il en faut 9 (SIREN) ou 14 (SIRET).
+              </small>
+            )}
           </label>
         </div>
         <div className="actions-row">
@@ -390,7 +406,7 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
                   {copie === i.id ? "Lien copié" : "Copier le lien"}
                 </button>
                 <a className="btn ghost small" href={`sms:?&body=${encodeURIComponent(
-                  `Rejoignez ${company.name} sur SECOTO : ${lienInvitation(i.token)}`)}`}>
+                  `Rejoignez l’équipe ${company.name} sur SECOTO : ${lienInvitation(i.token)}`)}`}>
                   Envoyer par SMS
                 </a>
               </span>
