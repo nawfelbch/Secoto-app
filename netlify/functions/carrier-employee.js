@@ -32,6 +32,31 @@ const handler = async (event) => {
   if (!ownerId) return json(401, { error: "unauthenticated" });
 
   const body = parseBody(event) || {};
+
+  // Retrait d'un chauffeur. Les règles restent en base : le serveur n'est là
+  // que pour supprimer, le cas échéant, un compte que la base déclare
+  // supprimable — créé par l'entreprise et jamais ouvert par son titulaire.
+  if (body.action === "remove") {
+    const accountId = String(body.account_id || "");
+    if (!accountId) return json(400, { error: "compte_manquant" });
+
+    const asOwnerR = userClient(token);
+    const { data: retrait, error: retraitErr } =
+      await asOwnerR.rpc("secoto_carrier_remove_member", { p_account_id: accountId });
+    if (retraitErr) return json(400, { error: "retrait_refuse", detail: retraitErr.message });
+
+    if (!retrait?.compte_supprimable) return json(200, { removed: true, compte_supprime: false });
+
+    // Dernière vérification côté authentification : un compte déjà ouvert une
+    // fois appartient à son titulaire, il n'est jamais supprimé.
+    const adminR = serviceClient();
+    const { data: u } = await adminR.auth.admin.getUserById(accountId).catch(() => ({ data: null }));
+    if (u?.user?.last_sign_in_at) return json(200, { removed: true, compte_supprime: false });
+
+    const { error: delErr } = await adminR.auth.admin.deleteUser(accountId);
+    return json(200, { removed: true, compte_supprime: !delErr });
+  }
+
   const email = String(body.email || "").trim().toLowerCase();
   const nom = String(body.full_name || "").trim().slice(0, 160);
   const telephone = String(body.phone || "").trim().slice(0, 40);

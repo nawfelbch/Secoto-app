@@ -3,7 +3,8 @@ import { humanizeError } from "../lib/humanError";
 import {
   carrierAcceptInvite, carrierAssignEmployee, carrierCreate, carrierCreateEmployee,
   carrierDissolve, carrierInvite, carrierLeave, carrierOverview,
-  carrierRemoveMember, carrierSetPayoutAccount, carrierSetRole,
+  carrierRemoveEmployee, carrierRevokeInvitation, carrierSetPayoutAccount,
+  carrierSetRole,
 } from "../lib/onDemand";
 
 // Espace entreprise de transport.
@@ -370,7 +371,17 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
               )}
               {x.role !== "owner" && (
                 <button className="btn ghost small" type="button" disabled={busy}
-                  onClick={() => agir(() => carrierRemoveMember(x.account_id), "Chauffeur retiré.")}>
+                  onClick={() => {
+                    if (!window.confirm(
+                      `Retirer ${x.name} de ${company.name} ?`
+                      + " Il redeviendra transporteur indépendant."
+                      + " S’il n’a jamais ouvert son compte, celui-ci sera supprimé.",
+                    )) return;
+                    agir(async () => {
+                      const r = await carrierRemoveEmployee(x.account_id);
+                      return r;
+                    }, "Chauffeur retiré.");
+                  }}>
                   Retirer
                 </button>
               )}
@@ -457,6 +468,11 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
       )}
 
       {(vue.invitations || []).length > 0 && (
+        <>
+        <p className="muted">
+          Invitations en attente. Tant qu’elles ne sont pas annulées, le lien déjà envoyé
+          reste valable.
+        </p>
         <ul className="od-lines">
           {(vue.invitations || []).map((i) => (
             <li key={i.id}>
@@ -475,10 +491,20 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
                   `Rejoignez l’équipe ${company.name} sur SECOTO : ${lienInvitation(i.token)}`)}`}>
                   Envoyer par SMS
                 </a>
+                <button className="btn ghost small" type="button" disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm(
+                      `Annuler l’invitation de ${i.email} ? Le lien déjà envoyé cessera de fonctionner.`,
+                    )) return;
+                    agir(() => carrierRevokeInvitation(i.id), "Invitation annulée.");
+                  }}>
+                  Annuler
+                </button>
               </span>
             </li>
           ))}
         </ul>
+        </>
       )}
 
       {/* 3. L'argent */}

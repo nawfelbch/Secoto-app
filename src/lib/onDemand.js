@@ -203,6 +203,12 @@ export const carrierLeave = () => rpc("secoto_carrier_leave", {});
 export const carrierCreateEmployee = ({ email, fullName, phone }) =>
   callFunction("carrier-employee", { email, full_name: fullName, phone: phone || "" });
 export const passwordChanged = () => rpc("secoto_password_changed", {});
+// Retirer un chauffeur passe par le serveur : lui seul peut supprimer un
+// compte cree par erreur et jamais ouvert. Les regles restent en base.
+export const carrierRemoveEmployee = (accountId) =>
+  callFunction("carrier-employee", { action: "remove", account_id: accountId });
+export const carrierRevokeInvitation = (invitationId) =>
+  rpc("secoto_carrier_revoke_invitation", { p_invitation_id: invitationId });
 export const carrierDissolve = () => rpc("secoto_carrier_dissolve", {});
 export const updateDispatchPreferences = (payload) => rpc("secoto_update_dispatch_preferences", { p_payload: payload });
 export const myOffers = () => rpc("secoto_my_offers", {});
