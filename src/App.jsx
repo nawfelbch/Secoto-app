@@ -104,6 +104,7 @@ import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
 import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
+import EspaceEntreprise, { memoriserInvitation } from "./ondemand/EspaceEntreprise";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
   AssignmentPanel,
@@ -119,7 +120,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { acceptMission, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -1506,6 +1507,9 @@ export default function App() {
   // Candidature dont le panneau d'attribution (tarif + marge) est ouvert.
   const [openAssignApplicationId, setOpenAssignApplicationId] = useState(null);
   const [transporterTab, setTransporterTab] = useState("available");
+  // Entreprise de transport du compte, s'il en a une. Sert a ne jamais
+  // proposer a un employe une action que la base lui refusera.
+  const [entreprise, setEntreprise] = useState(null);
   const [clientTab, setClientTab] = useState("post");
   const [transporterFilter, setTransporterFilter] = useState("all");
   // Mission dont le paiement de commission est en cours (parcours plateau).
@@ -1649,6 +1653,38 @@ export default function App() {
       .catch(() => { if (vivant) setVersements(null); });
     return () => { vivant = false; };
   }, [account?.id, account?.role, flags.connect_payouts]);
+
+  // Un lien d'invitation est memorise des l'arrivee, meme sans compte, et
+  // ouvre directement l'espace entreprise une fois connecte.
+  useEffect(() => {
+    if (memoriserInvitation() && account?.role === "transporter") {
+      setTransporterTab("entreprise");
+    }
+  }, [account?.role]);
+
+  // Entreprise de transport du compte. Relue a chaque ouverture : un gerant a
+  // pu inviter le convoyeur depuis un autre appareil.
+  useEffect(() => {
+    if (!account?.id || account.role !== "transporter") {
+      setEntreprise(null);
+      return;
+    }
+    let vivant = true;
+    carrierOverview()
+      .then((v) => { if (vivant) setEntreprise(v || null); })
+      .catch(() => { if (vivant) setEntreprise(null); });
+    return () => { vivant = false; };
+  }, [account?.id, account?.role]);
+
+  // Un convoyeur salarie ne peut pas accepter de mission : la base le refuse.
+  // L'ecran ne doit donc jamais lui proposer de candidater — il suggere.
+  const estConvoyeurSalarie = entreprise?.company?.role === "member";
+  const estGerant = entreprise?.company?.role === "owner";
+  const decisionsEntreprise = estGerant
+    ? (entreprise?.suggestions?.length || 0)
+      + (entreprise?.missions || []).filter(
+        (m) => !m.employee_id && !["completed", "cancelled"].includes(m.status)).length
+    : 0;
 
   // « actif » = Stripe accepte de verser. Tout le reste doit etre signale.
   const versementsAConfigurer = Boolean(flags.connect_payouts)
@@ -4125,7 +4161,10 @@ export default function App() {
         ] },
         { title: "Compte", items: [
           ...(account.role === "transporter"
-            ? [{ key: "bank", label: "Coordonnées bancaires", icon: "bank" }]
+            ? [
+              { key: "bank", label: "Coordonnées bancaires", icon: "bank" },
+              { key: "entreprise", label: "Mon entreprise", icon: "users", count: decisionsEntreprise || undefined },
+            ]
             : []),
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
           { key: "notifications", label: "Notifications", icon: "settings" },
@@ -4925,7 +4964,32 @@ export default function App() {
                       <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                       <PublicMissionInfo mission={mission} />
                       <div className="private-locked">Détails client, immatriculation et consignes visibles uniquement après attribution par SECOTO.</div>
-                      {!isAdmin && flags?.direct_accept && (
+                      {!isAdmin && estConvoyeurSalarie && (
+                        <>
+                          <p className="muted">
+                            Chez {entreprise?.company?.name}, c’est votre employeur qui accepte les missions.
+                            Signalez-lui celle-ci : il la verra dans son espace entreprise.
+                          </p>
+                          <div className="actions-row">
+                            <button
+                              className="btn primary small"
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={async () => {
+                                try {
+                                  await carrierSuggest(mission.id);
+                                  setNotice("Mission signalée à votre employeur.");
+                                } catch (e) {
+                                  setError(humanizeError(e));
+                                }
+                              }}
+                            >
+                              Proposer à mon employeur
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {!isAdmin && !estConvoyeurSalarie && flags?.direct_accept && (
                         <>
                           {/* Rémunération fixée par SECOTO et affichée telle quelle.
                               Le transporteur accepte ou refuse : rien d'autre. */}
@@ -4954,7 +5018,7 @@ export default function App() {
                           </div>
                         </>
                       )}
-                      {!isAdmin && !flags?.direct_accept && (
+                      {!isAdmin && !estConvoyeurSalarie && !flags?.direct_accept && (
                         <>
                           {/* Seule formulation autorisée envers le transporteur.
                               Ne JAMAIS écrire qu'il doit « répercuter les 20 %
@@ -5149,6 +5213,14 @@ export default function App() {
             <section className="layout">
               <ConnectPayoutsPanel />
               <BankAccountPanel account={account} />
+            </section>
+          )}
+
+          {transporterTab === "entreprise" && !isAdmin && (
+            <section className="layout">
+              <EspaceEntreprise onChange={() => {
+                carrierOverview().then(setEntreprise).catch(() => {});
+              }} />
             </section>
           )}
 

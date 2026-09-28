@@ -176,6 +176,25 @@ export const cancelPreview = (orderId) => rpc("secoto_od_cancel_quote_preview", 
 
 // ---- Partenaire ------------------------------------------------------------
 export const myDispatchPreferences = () => rpc("secoto_my_dispatch_preferences", {});
+
+// ---------------------------------------------------------------------------
+// Espace entreprise de transport
+// Les versements vont a l'entreprise, jamais a un employe : la base l'impose,
+// ces appels ne font que l'exposer.
+// ---------------------------------------------------------------------------
+export const carrierOverview = () => rpc("secoto_carrier_overview", {});
+export const carrierCreate = (name, siren) =>
+  rpc("secoto_carrier_create", { p_name: name, p_siren: siren || null });
+export const carrierInvite = (email) => rpc("secoto_carrier_invite", { p_email: email });
+export const carrierAcceptInvite = (token) => rpc("secoto_carrier_accept_invite", { p_token: token });
+export const carrierSetRole = (accountId, role) =>
+  rpc("secoto_carrier_set_role", { p_account_id: accountId, p_role: role });
+export const carrierRemoveMember = (accountId) =>
+  rpc("secoto_carrier_remove_member", { p_account_id: accountId });
+export const carrierSuggest = (missionId, note) =>
+  rpc("secoto_carrier_suggest", { p_mission_id: missionId, p_note: note || null });
+export const carrierAssignEmployee = (missionId, accountId) =>
+  rpc("secoto_carrier_assign_employee", { p_mission_id: missionId, p_account_id: accountId || null });
 export const updateDispatchPreferences = (payload) => rpc("secoto_update_dispatch_preferences", { p_payload: payload });
 export const myOffers = () => rpc("secoto_my_offers", {});
 export const getOffer = (offerId) => rpc("secoto_offer_get", { p_offer_id: offerId });
