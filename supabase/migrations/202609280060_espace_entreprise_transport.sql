@@ -569,6 +569,37 @@ end
 $droits$;
 
 -- 12. La vue transporteur : l'employe voit sa mission, jamais les montants ----
+-- create or replace view n'accepte ni de renommer, ni de reordonner, ni de
+-- retirer une colonne : on ne peut qu'en ajouter a la fin. Si la vue deployee
+-- n'est pas celle attendue, mieux vaut un message clair qu'une erreur Postgres
+-- au milieu de la migration.
+do $verif_vue$
+declare
+  v_deployee text;
+  v_attendue text :=
+    'id,public_ref,type,status,progress_status,from_city,to_city,pickup_address,'
+    'delivery_address,mission_date,vehicle,plate,distance_km,carrier_cost,carrier_pay,'
+    'client_name,client_contact,client_phone,payment_method,notes,'
+    'assigned_transporter_id,assigned_transporter_name,created_at,vehicle_category,'
+    'payment_status,cancelled_at,cancellation_reason,capacity_units,window_start,'
+    'window_end,carrier_company_id,carrier_employee_id,groupage_order_id,groupage_rank';
+begin
+  select string_agg(column_name, ',' order by ordinal_position) into v_deployee
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'secoto_missions_transporter_v2';
+
+  if v_deployee is null then
+    raise exception 'La vue secoto_missions_transporter_v2 est absente : appliquez d''abord la migration 009.';
+  end if;
+
+  -- La vue deployee doit etre le debut exact de la vue attendue : on n'ajoute
+  -- que des colonnes, jamais on n'en deplace.
+  if position(v_deployee in v_attendue) <> 1 then
+    raise exception 'La vue transporteur deployee ne correspond pas a celle attendue. Deployee : %', v_deployee;
+  end if;
+end
+$verif_vue$;
+
 create or replace view public.secoto_missions_transporter_v2
 with (security_barrier = true, security_invoker = false)
 as
