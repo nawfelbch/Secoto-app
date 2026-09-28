@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { humanizeError } from "../lib/humanError";
 import {
-  carrierAcceptInvite, carrierAssignEmployee, carrierCreate, carrierInvite,
-  carrierOverview, carrierRemoveMember, carrierSetRole,
+  carrierAcceptInvite, carrierAssignEmployee, carrierCreate, carrierDissolve,
+  carrierInvite, carrierLeave, carrierOverview, carrierRemoveMember,
+  carrierSetPayoutAccount, carrierSetRole,
 } from "../lib/onDemand";
 
 // Espace entreprise de transport.
@@ -197,6 +198,19 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
               ))}
             </ul>
           )}
+
+        <hr />
+        <p className="muted">
+          Si vous ne travaillez plus pour {company.name}, vous pouvez quitter l’entreprise.
+          Vous redeviendrez transporteur indépendant. Vos missions en cours doivent d’abord
+          être terminées ou réaffectées.
+        </p>
+        <div className="actions-row">
+          <button className="btn ghost small" type="button" disabled={busy}
+            onClick={() => agir(() => carrierLeave(), "Vous avez quitté l’entreprise.")}>
+            Quitter l’entreprise
+          </button>
+        </div>
       </div>
     );
   }
@@ -290,6 +304,15 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
                 )}>
                 {x.role === "owner" ? "Passer convoyeur" : "Passer gérant"}
               </button>
+              {x.role === "owner" && x.account_id !== company.payout_account_id && (
+                <button className="btn ghost small" type="button" disabled={busy}
+                  onClick={() => agir(
+                    () => carrierSetPayoutAccount(x.account_id),
+                    `Les versements iront désormais à ${x.name}.`,
+                  )}>
+                  Lui confier les versements
+                </button>
+              )}
               {x.role !== "owner" && (
                 <button className="btn ghost small" type="button" disabled={busy}
                   onClick={() => agir(() => carrierRemoveMember(x.account_id), "Convoyeur retiré.")}>
@@ -358,6 +381,29 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
       <p className="muted">
         Chaque paiement est déclenché sous 48 h après la livraison, sur le compte de versement de l’entreprise.
       </p>
+
+      <h3>Quitter ou fermer l’entreprise</h3>
+      <p className="muted">
+        Vous pouvez partir si vous n’êtes pas le seul gérant, si vous ne recevez pas les
+        versements et si aucune mission ne vous est confiée. Sinon, confiez d’abord les
+        versements à un autre gérant.
+      </p>
+      <div className="actions-row">
+        <button className="btn ghost small" type="button" disabled={busy}
+          onClick={() => agir(() => carrierLeave(), "Vous avez quitté l’entreprise.")}>
+          Quitter l’entreprise
+        </button>
+        <button className="btn ghost small" type="button" disabled={busy}
+          onClick={() => {
+            if (!window.confirm(
+              `Fermer ${company.name} ? Les convoyeurs redeviendront indépendants. `
+              + "Les missions déjà livrées restent rattachées à l’entreprise, votre comptabilité est conservée.",
+            )) return;
+            agir(() => carrierDissolve(), "Entreprise fermée.");
+          }}>
+          Fermer l’entreprise
+        </button>
+      </div>
 
       <h3>Missions de l’entreprise</h3>
       {missions.length === 0

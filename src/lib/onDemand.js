@@ -195,6 +195,10 @@ export const carrierSuggest = (missionId, note) =>
   rpc("secoto_carrier_suggest", { p_mission_id: missionId, p_note: note || null });
 export const carrierAssignEmployee = (missionId, accountId) =>
   rpc("secoto_carrier_assign_employee", { p_mission_id: missionId, p_account_id: accountId || null });
+export const carrierSetPayoutAccount = (accountId) =>
+  rpc("secoto_carrier_set_payout_account", { p_account_id: accountId });
+export const carrierLeave = () => rpc("secoto_carrier_leave", {});
+export const carrierDissolve = () => rpc("secoto_carrier_dissolve", {});
 export const updateDispatchPreferences = (payload) => rpc("secoto_update_dispatch_preferences", { p_payload: payload });
 export const myOffers = () => rpc("secoto_my_offers", {});
 export const getOffer = (offerId) => rpc("secoto_offer_get", { p_offer_id: offerId });
