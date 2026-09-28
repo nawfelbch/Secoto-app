@@ -50,6 +50,13 @@ test("le gerant suit les missions de son equipe sans avoir a les executer", () =
   assert.match(APP, /Confiées à mon équipe/);
 });
 
+test("les missions deja confiees sont rendues a leur chauffeur", () => {
+  // Sans reprise, une mission confiee sous l'ancien modele resterait invisible
+  // pour celui qui doit la faire.
+  assert.match(SQL, /set assigned_transporter_id = m\.carrier_employee_id,/);
+  assert.match(SQL, /Des missions restent attribuees a un autre que leur chauffeur designe/);
+});
+
 test("la direction voit a quelle entreprise un transporteur est rattache", () => {
   assert.match(SQL, /create or replace function public\.secoto_admin_carrier_members\(/);
   assert.match(APP, /rattachements\[transporter\.id\]\.role === "owner" \? "Gérant de " : "Chauffeur chez "/);

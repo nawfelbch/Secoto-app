@@ -348,6 +348,33 @@ $f$;
 revoke all on function public.secoto_admin_carrier_members() from public, anon;
 grant execute on function public.secoto_admin_carrier_members() to authenticated;
 
+-- 7 ter. Reprise des missions deja confiees ----------------------------------
+-- Une mission confiee sous l'ancien modele porte encore le gerant comme
+-- titulaire : son chauffeur ne la verrait toujours pas. On la lui rend.
+do $reprise$
+declare v_n integer;
+begin
+  -- Le drapeau autorise cette reattribution, exactement comme une designation.
+  perform set_config('secoto.designation', 'on', true);
+
+  update public.missions m
+     set assigned_transporter_id = m.carrier_employee_id,
+         assigned_transporter_name = (
+           select coalesce(a.company_name, a.full_name)
+           from public.accounts a where a.id = m.carrier_employee_id)
+   where m.carrier_employee_id is not null
+     and m.assigned_transporter_id is distinct from m.carrier_employee_id
+     and m.status::text not in ('completed', 'cancelled');
+
+  get diagnostics v_n = row_count;
+  if v_n > 0 then
+    raise notice 'Missions rendues a leur chauffeur : %', v_n;
+  else
+    raise notice 'Aucune mission a reprendre.';
+  end if;
+end
+$reprise$;
+
 -- 8. Controles bloquants -------------------------------------------------------
 do $controles$
 declare v_src text;
@@ -382,6 +409,17 @@ begin
 
   if has_table_privilege('anon', 'public.secoto_missions_transporter_v2', 'SELECT') then
     raise exception 'La vue transporteur est lisible par anon';
+  end if;
+
+  -- Plus aucune mission en cours ne doit rester au nom d'un autre que son
+  -- executant designe.
+  if exists (
+    select 1 from public.missions m
+    where m.carrier_employee_id is not null
+      and m.assigned_transporter_id is distinct from m.carrier_employee_id
+      and m.status::text not in ('completed', 'cancelled'))
+  then
+    raise exception 'Des missions restent attribuees a un autre que leur chauffeur designe';
   end if;
 
   if to_regprocedure('public.secoto_admin_carrier_members()') is null then
