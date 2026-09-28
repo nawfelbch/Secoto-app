@@ -58,6 +58,28 @@ function oublierInvitation() {
   try { localStorage.removeItem(CLE_INVITATION); } catch { /* stockage indisponible */ }
 }
 
+// Une societe qui coche « j'emploie des convoyeurs » a l'inscription ne doit
+// pas avoir a re-decouvrir cet ecran ni a resaisir son nom : l'intention la
+// suit, exactement comme l'invitation.
+const CLE_CREATION = "secoto:carrier-create";
+
+export function memoriserCreationEntreprise(nom) {
+  try { localStorage.setItem(CLE_CREATION, String(nom || "").slice(0, 160)); } catch { /* ignore */ }
+}
+
+function creationEnAttente() {
+  try { return localStorage.getItem(CLE_CREATION) || ""; } catch { return ""; }
+}
+
+function oublierCreation() {
+  try { localStorage.removeItem(CLE_CREATION); } catch { /* ignore */ }
+}
+
+// L'espace entreprise s'ouvre tout seul si l'un ou l'autre est en attente.
+export function ouvertureEntrepriseDemandee() {
+  return Boolean(memoriserInvitation() || creationEnAttente());
+}
+
 export default function EspaceEntreprise({ onChange, versements = null, onOuvrirVersements = null }) {
   const [vue, setVue] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +104,11 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
 
   // Invitation reçue par lien : le champ est déjà rempli, il ne reste qu'à
   // confirmer. C'est la friction qu'on supprime en priorité.
-  useEffect(() => { setJeton(invitationEnAttente()); }, []);
+  useEffect(() => {
+    setJeton(invitationEnAttente());
+    const attendu = creationEnAttente();
+    if (attendu) setNom((n) => n || attendu);
+  }, []);
 
   async function agir(action, message) {
     setBusy(true);
@@ -137,6 +163,12 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
             Une invitation vous attend. Cliquez sur <strong>Rejoindre</strong>, plus bas : rien d’autre à faire.
           </div>
         )}
+        {!jeton && creationEnAttente() && (
+          <div className="alert">
+            Votre nom d’entreprise est déjà rempli. Cliquez sur <strong>Créer mon entreprise</strong> :
+            c’est la dernière étape.
+          </div>
+        )}
 
         <div className="form-grid">
           <label className="field"><span>Nom de l’entreprise *</span>
@@ -148,7 +180,10 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
         </div>
         <div className="actions-row">
           <button className="btn primary" type="button" disabled={busy || nom.trim().length < 2}
-            onClick={() => agir(() => carrierCreate(nom.trim(), siren.trim()), "Entreprise créée.")}>
+            onClick={async () => {
+              const r = await agir(() => carrierCreate(nom.trim(), siren.trim()), "Entreprise créée.");
+              if (r) oublierCreation();
+            }}>
             Créer mon entreprise
           </button>
         </div>

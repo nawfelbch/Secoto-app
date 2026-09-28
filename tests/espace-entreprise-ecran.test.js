@@ -40,7 +40,7 @@ test("une invitation survit a l'inscription et ouvre le bon ecran", () => {
   assert.match(ECRAN, /localStorage\.setItem\(CLE_INVITATION, t\)/);
   assert.match(ECRAN, /localStorage\.getItem\(CLE_INVITATION\)/);
   assert.match(ECRAN, /function oublierInvitation/);
-  assert.match(APP, /if \(memoriserInvitation\(\) && account\?\.role === "transporter"\) \{\s*setTransporterTab\("entreprise"\);/);
+  assert.match(APP, /if \(ouvertureEntrepriseDemandee\(\) && account\?\.role === "transporter"\) \{\s*setTransporterTab\("entreprise"\);/);
 });
 
 test("le gerant sait qu'on l'attend sans ouvrir l'ecran", () => {

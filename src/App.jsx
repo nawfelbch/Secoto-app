@@ -104,7 +104,7 @@ import MyDocumentsPanel from "./MyDocumentsPanel";
 import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
 import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
-import EspaceEntreprise, { memoriserInvitation } from "./ondemand/EspaceEntreprise";
+import EspaceEntreprise, { memoriserCreationEntreprise, ouvertureEntrepriseDemandee } from "./ondemand/EspaceEntreprise";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
   AssignmentPanel,
@@ -1010,6 +1010,9 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
 
 
   const [transporterType, setTransporterType] = useState("convoyeur");
+  // Une societe de transport doit pouvoir se declarer des l'inscription, sans
+  // avoir a decouvrir l'espace entreprise apres coup.
+  const [emploieDesConvoyeurs, setEmploieDesConvoyeurs] = useState(false);
   const [receivesStandardPlateau, setReceivesStandardPlateau] = useState(true);
   const [luxuryClosedTransportRequested, setLuxuryClosedTransportRequested] = useState(false);
   const [clientType, setClientType] = useState("particulier");
@@ -1096,6 +1099,9 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       receives_standard_plateau: receivesStandardPlateau,
       luxury_closed_transport_requested: luxuryClosedTransportRequested,
     });
+    if (effectiveRole === "transporter" && emploieDesConvoyeurs) {
+      memoriserCreationEntreprise(companyName);
+    }
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
@@ -1259,6 +1265,21 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
                       </button>
                     ))}
                   </div>
+
+                  <label className="preference-card" style={{ marginTop: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={emploieDesConvoyeurs}
+                      onChange={(event) => setEmploieDesConvoyeurs(event.target.checked)}
+                    />
+                    <span>
+                      <strong>J’emploie des convoyeurs</strong>
+                      <small>
+                        Votre entreprise sera créée avec votre compte. Vous inviterez vos convoyeurs,
+                        vous accepterez les missions, et SECOTO ne versera qu’à l’entreprise.
+                      </small>
+                    </span>
+                  </label>
 
                   {["vl", "pl"].includes(transporterType) && (
                     <div className="transporter-capabilities">
@@ -1654,10 +1675,10 @@ export default function App() {
     return () => { vivant = false; };
   }, [account?.id, account?.role, flags.connect_payouts]);
 
-  // Un lien d'invitation est memorise des l'arrivee, meme sans compte, et
-  // ouvre directement l'espace entreprise une fois connecte.
+  // Un lien d'invitation, ou une inscription qui a coche « j'emploie des
+  // convoyeurs », ouvre directement l'espace entreprise une fois connecte.
   useEffect(() => {
-    if (memoriserInvitation() && account?.role === "transporter") {
+    if (ouvertureEntrepriseDemandee() && account?.role === "transporter") {
       setTransporterTab("entreprise");
     }
   }, [account?.role]);
