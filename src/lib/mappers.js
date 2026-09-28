@@ -126,6 +126,10 @@ export function missionFromDb(row) {
     clientAccountId: row.client_account_id || null,
     assignedTransporterId: row.assigned_transporter_id,
     assignedTransporterName: row.assigned_transporter_name,
+    // Mission portee par une entreprise de transport : l'entreprise encaisse,
+    // le chauffeur designe execute.
+    carrierCompanyId: row.carrier_company_id || null,
+    carrierEmployeeId: row.carrier_employee_id || null,
     sourceRequestId: row.source_request_id,
     createdAt: row.created_at,
   };

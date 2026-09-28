@@ -121,7 +121,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { acceptMission, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -230,6 +230,8 @@ const MISSION_TRANSPORTER_COLUMNS = [
   // Jamais client_price, margin, commission_amount ni client_total_due ici :
   // le transporteur ne voit que sa propre rémunération.
   "payment_status", "cancelled_at", "cancellation_reason",
+  // Entreprise de transport : qui encaisse, et qui execute.
+  "carrier_company_id", "carrier_employee_id",
 ].join(",");
 const PUBLIC_MISSION_BASE_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -1537,6 +1539,9 @@ export default function App() {
   // Entreprise de transport du compte, s'il en a une. Sert a ne jamais
   // proposer a un employe une action que la base lui refusera.
   const [entreprise, setEntreprise] = useState(null);
+  // Direction : rattachements des transporteurs a leur entreprise, pour savoir
+  // d'un coup d'oeil a qui SECOTO verse.
+  const [rattachements, setRattachements] = useState({});
   const [clientTab, setClientTab] = useState("post");
   const [transporterFilter, setTransporterFilter] = useState("all");
   // Mission dont le paiement de commission est en cours (parcours plateau).
@@ -1688,6 +1693,23 @@ export default function App() {
       setTransporterTab("entreprise");
     }
   }, [account?.role]);
+
+  useEffect(() => {
+    if (account?.role !== "admin") {
+      setRattachements({});
+      return;
+    }
+    let vivant = true;
+    adminCarrierMembers()
+      .then((lignes) => {
+        if (!vivant) return;
+        const index = {};
+        for (const l of lignes || []) index[l.account_id] = l;
+        setRattachements(index);
+      })
+      .catch(() => { if (vivant) setRattachements({}); });
+    return () => { vivant = false; };
+  }, [account?.id, account?.role]);
 
   // Entreprise de transport du compte. Relue a chaque ouverture : un gerant a
   // pu inviter le convoyeur depuis un autre appareil.
@@ -2423,6 +2445,16 @@ export default function App() {
   const assignedToCurrentTransporter = useMemo(
     () => missions.filter((m) => m.assignedTransporterId === account?.id && ["assigned", "completed"].includes(m.status)),
     [missions, account?.id]
+  );
+  // Missions de l'entreprise confiees a quelqu'un d'autre : le gerant les suit,
+  // il n'a ni etat des lieux ni photo a faire dessus.
+  const missionsSuiviesEntreprise = useMemo(
+    () => missions.filter(
+      (m) => m.carrierCompanyId
+        && m.assignedTransporterId !== account?.id
+        && ["assigned", "completed"].includes(m.status),
+    ),
+    [missions, account?.id],
   );
   const currentTransporterApplications = useMemo(
     () => applications.filter((a) => a.transporterId === account?.id),
@@ -4853,6 +4885,15 @@ export default function App() {
                         </div>
                         <h3>{transporter.fullName || "Transporteur sans nom"}</h3>
                         <div style={{ margin: "6px 0 4px" }}><TransporterTypeBadge type={transporter.transporterType} /></div>
+                        {rattachements[transporter.id] && (
+                          <p className="muted" style={{ margin: "0 0 6px" }}>
+                            {rattachements[transporter.id].role === "owner" ? "Gérant de " : "Chauffeur chez "}
+                            <strong>{rattachements[transporter.id].company_name}</strong>
+                            {rattachements[transporter.id].recoit_les_versements
+                              ? " · reçoit les versements"
+                              : " · versements à l’entreprise"}
+                          </p>
+                        )}
                         <div className="card-section">
                           <p><strong>Société :</strong> {transporter.companyName || "Non renseignée"}</p>
                           <p><strong>Email :</strong> {transporter.email || "Non renseigné"}</p>
@@ -5121,7 +5162,27 @@ export default function App() {
               <div className="panel panel-full">
                 <h2>Mes missions attribuées</h2>
                 {isAdmin && <p className="muted">Prévisualisation admin.</p>}
-                {!isAdmin && assignedToCurrentTransporter.length === 0 && <p className="muted">Aucune mission attribuée.</p>}
+                {!isAdmin && missionsSuiviesEntreprise.length > 0 && (
+                  <div className="applications-box">
+                    <h4>Confiées à mon équipe</h4>
+                    <ul className="od-lines">
+                      {missionsSuiviesEntreprise.map((mission) => (
+                        <li key={mission.id}>
+                          <span>
+                            <strong>{mission.fromCity} → {mission.toCity}</strong>
+                            {mission.assignedTransporterName ? ` · ${mission.assignedTransporterName}` : ""}
+                          </span>
+                          <span className={`status status-${mission.status}`}>
+                            {labelProgress(mission.progressStatus) || labelStatus(mission.status)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {!isAdmin && assignedToCurrentTransporter.length === 0
+                  && missionsSuiviesEntreprise.length === 0
+                  && <p className="muted">Aucune mission attribuée.</p>}
                 {!isAdmin && assignedToCurrentTransporter.length > 0 && (() => {
                   const activeMissions = assignedToCurrentTransporter.filter((m) => !isMissionDeliveryValidated(m));
                   const deliveredMissions = assignedToCurrentTransporter.filter((m) => isMissionDeliveryValidated(m));

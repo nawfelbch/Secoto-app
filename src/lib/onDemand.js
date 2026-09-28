@@ -209,6 +209,8 @@ export const carrierRemoveEmployee = (accountId) =>
   callFunction("carrier-employee", { action: "remove", account_id: accountId });
 export const carrierRevokeInvitation = (invitationId) =>
   rpc("secoto_carrier_revoke_invitation", { p_invitation_id: invitationId });
+// Direction : qui appartient a quelle entreprise de transport.
+export const adminCarrierMembers = () => rpc("secoto_admin_carrier_members", {});
 export const carrierDissolve = () => rpc("secoto_carrier_dissolve", {});
 export const updateDispatchPreferences = (payload) => rpc("secoto_update_dispatch_preferences", { p_payload: payload });
 export const myOffers = () => rpc("secoto_my_offers", {});
