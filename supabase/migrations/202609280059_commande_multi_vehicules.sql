@@ -75,31 +75,27 @@ begin
 
   v_new := v_src;
 
-  -- 2.a Variables de travail.
-  if secoto_private.compter_occurrences(v_new, '  v_constraint text;') <> 1 then
-    raise exception 'Ancre des declarations absente ou ambigue dans secoto_quote_create.';
+  -- 2.a La liste des vehicules est constituee dans les DECLARATIONS.
+  --     La version precedente inserait du code juste apres « begin », en
+  --     supposant que v_constraint etait la derniere declaration. Ce n'est pas
+  --     vrai de la fonction telle qu'elle est deployee : les migrations 049 et
+  --     050 l'ont modifiee depuis. On s'appuie desormais sur la seule ligne
+  --     dont on est certain, celle qui declare le vehicule, et rien n'est
+  --     insere dans le corps.
+  if secoto_private.compter_occurrences(v_new, '  v_vehicle jsonb := p_payload -> ''vehicle'';') <> 1 then
+    -- Le debut reel de la fonction est joint au message : en cas d'echec, il
+    -- dit immediatement a quoi ressemble la version deployee.
+    raise exception 'Ancre du vehicule absente ou ambigue dans secoto_quote_create. Debut reel : %',
+      left(v_new, 1200);
   end if;
   v_new := replace(v_new,
-    '  v_constraint text;',
-    '  v_constraint text;' || chr(10) ||
-    '  v_vehicles jsonb;' || chr(10) ||
-    '  v_vehicule_i jsonb;');
-
-  -- 2.b Constitution de la liste, juste apres begin. L'ancre est la
-  --     declaration qu'on vient d'inserer : elle ne peut exister qu'une fois.
-  if secoto_private.compter_occurrences(v_new, '  v_vehicule_i jsonb;' || chr(10) || 'begin') <> 1 then
-    raise exception 'Ancre begin absente ou ambigue dans secoto_quote_create.';
-  end if;
-  v_bloc :=
-    '  v_vehicule_i jsonb;' || chr(10) || 'begin' || chr(10) ||
-    '  v_vehicles := case' || chr(10) ||
-    '    when jsonb_typeof(p_payload -> ''vehicles'') = ''array'' then p_payload -> ''vehicles''' || chr(10) ||
-    '    else jsonb_build_array(v_vehicle) end;' || chr(10) ||
-    '  if jsonb_array_length(v_vehicles) not between 1 and 3 then' || chr(10) ||
-    '    raise exception ''Indiquez de 1 a 3 vehicules.'';' || chr(10) ||
-    '  end if;' || chr(10) ||
-    '  v_vehicle := v_vehicles -> 0;';
-  v_new := replace(v_new, '  v_vehicule_i jsonb;' || chr(10) || 'begin', v_bloc);
+    '  v_vehicle jsonb := p_payload -> ''vehicle'';',
+    '  v_vehicles jsonb := case' || chr(10) ||
+    '    when jsonb_typeof(p_payload -> ''vehicles'') = ''array''' || chr(10) ||
+    '      then p_payload -> ''vehicles''' || chr(10) ||
+    '    else jsonb_build_array(p_payload -> ''vehicle'') end;' || chr(10) ||
+    '  v_vehicule_i jsonb;' || chr(10) ||
+    '  v_vehicle jsonb := v_vehicles -> 0;');
 
   -- 2.c Verification des vehicules supplementaires, avant le controle des notes
   --     du premier (qui sert d'ancre).
@@ -108,6 +104,9 @@ begin
   end if;
   v_new := replace(v_new,
     'if length(coalesce(v_vehicle ->> ''notes'', '''')) > 500 then',
+    '  if jsonb_array_length(v_vehicles) not between 1 and 3 then' || chr(10) ||
+    '    raise exception ''Indiquez de 1 a 3 vehicules.'';' || chr(10) ||
+    '  end if;' || chr(10) ||
     '  for v_vehicule_i in select value from jsonb_array_elements(v_vehicles) offset 1 loop' || chr(10) ||
     '    if jsonb_typeof(v_vehicule_i) <> ''object''' || chr(10) ||
     '       or length(btrim(coalesce(v_vehicule_i ->> ''model'', ''''))) not between 2 and 120 then' || chr(10) ||
@@ -319,7 +318,7 @@ begin
   if position('price_group_with_grid' in v_src) = 0 then
     raise exception 'secoto_quote_create ne tarife pas la liste de vehicules';
   end if;
-  if position('v_vehicle := v_vehicles -> 0;' in v_src) = 0 then
+  if position('v_vehicle jsonb := v_vehicles -> 0;' in v_src) = 0 then
     raise exception 'secoto_quote_create ne constitue pas la liste de vehicules';
   end if;
 

@@ -44,8 +44,23 @@ test("une mission soeur nait publiee puis attribuee, comme la premiere", () => {
 });
 
 test("le parcours a un seul vehicule est inchange", () => {
-  assert.match(SQL, /else jsonb_build_array\(v_vehicle\) end;/);
+  // Sans liste dans la charge utile, v_vehicles ne contient que le vehicule
+  // unique : la fonction suit exactement le meme chemin qu'avant.
+  assert.match(SQL, /else jsonb_build_array\(p_payload -> ''vehicle''\) end;/);
   assert.match(SQL, /jsonb_array_length\(v_vehicles\) not between 1 and 3/);
+});
+
+test("rien n'est insere apres begin : la liste nait dans les declarations", () => {
+  // L'ancre « begin » supposait que v_constraint fermait les declarations, ce
+  // qui n'est vrai que de la version d'origine. On s'appuie desormais sur la
+  // ligne qui declare le vehicule, et le corps n'est plus touche a cet endroit.
+  assert.doesNotMatch(SQL, /Ancre begin/);
+  assert.match(SQL, /'  v_vehicle jsonb := p_payload -> ''vehicle'';'/);
+  assert.match(SQL, /'  v_vehicle jsonb := v_vehicles -> 0;'/);
+});
+
+test("un echec d'ancre dit a quoi ressemble la fonction deployee", () => {
+  assert.match(SQL, /Debut reel : %',\s*\n?\s*left\(v_new, 1200\)/);
 });
 
 test("les devis deja enregistres sont repris", () => {
