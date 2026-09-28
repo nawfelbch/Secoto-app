@@ -344,7 +344,9 @@ begin
   select pg_get_functiondef(p.oid) into v_src
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'secoto_carrier_accept_invite';
-  if position('Cette entreprise n''existe plus.' in v_src) = 0 then
+  -- Le motif ne doit contenir aucune apostrophe : la source deployee les
+  -- stocke doublees, et la comparaison ne correspondrait jamais.
+  if position('and b.archived_at is null)' in v_src) = 0 then
     raise exception 'Une invitation d''entreprise dissoute reste acceptable';
   end if;
 
