@@ -600,34 +600,59 @@ begin
 end
 $verif_vue$;
 
-create or replace view public.secoto_missions_transporter_v2
-with (security_barrier = true, security_invoker = false)
-as
-select
-  m.id, m.public_ref, m.type, m.status, m.progress_status,
-  m.from_city, m.to_city, m.pickup_address, m.delivery_address,
-  m.mission_date, m.vehicle, m.plate, m.distance_km,
-  -- Le beneficiaire et les gerants voient la remuneration. L'employe designe,
-  -- jamais : il execute, il n'encaisse pas.
-  case when m.assigned_transporter_id = auth.uid()
-         or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid())
-       then m.carrier_cost end as carrier_cost,
-  case when m.assigned_transporter_id = auth.uid()
-         or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid())
-       then m.carrier_pay end as carrier_pay,
-  m.client_name, m.client_contact, m.client_phone,
-  m.payment_method, m.notes,
-  m.assigned_transporter_id, m.assigned_transporter_name, m.created_at,
-  m.vehicle_category,
-  m.payment_status,
-  m.cancelled_at, m.cancellation_reason,
-  m.capacity_units, m.window_start, m.window_end,
-  m.carrier_company_id, m.carrier_employee_id,
-  m.groupage_order_id, m.groupage_rank
-from public.missions m
-where m.assigned_transporter_id = auth.uid()
-   or m.carrier_employee_id = auth.uid()
-   or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid());
+-- Le masquage des montants passe par un CASE, qui perd la precision du type :
+-- numeric(12,2) deviendrait numeric, et Postgres refuse tout changement de type
+-- sur une vue remplacee. On relit donc le type reel des deux colonnes dans le
+-- catalogue et on recaste a l'identique — quel que soit ce type.
+do $vue$
+declare
+  v_type_cost text;
+  v_type_pay  text;
+begin
+  select format_type(a.atttypid, a.atttypmod) into v_type_cost
+  from pg_attribute a
+  where a.attrelid = 'public.missions'::regclass and a.attname = 'carrier_cost';
+
+  select format_type(a.atttypid, a.atttypmod) into v_type_pay
+  from pg_attribute a
+  where a.attrelid = 'public.missions'::regclass and a.attname = 'carrier_pay';
+
+  if v_type_cost is null or v_type_pay is null then
+    raise exception 'Colonnes de remuneration introuvables sur public.missions';
+  end if;
+
+  execute format($vue_sql$
+    create or replace view public.secoto_missions_transporter_v2
+    with (security_barrier = true, security_invoker = false)
+    as
+    select
+      m.id, m.public_ref, m.type, m.status, m.progress_status,
+      m.from_city, m.to_city, m.pickup_address, m.delivery_address,
+      m.mission_date, m.vehicle, m.plate, m.distance_km,
+      (case when m.assigned_transporter_id = auth.uid()
+              or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid())
+            then m.carrier_cost end)::%s as carrier_cost,
+      (case when m.assigned_transporter_id = auth.uid()
+              or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid())
+            then m.carrier_pay end)::%s as carrier_pay,
+      m.client_name, m.client_contact, m.client_phone,
+      m.payment_method, m.notes,
+      m.assigned_transporter_id, m.assigned_transporter_name, m.created_at,
+      m.vehicle_category,
+      m.payment_status,
+      m.cancelled_at, m.cancellation_reason,
+      m.capacity_units, m.window_start, m.window_end,
+      m.carrier_company_id, m.carrier_employee_id,
+      m.groupage_order_id, m.groupage_rank
+    from public.missions m
+    where m.assigned_transporter_id = auth.uid()
+       or m.carrier_employee_id = auth.uid()
+       or secoto_private.is_carrier_owner(m.carrier_company_id, auth.uid())
+  $vue_sql$, v_type_cost, v_type_pay);
+
+  raise notice 'Vue transporteur remplacee (montants en %, %)', v_type_cost, v_type_pay;
+end
+$vue$;
 
 revoke all on table public.secoto_missions_transporter_v2 from public, anon;
 grant select on table public.secoto_missions_transporter_v2 to authenticated;

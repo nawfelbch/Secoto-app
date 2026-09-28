@@ -44,14 +44,22 @@ test("regle 2 — seul un gerant accepte une mission", () => {
 test("regle 3 — un employe ne voit aucun montant", () => {
   const vue = SQL.slice(SQL.indexOf("create or replace view public.secoto_missions_transporter_v2"));
   for (const colonne of ["carrier_cost", "carrier_pay"]) {
+    // Le type reel de la colonne est relu dans le catalogue puis recaste :
+    // sans cela, le CASE perdrait numeric(12,2) et Postgres refuserait la vue.
     const re = new RegExp(
-      `case when m\\.assigned_transporter_id = auth\\.uid\\(\\)[\\s\\S]{0,200}?then m\\.${colonne} end as ${colonne}`,
+      `case when m\\.assigned_transporter_id = auth\\.uid\\(\\)[\\s\\S]{0,200}?then m\\.${colonne} end\\)::%s as ${colonne}`,
     );
     assert.match(vue, re, `${colonne} doit etre masquee a l'employe`);
   }
   // Le tableau de l'employe ne renvoie ni prix client ni remuneration.
   const employe = SQL.slice(SQL.indexOf("-- Employe : sa societe"), SQL.indexOf("return jsonb_build_object(\n    'company', jsonb_build_object(\n      'id', v_b.id, 'name', v_b.name, 'siren'"));
   assert.doesNotMatch(employe, /carrier_pay|client_price|carrier_cost/);
+});
+
+test("la vue garde le type exact des colonnes de remuneration", () => {
+  assert.match(SQL, /format_type\(a\.atttypid, a\.atttypmod\) into v_type_cost/);
+  assert.match(SQL, /format_type\(a\.atttypid, a\.atttypmod\) into v_type_pay/);
+  assert.match(SQL, /Colonnes de remuneration introuvables sur public\.missions/);
 });
 
 test("regle 4 — plusieurs gerants, et jamais zero", () => {
