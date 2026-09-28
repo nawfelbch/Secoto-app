@@ -45,6 +45,15 @@ comment on column public.missions.groupage_order_id is
   'commandes ensemble. Null pour une mission simple.';
 
 -- 2. Devis : accepter une liste de vehicules ----------------------------------
+-- Une ancre doit apparaitre EXACTEMENT une fois : zero, et le patch serait
+-- silencieusement ignore ; deux, et replace() modifierait un endroit imprevu.
+create or replace function secoto_private.compter_occurrences(p_texte text, p_ancre text)
+returns integer language sql immutable set search_path = ''
+as $f$
+  select case when coalesce(p_ancre, '') = '' then 0
+         else (length(p_texte) - length(replace(p_texte, p_ancre, ''))) / length(p_ancre) end;
+$f$;
+
 do $patch_quote_create$
 declare
   v_src  text;
@@ -67,8 +76,8 @@ begin
   v_new := v_src;
 
   -- 2.a Variables de travail.
-  if position('  v_constraint text;' in v_new) = 0 then
-    raise exception 'Ancre des declarations introuvable dans secoto_quote_create.';
+  if secoto_private.compter_occurrences(v_new, '  v_constraint text;') <> 1 then
+    raise exception 'Ancre des declarations absente ou ambigue dans secoto_quote_create.';
   end if;
   v_new := replace(v_new,
     '  v_constraint text;',
@@ -76,12 +85,13 @@ begin
     '  v_vehicles jsonb;' || chr(10) ||
     '  v_vehicule_i jsonb;');
 
-  -- 2.b Constitution de la liste, juste apres begin.
-  if position('begin' in v_new) = 0 then
-    raise exception 'Ancre begin introuvable dans secoto_quote_create.';
+  -- 2.b Constitution de la liste, juste apres begin. L'ancre est la
+  --     declaration qu'on vient d'inserer : elle ne peut exister qu'une fois.
+  if secoto_private.compter_occurrences(v_new, '  v_vehicule_i jsonb;' || chr(10) || 'begin') <> 1 then
+    raise exception 'Ancre begin absente ou ambigue dans secoto_quote_create.';
   end if;
   v_bloc :=
-    'begin' || chr(10) ||
+    '  v_vehicule_i jsonb;' || chr(10) || 'begin' || chr(10) ||
     '  v_vehicles := case' || chr(10) ||
     '    when jsonb_typeof(p_payload -> ''vehicles'') = ''array'' then p_payload -> ''vehicles''' || chr(10) ||
     '    else jsonb_build_array(v_vehicle) end;' || chr(10) ||
@@ -89,12 +99,12 @@ begin
     '    raise exception ''Indiquez de 1 a 3 vehicules.'';' || chr(10) ||
     '  end if;' || chr(10) ||
     '  v_vehicle := v_vehicles -> 0;';
-  v_new := regexp_replace(v_new, '\mbegin\M', v_bloc, '');
+  v_new := replace(v_new, '  v_vehicule_i jsonb;' || chr(10) || 'begin', v_bloc);
 
   -- 2.c Verification des vehicules supplementaires, avant le controle des notes
   --     du premier (qui sert d'ancre).
-  if position('if length(coalesce(v_vehicle ->> ''notes'', '''')) > 500 then' in v_new) = 0 then
-    raise exception 'Ancre de verification des vehicules introuvable dans secoto_quote_create.';
+  if secoto_private.compter_occurrences(v_new, 'if length(coalesce(v_vehicle ->> ''notes'', '''')) > 500 then') <> 1 then
+    raise exception 'Ancre de verification des vehicules absente ou ambigue dans secoto_quote_create.';
   end if;
   v_new := replace(v_new,
     'if length(coalesce(v_vehicle ->> ''notes'', '''')) > 500 then',
@@ -122,17 +132,17 @@ begin
     '  if length(coalesce(v_vehicle ->> ''notes'', '''')) > 500 then');
 
   -- 2.d Tarification groupee.
-  if position('v_price := secoto_private.price_with_grid(v_mode, v_grid.params, v_distance, v_vehicle,' in v_new) = 0 then
-    raise exception 'Ancre de tarification introuvable dans secoto_quote_create.';
+  if secoto_private.compter_occurrences(v_new, 'v_price := secoto_private.price_with_grid(v_mode, v_grid.params, v_distance, v_vehicle,') <> 1 then
+    raise exception 'Ancre de tarification absente ou ambigue dans secoto_quote_create.';
   end if;
   v_new := replace(v_new,
     'v_price := secoto_private.price_with_grid(v_mode, v_grid.params, v_distance, v_vehicle,',
     'v_price := secoto_private.price_group_with_grid(v_mode, v_grid.params, v_distance, v_vehicles,');
 
   -- 2.e Enregistrement de la liste et de la remise.
-  if position('vehicle, schedule, route,' in v_new) = 0
-     or position('v_pickup, v_delivery, v_vehicle, v_schedule,' in v_new) = 0 then
-    raise exception 'Ancre d''insertion introuvable dans secoto_quote_create.';
+  if secoto_private.compter_occurrences(v_new, 'vehicle, schedule, route,') <> 1
+     or secoto_private.compter_occurrences(v_new, 'v_pickup, v_delivery, v_vehicle, v_schedule,') <> 1 then
+    raise exception 'Ancre d''insertion absente ou ambigue dans secoto_quote_create.';
   end if;
   v_new := replace(v_new,
     'vehicle, schedule, route,',
@@ -143,8 +153,8 @@ begin
     'coalesce((v_price ->> ''remise_groupage_cents'')::int, 0), v_schedule,');
 
   -- 2.f Detail par vehicule dans le recapitulatif.
-  if position('''excluded'', v_price -> ''excluded'')' in v_new) = 0 then
-    raise exception 'Ancre du recapitulatif introuvable dans secoto_quote_create.';
+  if secoto_private.compter_occurrences(v_new, '''excluded'', v_price -> ''excluded'')') <> 1 then
+    raise exception 'Ancre du recapitulatif absente ou ambigue dans secoto_quote_create.';
   end if;
   v_new := replace(v_new,
     '''excluded'', v_price -> ''excluded'')',
@@ -178,8 +188,8 @@ begin
 
   v_new := v_src;
 
-  if position('  v_mission public.missions%rowtype;' in v_new) = 0 then
-    raise exception 'Ancre des declarations introuvable dans od_confirm.';
+  if secoto_private.compter_occurrences(v_new, '  v_mission public.missions%rowtype;') <> 1 then
+    raise exception 'Ancre des declarations absente ou ambigue dans od_confirm.';
   end if;
   v_new := replace(v_new,
     '  v_mission public.missions%rowtype;',
@@ -188,8 +198,8 @@ begin
     '  v_veh jsonb;' || chr(10) ||
     '  v_ligne jsonb;');
 
-  if position('  returning * into v_mission;' in v_new) = 0 then
-    raise exception 'Ancre de creation de mission introuvable dans od_confirm.';
+  if secoto_private.compter_occurrences(v_new, '  returning * into v_mission;') <> 1 then
+    raise exception 'Ancre de creation de mission absente ou ambigue dans od_confirm.';
   end if;
   v_new := replace(v_new,
     '  returning * into v_mission;',
@@ -239,6 +249,15 @@ begin
     '           assigned_transporter_id = v_partner.id,' || chr(10) ||
     '           assigned_transporter_name = coalesce(v_partner.company_name, v_partner.full_name)' || chr(10) ||
     '     where groupage_order_id = v_order.id and groupage_rank > 0;' || chr(10) ||
+    chr(10) ||
+    '    update public.missions' || chr(10) ||
+    '       set manual_carrier_pay = (v_order.partner_pay_cents - coalesce((' || chr(10) ||
+    '             select sum(round(s.manual_carrier_pay * 100))::int from public.missions s' || chr(10) ||
+    '              where s.groupage_order_id = v_order.id and s.groupage_rank > 0), 0)) / 100.0,' || chr(10) ||
+    '           manual_margin = (v_order.client_price_cents - v_order.partner_pay_cents' || chr(10) ||
+    '             - coalesce((select sum(round(s.manual_margin * 100))::int from public.missions s' || chr(10) ||
+    '                 where s.groupage_order_id = v_order.id and s.groupage_rank > 0), 0)) / 100.0' || chr(10) ||
+    '     where id = v_mission.id;' || chr(10) ||
     '  end if;');
 
   execute v_new;
@@ -268,6 +287,8 @@ as $f$
     'valid_until', q.valid_until, 'pickup_at', q.pickup_at,
     'business_id', q.business_id, 'created_at', q.created_at);
 $f$;
+
+drop function if exists secoto_private.compter_occurrences(text, text);
 
 -- 4. Controles bloquants ------------------------------------------------------
 do $controles$
@@ -307,6 +328,9 @@ begin
   where n.nspname = 'secoto_private' and p.proname = 'od_confirm';
   if position('groupage_order_id = v_order.id and groupage_rank > 0' in v_src) = 0 then
     raise exception 'od_confirm n''attribue pas les missions soeurs';
+  end if;
+  if position('set manual_carrier_pay = (v_order.partner_pay_cents - coalesce((' in v_src) = 0 then
+    raise exception 'od_confirm ne partage pas la remuneration entre les missions d''une meme commande';
   end if;
 
   select pg_get_functiondef(p.oid) into v_src

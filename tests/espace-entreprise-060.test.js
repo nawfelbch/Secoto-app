@@ -18,6 +18,22 @@ test("regle 1 — le versement ne peut aller qu'a l'entreprise", () => {
   assert.match(SQL, /new\.assigned_transporter_id := v_payout;/);
 });
 
+test("regle 1 bis — l'indemnite d'annulation aussi va a l'entreprise", () => {
+  // Elle ne lit pas la mission mais transport_orders.assigned_partner_id :
+  // sans ce second verrou elle serait versee au gerant a titre personnel.
+  assert.match(SQL, /create trigger trg_secoto_carrier_payee_order\s+before insert or update of assigned_partner_id on public\.transport_orders/);
+  assert.match(SQL, /new\.assigned_partner_id := v_payout;/);
+  assert.match(SQL, /Le declencheur qui protege l''indemnite d''annulation n''est pas pose/);
+});
+
+test("cloisonnement — une societe cliente n'est pas une entreprise de transport", () => {
+  // is_business_member sert tout le parcours client. Sans filtre sur kind, un
+  // gerant presenterait son entreprise de transport comme societe cliente.
+  assert.match(SQL, /create or replace function secoto_private\.is_business_member\(/);
+  assert.match(SQL, /and b\.kind = 'client'\);/);
+  assert.match(SQL, /Des devis sont rattaches a une entreprise qui n''est pas une societe cliente/);
+});
+
 test("regle 2 — seul un gerant accepte une mission", () => {
   assert.match(SQL, /if v_role <> 'owner' then/);
   assert.match(SQL, /Seul un gerant peut accepter une mission pour son entreprise\./);

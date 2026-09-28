@@ -62,6 +62,7 @@ declare
   v_reduction    integer;
   v_groupe       boolean;
   v_detail       jsonb := '[]'::jsonb;
+  v_lignes       jsonb := '[]'::jsonb;
 begin
   if jsonb_typeof(p_vehicles) <> 'array' then
     return jsonb_build_object('manual_reason', 'liste_vehicules_invalide');
@@ -126,6 +127,12 @@ begin
     v_partner := v_partner + (v_unitaire ->> 'partner_cents')::integer;
     v_remise  := v_remise  + v_reduction;
 
+    v_lignes := v_lignes || jsonb_build_object(
+      'label', format('Vehicule %s%s', v_rang,
+        case when coalesce(v_vehicule ->> 'model', '') = '' then ''
+             else ' - ' || left(v_vehicule ->> 'model', 60) end),
+      'eur', round((v_unitaire ->> 'client_cents')::integer / 100.0, 2));
+
     v_detail := v_detail || jsonb_build_object(
       'rang',          v_rang,
       'class',         v_classe,
@@ -135,6 +142,12 @@ begin
       'capped',        coalesce((v_unitaire ->> 'capped')::boolean, false),
       'lines',         v_unitaire -> 'lines');
   end loop;
+
+  if v_remise > 0 then
+    v_lignes := v_lignes || jsonb_build_object(
+      'label', format('Remise groupage (%s vehicules)', v_nb),
+      'eur', -round(v_remise / 100.0, 2));
+  end if;
 
   -- Garde-fou absolu : une commande ne peut jamais couter plus qu'elle ne
   -- rapporte, quelle que soit la grille en vigueur.
@@ -150,6 +163,7 @@ begin
     'collect_cents',          v_client,
     'transport_direct_cents', 0,
     'remise_groupage_cents',  v_remise,
+    'lines',                  v_lignes,
     'capped',                 exists (
       select 1 from jsonb_array_elements(v_detail) d
       where coalesce((d.value ->> 'capped')::boolean, false)),
@@ -217,6 +231,17 @@ begin
   end if;
   if (v_r ->> 'remise_groupage_cents')::int <> 8000 then
     raise exception '2 voitures 500 km : remise % (attendu 8000)', v_r ->> 'remise_groupage_cents';
+  end if;
+
+  -- 2 bis. Le detail de facturation existe et retombe sur le total : sans lui,
+  --        le client ne verrait plus le detail de son prix.
+  if jsonb_array_length(coalesce(v_r -> 'lines', '[]'::jsonb)) <> 3 then
+    raise exception '2 voitures : % lignes de detail (attendu 3 : deux vehicules et la remise)',
+      jsonb_array_length(coalesce(v_r -> 'lines', '[]'::jsonb));
+  end if;
+  if (select round(sum((l.value ->> 'eur')::numeric), 2)
+        from jsonb_array_elements(v_r -> 'lines') l) <> 1120.00 then
+    raise exception 'Le detail de facturation ne retombe pas sur le total de 1120 EUR';
   end if;
 
   -- 3. Trois voitures, 500 km : 1 680 / 1 500.

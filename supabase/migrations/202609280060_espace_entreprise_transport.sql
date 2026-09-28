@@ -112,6 +112,22 @@ as $f$
       and bm.role = 'owner' and b.kind = 'transporteur');
 $f$;
 
+-- 4 bis. CLOISONNEMENT : une societe cliente n'est pas une societe de transport
+-- is_business_member sert partout au parcours CLIENT (devis, commandes,
+-- abonnements, documents de la societe). Sans filtre sur kind, un gerant
+-- pourrait presenter son entreprise de transport comme la societe cliente d'un
+-- devis. Les deux mondes sont desormais separes : le client passe par
+-- is_business_member, le transporteur par carrier_of et is_carrier_owner.
+create or replace function secoto_private.is_business_member(p_business_id uuid, p_account uuid default auth.uid())
+returns boolean language sql stable security definer set search_path = ''
+as $f$
+  select exists (
+    select 1 from public.business_members bm
+    join public.business_accounts b on b.id = bm.business_id
+    where bm.business_id = p_business_id and bm.account_id = p_account
+      and b.kind = 'client');
+$f$;
+
 -- 5. LA GARANTIE : le versement ne peut aller qu'a l'entreprise ---------------
 create or replace function secoto_private.trg_carrier_payee()
 returns trigger language plpgsql security definer set search_path = ''
@@ -165,6 +181,44 @@ drop trigger if exists trg_secoto_carrier_payee on public.missions;
 create trigger trg_secoto_carrier_payee
   before insert or update of assigned_transporter_id on public.missions
   for each row execute function secoto_private.trg_carrier_payee();
+
+-- 5 bis. Le meme verrou sur les commandes ------------------------------------
+-- L'indemnite d'annulation tardive ne lit pas la mission : elle lit
+-- transport_orders.assigned_partner_id. Sans ce second declencheur, elle
+-- aurait ete versee au gerant a titre personnel et non a l'entreprise.
+create or replace function secoto_private.trg_carrier_payee_order()
+returns trigger language plpgsql security definer set search_path = ''
+as $f$
+declare
+  v_payout uuid;
+begin
+  if new.assigned_partner_id is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and new.assigned_partner_id is not distinct from old.assigned_partner_id then
+    return new;
+  end if;
+
+  select b.payout_account_id into v_payout
+  from public.business_members bm
+  join public.business_accounts b on b.id = bm.business_id
+  where bm.account_id = new.assigned_partner_id and b.kind = 'transporteur'
+  order by bm.created_at
+  limit 1;
+
+  if v_payout is not null and v_payout <> new.assigned_partner_id then
+    new.assigned_partner_id := v_payout;
+  end if;
+
+  return new;
+end;
+$f$;
+
+drop trigger if exists trg_secoto_carrier_payee_order on public.transport_orders;
+create trigger trg_secoto_carrier_payee_order
+  before insert or update of assigned_partner_id on public.transport_orders
+  for each row execute function secoto_private.trg_carrier_payee_order();
 
 -- 6. Creer l'entreprise -------------------------------------------------------
 create or replace function public.secoto_carrier_create(p_name text, p_siren text default null)
@@ -579,6 +633,29 @@ begin
   if position('Seul un gerant peut accepter' in v_src) = 0
      or position('new.assigned_transporter_id := v_payout' in v_src) = 0 then
     raise exception 'Le declencheur ne porte pas les deux regles de versement';
+  end if;
+
+  if not exists (
+    select 1 from pg_trigger
+    where tgname = 'trg_secoto_carrier_payee_order'
+      and tgrelid = 'public.transport_orders'::regclass)
+  then
+    raise exception 'Le declencheur qui protege l''indemnite d''annulation n''est pas pose';
+  end if;
+
+  select pg_get_functiondef(p.oid) into v_src
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'secoto_private' and p.proname = 'is_business_member';
+  if position('b.kind = ''client''' in v_src) = 0 then
+    raise exception 'Les societes clientes et les entreprises de transport ne sont pas cloisonnees';
+  end if;
+
+  if exists (
+    select 1 from public.transport_quotes q
+    join public.business_accounts b on b.id = q.business_id
+    where b.kind <> 'client')
+  then
+    raise exception 'Des devis sont rattaches a une entreprise qui n''est pas une societe cliente';
   end if;
 
   if has_table_privilege('anon', 'public.secoto_missions_transporter_v2', 'SELECT') then

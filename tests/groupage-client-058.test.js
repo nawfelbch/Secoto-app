@@ -59,6 +59,15 @@ test("une commande ne peut jamais couter plus qu'elle ne rapporte", () => {
   assert.match(SQL, /'marge_negative_groupage'/);
 });
 
+test("un devis groupe garde son detail de facturation", () => {
+  // Sans lignes, le client ne verrait plus le detail de son prix, et la
+  // remise n'apparaitrait nulle part.
+  assert.match(SQL, /'lines',\s+v_lignes,/);
+  assert.match(SQL, /'label', format\('Remise groupage \(%s vehicules\)', v_nb\)/);
+  assert.match(SQL, /attendu 3 : deux vehicules et la remise/);
+  assert.match(SQL, /ne retombe pas sur le total de 1120 EUR/);
+});
+
 test("le groupage refuse de s'appliquer sur un plafond moto perime", () => {
   assert.match(SQL, /'client_cap_eur'\)::numeric <> 382/);
 });
