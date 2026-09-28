@@ -105,6 +105,7 @@ import SecureFilePicker from "./SecureFilePicker";
 import BankAccountPanel from "./BankAccountPanel";
 import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
 import EspaceEntreprise, { memoriserCreationEntreprise, ouvertureEntrepriseDemandee } from "./ondemand/EspaceEntreprise";
+import MotDePasseProvisoire from "./MotDePasseProvisoire";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
   AssignmentPanel,
@@ -2081,7 +2082,7 @@ export default function App() {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout chargement profil SECOTO")), 8000));
       const query = supabase
         .from("accounts")
-        .select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,created_at")
+        .select("id,role,full_name,company_name,email,phone,city,status,docs_count,is_verified,transporter_type,client_type,receives_standard_plateau,luxury_closed_transport_status,luxury_closed_transport_requested_at,must_change_password,created_at")
         .eq("id", userId)
         .single();
       const { data, error } = await Promise.race([query, timeout]);
@@ -4318,6 +4319,17 @@ export default function App() {
           <button className="btn danger" onClick={signOut}>Se déconnecter</button>
         </div>
       </main>
+    );
+  }
+
+  // Compte cree par un gerant : rien d'autre n'est accessible tant que le mot
+  // de passe provisoire n'a pas ete remplace.
+  if (account.mustChangePassword) {
+    return (
+      <MotDePasseProvisoire
+        account={account}
+        onChanged={() => loadAccount(session.user.id)}
+      />
     );
   }
 

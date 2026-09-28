@@ -198,6 +198,11 @@ export const carrierAssignEmployee = (missionId, accountId) =>
 export const carrierSetPayoutAccount = (accountId) =>
   rpc("secoto_carrier_set_payout_account", { p_account_id: accountId });
 export const carrierLeave = () => rpc("secoto_carrier_leave", {});
+// Le gerant fait creer le compte d'un chauffeur qui n'en a pas. Le serveur est
+// seul a pouvoir le faire : la creation d'un compte exige la cle de service.
+export const carrierCreateEmployee = ({ email, fullName, phone }) =>
+  callFunction("carrier-employee", { email, full_name: fullName, phone: phone || "" });
+export const passwordChanged = () => rpc("secoto_password_changed", {});
 export const carrierDissolve = () => rpc("secoto_carrier_dissolve", {});
 export const updateDispatchPreferences = (payload) => rpc("secoto_update_dispatch_preferences", { p_payload: payload });
 export const myOffers = () => rpc("secoto_my_offers", {});

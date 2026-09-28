@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { humanizeError } from "../lib/humanError";
 import {
-  carrierAcceptInvite, carrierAssignEmployee, carrierCreate, carrierDissolve,
-  carrierInvite, carrierLeave, carrierOverview, carrierRemoveMember,
-  carrierSetPayoutAccount, carrierSetRole,
+  carrierAcceptInvite, carrierAssignEmployee, carrierCreate, carrierCreateEmployee,
+  carrierDissolve, carrierInvite, carrierLeave, carrierOverview,
+  carrierRemoveMember, carrierSetPayoutAccount, carrierSetRole,
 } from "../lib/onDemand";
 
 // Espace entreprise de transport.
@@ -95,6 +95,10 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
   const [email, setEmail] = useState("");
   const [jeton, setJeton] = useState("");
   const [copie, setCopie] = useState("");
+  const [nomChauffeur, setNomChauffeur] = useState("");
+  // Identifiants d'un compte tout juste cree : affiches UNE fois, jamais
+  // relus ensuite. Le mot de passe n'est stocke nulle part cote client.
+  const [identifiants, setIdentifiants] = useState(null);
 
   const charger = useCallback(async () => {
     try {
@@ -375,20 +379,82 @@ export default function EspaceEntreprise({ onChange, versements = null, onOuvrir
         ))}
       </ul>
 
-      <h3>Inviter un chauffeur</h3>
+      <h3>Ajouter un chauffeur</h3>
+      <p className="muted">
+        S’il n’a pas de compte SECOTO, le sien est créé avec un mot de passe provisoire
+        que vous lui transmettez. Il en choisira un autre à sa première connexion —
+        vous ne le connaîtrez pas. S’il a déjà un compte, vous recevrez un lien à lui envoyer.
+      </p>
+      <div className="form-grid">
+        <label className="field"><span>Nom complet *</span>
+          <input value={nomChauffeur} maxLength={160} placeholder="Ex. Karim Bensalem"
+            onChange={(e) => setNomChauffeur(e.target.value)} />
+        </label>
+        <label className="field"><span>Email *</span>
+          <input type="email" value={email} placeholder="son.email@exemple.fr"
+            onChange={(e) => setEmail(e.target.value)} />
+        </label>
+      </div>
       <div className="actions-row">
-        <input type="email" value={email} placeholder="son.email@exemple.fr" onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn primary small" type="button" disabled={busy || !email.includes("@")}
+        <button className="btn primary small" type="button"
+          disabled={busy || !email.includes("@") || nomChauffeur.trim().length < 2}
           onClick={async () => {
-            const r = await agir(() => carrierInvite(email.trim()));
-            if (r?.token) {
-              setEmail("");
-              setInfo("Invitation créée : envoyez-lui le lien ci-dessous.");
+            setIdentifiants(null);
+            const r = await agir(() => carrierCreateEmployee({
+              email: email.trim(), fullName: nomChauffeur.trim(),
+            }));
+            if (!r) return;
+            if (r.existe) {
+              const inv = await agir(() => carrierInvite(email.trim()));
+              if (inv?.token) {
+                setEmail("");
+                setNomChauffeur("");
+                setInfo("Ce chauffeur a déjà un compte SECOTO : envoyez-lui le lien ci-dessous.");
+              }
+              return;
             }
+            setIdentifiants({ email: r.email, motDePasse: r.mot_de_passe });
+            setEmail("");
+            setNomChauffeur("");
           }}>
-          Créer l’invitation
+          Ajouter ce chauffeur
         </button>
       </div>
+
+      {identifiants && (
+        <div className="alert">
+          <strong>Compte créé. Transmettez-lui ces identifiants maintenant :</strong>
+          <p>
+            Email : <strong>{identifiants.email}</strong><br />
+            Mot de passe provisoire : <strong>{identifiants.motDePasse}</strong>
+          </p>
+          <p className="muted">
+            Ce mot de passe ne s’affichera plus. Il sera remplacé par le chauffeur dès
+            sa première connexion : vous n’aurez jamais accès à son compte.
+          </p>
+          <div className="actions-row">
+            <button className="btn ghost small" type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    `SECOTO — ${identifiants.email} / ${identifiants.motDePasse} — ${WEB_APP_URL}`);
+                  setCopie("identifiants");
+                } catch { setError("Copie impossible : notez-les à la main."); }
+              }}>
+              {copie === "identifiants" ? "Identifiants copiés" : "Copier les identifiants"}
+            </button>
+            <a className="btn ghost small" href={`sms:?&body=${encodeURIComponent(
+              `Votre accès SECOTO pour ${company.name} : ${WEB_APP_URL}`
+              + ` — identifiant ${identifiants.email}, mot de passe provisoire ${identifiants.motDePasse}.`
+              + " Vous en choisirez un autre à la première connexion.")}`}>
+              Envoyer par SMS
+            </a>
+            <button className="btn ghost small" type="button" onClick={() => setIdentifiants(null)}>
+              J’ai transmis
+            </button>
+          </div>
+        </div>
+      )}
 
       {(vue.invitations || []).length > 0 && (
         <ul className="od-lines">

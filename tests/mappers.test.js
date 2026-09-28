@@ -45,9 +45,20 @@ test("accountFromDb conserve les rôles et sous-types existants", () => {
       receivesStandardPlateau: false,
       luxuryClosedTransportStatus: "not_requested",
       luxuryClosedTransportRequestedAt: null,
+      // Un compte ordinaire n'a rien a changer : le drapeau vaut faux tant
+      // qu'aucun gerant n'a cree ce compte a sa place.
+      mustChangePassword: false,
       createdAt: "2026-01-01T00:00:00Z",
     },
   );
+});
+
+test("accountFromDb signale un compte cree avec un mot de passe provisoire", () => {
+  const compte = accountFromDb({ id: "a-2", role: "transporter", must_change_password: true });
+  assert.equal(compte.mustChangePassword, true);
+  // Seule la valeur vraie compte : une colonne absente ne doit pas bloquer
+  // l'application sur l'ecran de changement de mot de passe.
+  assert.equal(accountFromDb({ id: "a-3", role: "client" }).mustChangePassword, false);
 });
 
 test("missionFromDb conserve tous les champs autorisés d'une mission privée", () => {

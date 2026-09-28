@@ -61,6 +61,9 @@ export function accountFromDb(row) {
       row.luxury_closed_transport_status || "not_requested",
     luxuryClosedTransportRequestedAt:
       row.luxury_closed_transport_requested_at || null,
+    // Compte cree par un gerant : l'application n'affiche que le changement
+    // de mot de passe tant que le provisoire n'a pas ete remplace.
+    mustChangePassword: row.must_change_password === true,
     createdAt: row.created_at || null,
   };
 }
