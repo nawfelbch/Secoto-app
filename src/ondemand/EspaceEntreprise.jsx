@@ -57,7 +57,7 @@ function oublierInvitation() {
   try { localStorage.removeItem(CLE_INVITATION); } catch { /* stockage indisponible */ }
 }
 
-export default function EspaceEntreprise({ onChange }) {
+export default function EspaceEntreprise({ onChange, versements = null, onOuvrirVersements = null }) {
   const [vue, setVue] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -209,6 +209,20 @@ export default function EspaceEntreprise({ onChange }) {
       <h2>{company.name}</h2>
       {error && <div className="alert error">{error}</div>}
       {info && <div className="alert">{info}</div>}
+
+      {versements && versements !== "active" && (
+        <div className="alert error">
+          Les versements de l’entreprise ne sont pas encore configurés : SECOTO ne pourra
+          rien vous verser tant que ce n’est pas fait.
+          {onOuvrirVersements && (
+            <div className="actions-row">
+              <button className="btn primary small" type="button" onClick={onOuvrirVersements}>
+                Configurer mes versements
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 1. Ce qui attend une décision */}
       {(suggestions.length > 0 || aDesigner.length > 0) && (

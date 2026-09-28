@@ -5218,9 +5218,13 @@ export default function App() {
 
           {transporterTab === "entreprise" && !isAdmin && (
             <section className="layout">
-              <EspaceEntreprise onChange={() => {
-                carrierOverview().then(setEntreprise).catch(() => {});
-              }} />
+              <EspaceEntreprise
+                versements={versements}
+                onOuvrirVersements={() => setTransporterTab("bank")}
+                onChange={() => {
+                  carrierOverview().then(setEntreprise).catch(() => {});
+                }}
+              />
             </section>
           )}
 
