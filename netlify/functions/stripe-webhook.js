@@ -16,6 +16,7 @@ import {
   intentIdFromObject,
   subscriptionEventData,
 } from "../lib/secoto-server.js";
+import { mesurerConversion } from "../lib/mesure-conversion.js";
 
 const {
   STRIPE_SECRET_KEY,
@@ -93,6 +94,12 @@ export async function handleNewFlows(admin, stripeEvent) {
   });
   // 500 -> Stripe rejoue ; la fonction SQL est idempotente et monotone.
   if (error) return response(500, { error: "settle_failed" });
+  if (type === "payment_intent.succeeded") {
+    await mesurerConversion({
+      reference: paymentId,
+      horodatageMs: Number(stripeEvent.created) * 1000 || Date.now(),
+    });
+  }
   return response(200, { ok: true, result });
 }
 
@@ -160,6 +167,13 @@ const handler = async (event) => {
     // 500 -> Stripe rejouera l'événement, et secoto_settle_payment est
     // idempotent grâce à payment_events.provider_event_id.
     return response(500, { error: "settle_failed" });
+  }
+
+  if (status === "paid") {
+    await mesurerConversion({
+      reference: resolvedPaymentId,
+      horodatageMs: Number(stripeEvent.created) * 1000 || Date.now(),
+    });
   }
 
   return response(200, { ok: true, result: data });
