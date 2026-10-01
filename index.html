@@ -102,6 +102,22 @@
         "description": "Service professionnel de convoyage automobile et transport moto pour garages, concessions, loueurs, gestionnaires de flotte et professionnels de l’automobile."
       }
     </script>
+
+    <!-- Mesure de conversion (pixel OpenAI). Web uniquement : le pixel n'est pas
+         charge dans l'application iOS, ou un traceur publicitaire obligerait a
+         declarer du suivi a Apple et a demander le consentement ATT. -->
+    <script>
+      (function () {
+        var natif = location.protocol === 'capacitor:' || location.protocol === 'file:'
+          || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
+              && window.Capacitor.isNativePlatform());
+        if (natif) return;
+        !function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;
+          var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];
+          f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");
+        oaiq("init", { pixelId: "QaUGD9H7HkVGbEFNafsha4" });
+      })();
+    </script>
   </head>
 
   <body>
