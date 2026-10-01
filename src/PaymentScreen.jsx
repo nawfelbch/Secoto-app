@@ -10,6 +10,7 @@ import {
 } from "./lib/payments";
 import { formatAmount } from "./lib/pricing";
 import { currentLegalCopy, LEGAL_COPY } from "./lib/legalCopy";
+import { conversionCommande } from "./lib/mesure";
 
 // ============================================================================
 // SECOTO — Écran de paiement PLATEAU / MOTO (« Réservation de votre créneau »).
@@ -69,6 +70,7 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
     return watchPayment(payment.id, (updated) => {
       setPayment(updated);
       if (updated.status === "paid") {
+        conversionCommande(updated.id);
         setNotice("Paiement confirmé. Le bon de mission part au transporteur.");
         setBusy(false);
         onDone?.(updated);
@@ -96,6 +98,7 @@ export default function PaymentScreen({ mission, account, onDone, onClose }) {
         if (!alive) return;
         setPayment(updated);
         if (updated.status === "paid") {
+          conversionCommande(updated.id);
           setBusy(false);
           setNotice("Paiement confirmé. Le bon de mission part au transporteur.");
           onDone?.(updated);

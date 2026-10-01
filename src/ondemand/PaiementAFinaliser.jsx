@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { humanizeError } from "../lib/humanError";
 import { formatCents, myOrders } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
+import { conversionCommande } from "../lib/mesure";
 
 // ============================================================================
 // SECOTO — course reservee mais pas encore reglee.
@@ -45,6 +46,7 @@ export default function PaiementAFinaliser({ onPaid }) {
       if (!row) return;
       setPaiement(row);
       if (["paid", "requires_capture"].includes(row.status)) {
+        conversionCommande(row.id);
         setCommande(null);
         onPaid?.();
       }
