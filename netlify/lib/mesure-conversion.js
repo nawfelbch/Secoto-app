@@ -19,8 +19,16 @@ const DELAI_MS = 4000;
 
 export async function mesurerConversion({ reference, horodatageMs } = {}) {
   const cle = process.env.OPENAI_PIXEL_API_KEY;
-  if (!cle) return { envoye: false, raison: "cle_absente" };
-  if (!reference) return { envoye: false, raison: "reference_absente" };
+  // Journalise aussi les cas ou l'on n'envoie rien : sans cela, un diagnostic
+  // ne distingue pas « clé absente » de « code non deploye ».
+  if (!cle) {
+    console.log("[mesure] ignore", JSON.stringify({ raison: "cle_absente" }));
+    return { envoye: false, raison: "cle_absente" };
+  }
+  if (!reference) {
+    console.log("[mesure] ignore", JSON.stringify({ raison: "reference_absente" }));
+    return { envoye: false, raison: "reference_absente" };
+  }
 
   // Interrupteur de test : aucun enregistrement cote OpenAI, la reponse dit
   // seulement si la requete serait acceptee.
