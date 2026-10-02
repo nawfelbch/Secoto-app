@@ -66,6 +66,10 @@ export async function runMaintenance({ admin, stripe }) {
   const relances = await admin.rpc("secoto_commission_relances");
   report.commissions = relances.error ? { error: relances.error.message } : relances.data;
 
+  // Demandes d'avis apres livraison : la base decide qui est du et eligible.
+  const avis = await admin.rpc("secoto_review_requests_tick", { p_limit: 20 });
+  report.avis = avis.error ? { error: avis.error.message } : avis.data;
+
   const sub = await admin.rpc("secoto_sub_maintenance_tick");
   report.subscriptions = sub.error ? { error: sub.error.message } : sub.data;
   report.payouts = await processPayouts({ admin, stripe });
