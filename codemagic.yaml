@@ -290,7 +290,7 @@ workflows:
       android_signing:
         - SECOTO_RELEASE_KEYSTORE
       vars:
-        SECOTO_ANDROID_VERSION_NAME: "1.0"
+        SECOTO_ANDROID_VERSION_NAME: "2.1"
       node: 24
       java: 21
     cache:

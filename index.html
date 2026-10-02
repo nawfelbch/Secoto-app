@@ -108,7 +108,9 @@
          declarer du suivi a Apple et a demander le consentement ATT. -->
     <script>
       (function () {
+        // iOS sert l'app sur capacitor://localhost, Android sur https://localhost.
         var natif = location.protocol === 'capacitor:' || location.protocol === 'file:'
+          || location.hostname === 'localhost'
           || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
               && window.Capacitor.isNativePlatform());
         if (natif) return;
