@@ -10,6 +10,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { json, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
+import { connectStatusFromAccount } from "./connect-onboarding.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -72,8 +73,68 @@ export async function runMaintenance({ admin, stripe }) {
 
   const sub = await admin.rpc("secoto_sub_maintenance_tick");
   report.subscriptions = sub.error ? { error: sub.error.message } : sub.data;
+  try {
+    report.connect = await resyncConnectAccounts({ admin, stripe });
+  } catch (erreur) {
+    report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
+  }
   report.payouts = await processPayouts({ admin, stripe });
   return report;
+}
+
+// ---------------------------------------------------------------------------
+// Comptes de versement Stripe : resynchronisation automatique.
+//
+// L'ecran « paiements » du transporteur resynchronise son compte quand il
+// l'ouvre. Mais un transporteur qui termine son inscription chez Stripe sans
+// revenir dans l'app restait « non actif » pour SECOTO, et ses versements
+// dus etaient ignores sans erreur. On interroge donc Stripe nous-memes :
+//  - comptes pas encore actifs : toutes les 10 minutes ;
+//  - comptes actifs : une fois par jour (Stripe peut en restreindre un).
+// Au plus 10 comptes par passage, les plus anciennement verifies d'abord.
+// ---------------------------------------------------------------------------
+const CONNECT_DELAI_EN_ATTENTE_MS = 10 * 60 * 1000;
+const CONNECT_DELAI_ACTIF_MS = 24 * 60 * 60 * 1000;
+const CONNECT_LOT = 10;
+
+export async function resyncConnectAccounts({ admin, stripe, maintenant = Date.now() }) {
+  const { data: comptes, error } = await admin
+    .from("accounts")
+    .select("id,stripe_connect_account_id,stripe_connect_status,stripe_connect_updated_at,stripe_connect_onboarded_at")
+    .eq("role", "transporter")
+    .not("stripe_connect_account_id", "is", null)
+    .is("deleted_at", null);
+  if (error) return { error: error.message };
+
+  const aVerifier = (comptes || [])
+    .map((c) => ({ ...c, age: maintenant - (c.stripe_connect_updated_at ? Date.parse(c.stripe_connect_updated_at) : 0) }))
+    .filter((c) => c.age >= (c.stripe_connect_status === "active" ? CONNECT_DELAI_ACTIF_MS : CONNECT_DELAI_EN_ATTENTE_MS))
+    .sort((a, b) => b.age - a.age)
+    .slice(0, CONNECT_LOT);
+
+  const rapport = [];
+  for (const c of aVerifier) {
+    const horodatage = new Date(maintenant).toISOString();
+    try {
+      const acct = await stripe.accounts.retrieve(c.stripe_connect_account_id);
+      const s = connectStatusFromAccount(acct);
+      const maj = {
+        stripe_connect_status: s.status,
+        stripe_transfers_enabled: s.transfers_enabled,
+        stripe_payouts_enabled: s.payouts_enabled,
+        stripe_connect_updated_at: horodatage,
+      };
+      if (s.status === "active" && !c.stripe_connect_onboarded_at) maj.stripe_connect_onboarded_at = horodatage;
+      await admin.from("accounts").update(maj).eq("id", c.id);
+      if (s.status !== c.stripe_connect_status) rapport.push({ compte: c.id, avant: c.stripe_connect_status, apres: s.status });
+    } catch (erreur) {
+      // Compte introuvable ou Stripe indisponible : on repousse simplement la
+      // prochaine verification, sans toucher a l'etat connu.
+      await admin.from("accounts").update({ stripe_connect_updated_at: horodatage }).eq("id", c.id);
+      rapport.push({ compte: c.id, erreur: String(erreur?.message || erreur).slice(0, 120) });
+    }
+  }
+  return { verifies: aVerifier.length, changements: rapport };
 }
 
 // ---------------------------------------------------------------------------
