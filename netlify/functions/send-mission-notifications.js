@@ -100,7 +100,11 @@ export function genericPushCopy(type) {
 // quelque chose à gagner », jamais « SECOTO a quelque chose à dire ».
 //
 //   transporteur : nouvelle course, mission attribuée, paiement reçu
-//   admin        : paiement encaissé, nouvelle demande
+//   admin        : paiement client encaissé, nouvelle demande
+//
+// Côté admin, seul l'argent qui ENTRE sonne la caisse. Les notifications de
+// versement aux transporteurs (argent qui sort) sont aussi de type « payment »,
+// mais gardent le son standard : on les distingue par leur clé d'événement.
 //
 // Toute autre notification (documents, suivi, frais, comptes) garde le son
 // standard du téléphone.
@@ -111,10 +115,16 @@ export const DEFAULT_CHANNEL_ID = "secoto-missions";
 
 const CASH_EVENTS = {
   transporter: new Set(["new_course", "course_assigned", "payment", "mission_offer"]),
-  admin: new Set(["payment", "new_request"]),
+  admin: new Set(["new_request"]),
 };
 
+// Préfixe posé par la base (migration 072) sur la notification « Paiement reçu ».
+export const CLIENT_PAYMENT_EVENT_PREFIX = "payment-received:";
+
 export function isCashEvent(notification = {}) {
+  if (notification.audience === "admin" && notification.type === "payment") {
+    return String(notification.event_key || "").startsWith(CLIENT_PAYMENT_EVENT_PREFIX);
+  }
   const events = CASH_EVENTS[notification.audience];
   return Boolean(events && events.has(notification.type));
 }
@@ -407,7 +417,7 @@ export const dispatchMissionNotifications = async (event) => {
 
   const { data: notification, error: notificationError } = await admin
     .from("notifications")
-    .select("id,account_id,type,mission_id,push_screen,audience,ref_id")
+    .select("id,account_id,type,mission_id,push_screen,audience,ref_id,event_key")
     .eq("id", outbox.notification_id)
     .single();
   if (notificationError || !notification) {

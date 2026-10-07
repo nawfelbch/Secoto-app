@@ -67,11 +67,27 @@ test("le transporteur entend la caisse sur les événements qui rapportent", () 
   }
 });
 
-test("l'admin entend la caisse sur les paiements et les nouvelles demandes", () => {
-  for (const type of ["payment", "new_request"]) {
-    const presentation = nativeNotificationPresentation({ type, audience: "admin" });
-    assert.equal(presentation.iosSound, CASH_SOUND_FILE);
+test("l'admin entend la caisse quand un client paie et sur les nouvelles demandes", () => {
+  for (const notification of [
+    { type: "payment", audience: "admin", event_key: "payment-received:7d1c:admin" },
+    { type: "new_request", audience: "admin", event_key: "quote-manual:abc:admin" },
+  ]) {
+    const presentation = nativeNotificationPresentation(notification);
+    assert.equal(presentation.iosSound, CASH_SOUND_FILE, JSON.stringify(notification));
     assert.equal(presentation.androidChannelId, CASH_CHANNEL_ID);
+  }
+});
+
+test("l'admin garde le son standard quand c'est lui qui paie un transporteur", () => {
+  for (const event_key of [
+    "payout-due:7d1c:admin",
+    "payout-failed:7d1c:admin",
+    "commission-relance:7d1c:admin",
+    null,
+  ]) {
+    const presentation = nativeNotificationPresentation({ type: "payment", audience: "admin", event_key });
+    assert.equal(presentation.iosSound, "default", String(event_key));
+    assert.equal(presentation.androidChannelId, DEFAULT_CHANNEL_ID);
   }
 });
 
