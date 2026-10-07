@@ -226,7 +226,7 @@ export function OffersPanel({ focusOfferId, onOpenMission }) {
   const past = (offers || []).filter((o) => !available.includes(o));
   return (
     <div className="panel panel-full">
-      <h2>Missions proposées</h2>
+      <h2>Missions disponibles</h2>
       {error && <div className="alert error">{error}</div>}
       {offers === null && <p className="muted">Chargement…</p>}
       {offers && available.length === 0 && <div className="empty-state"><strong>Aucune mission disponible pour le moment</strong>Les propositions compatibles avec vos préférences apparaissent ici.</div>}

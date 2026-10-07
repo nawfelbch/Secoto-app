@@ -121,7 +121,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
-import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -2442,10 +2442,34 @@ export default function App() {
     setClientTab("paiement");
   }
 
+  // Missions publiées à l'ancienne (sur candidature) : l'onglet n'existe que
+  // s'il y en a. Sinon, l'onglet par défaut « available » mène aux propositions.
+  const missionsSurCandidature = () => (account?.role === "admin" ? publishedMissions : publicMissions).length;
+  const ongletTransporteur = () => (
+    flags.dispatch_notifications && transporterTab === "available" && missionsSurCandidature() === 0
+      ? "offres"
+      : transporterTab
+  );
+
   const assignedToCurrentTransporter = useMemo(
     () => missions.filter((m) => m.assignedTransporterId === account?.id && ["assigned", "completed"].includes(m.status)),
     [missions, account?.id]
   );
+  // Badge « Missions disponibles » : propositions encore ouvertes pour ce
+  // transporteur. Rafraîchi chaque minute tant que l'écran est visible.
+  const [offresOuvertes, setOffresOuvertes] = useState(0);
+  useEffect(() => {
+    if (account?.role !== "transporter" || !flags.dispatch_notifications) return undefined;
+    let actif = true;
+    const compter = () => myOffers()
+      .then((liste) => {
+        if (actif) setOffresOuvertes((liste || []).filter((o) => o.state === "available" || o.state === "pending_capture").length);
+      })
+      .catch(() => {});
+    compter();
+    const id = setInterval(() => document.visibilityState === "visible" && compter(), 60000);
+    return () => { actif = false; clearInterval(id); };
+  }, [account?.role, flags.dispatch_notifications]);
   // Missions de l'entreprise confiees a quelqu'un d'autre : le gerant les suit,
   // il n'a ni etat des lieux ni photo a faire dessus.
   const missionsSuiviesEntreprise = useMemo(
@@ -4199,16 +4223,23 @@ export default function App() {
       };
     }
     return {
-      active: transporterTab, setActive: setTransporterTab,
+      active: ongletTransporteur(), setActive: setTransporterTab,
       sections: [
         { title: "Missions", items: [
-          { key: "available", label: "Disponibles", icon: "megaphone", count: (account.role === "admin" ? publishedMissions : publicMissions).length },
+          ...(flags.dispatch_notifications
+            ? [{ key: "offres", label: "Missions disponibles", icon: "megaphone", count: offresOuvertes }]
+            : []),
+          ...(!flags.dispatch_notifications || missionsSurCandidature() > 0
+            ? [{
+              key: "available",
+              label: flags.dispatch_notifications ? "Sur candidature" : "Disponibles",
+              icon: flags.dispatch_notifications ? "hand" : "megaphone",
+              count: missionsSurCandidature(),
+            }]
+            : []),
           { key: "assigned", label: "Mes missions", icon: "truck", count: assignedToCurrentTransporter.length },
           ...(flags.dispatch_notifications
-            ? [
-              { key: "offres", label: "Missions proposées", icon: "hand" },
-              { key: "disponibilite", label: "Ma disponibilité", icon: "settings" },
-            ]
+            ? [{ key: "disponibilite", label: "Ma disponibilité", icon: "settings" }]
             : []),
         ] },
         { title: "Mon activité", items: [
@@ -5017,7 +5048,7 @@ export default function App() {
       {/* ===================== TRANSPORTEUR ===================== */}
       {(isTransporter || isAdmin) && mode === "transporter" && (
         <>
-          {transporterTab === "available" && (
+          {ongletTransporteur() === "available" && (
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Missions disponibles</h2>
@@ -5238,7 +5269,7 @@ export default function App() {
             </section>
           )}
 
-          {transporterTab === "offres" && (
+          {ongletTransporteur() === "offres" && (
             <section className="layout">
               <OffersPanel
                 focusOfferId={focusOfferId}
