@@ -17,6 +17,89 @@ const PLATEAU_TYPES = new Set(["vl", "pl"]);
 const DIRECT_PRODUCT_DESCRIPTION = "Transport de véhicules sur camion plateau, réservé via SECOTO";
 export const PAYMENT_DOMAIN = new URL(SECOTO_APP_URL).hostname;
 
+// Stripe n'accepte plus la création de comptes « v1 » pour les nouvelles
+// intégrations (c'est déjà le cas en mode test). Le compte est alors créé avec
+// l'API v2, avec la même répartition qu'un compte Express : SECOTO paie les
+// frais Stripe et reste responsable en dernier recours. Tout le reste
+// (lecture, liens d'inscription, paiements) accepte les deux versions.
+export function isAccountsV1Refused(error) {
+  const message = String(error?.raw?.message || error?.message || "");
+  return /v2\/core\/accounts|Accounts v1/i.test(message);
+}
+
+export function v2AccountParams({ email, userId, directOn }) {
+  return {
+    contact_email: email || undefined,
+    identity: { country: "fr" },
+    dashboard: "express",
+    defaults: {
+      currency: "eur",
+      responsibilities: { fees_collector: "application", losses_collector: "application" },
+    },
+    configuration: {
+      recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
+      ...(directOn ? { merchant: { mcc: "4214", capabilities: { card_payments: { requested: true } } } } : {}),
+    },
+    metadata: { secoto_account_id: userId },
+  };
+}
+
+export async function createConnectedAccount(stripe, { email, userId, directOn, cle }, creerV1) {
+  try {
+    return await creerV1();
+  } catch (error) {
+    if (!isAccountsV1Refused(error)) throw error;
+    return stripe.v2.core.accounts.create(v2AccountParams({ email, userId, directOn }), { idempotencyKey: `${cle}-v2` });
+  }
+}
+
+export async function onboardingLink(stripe, acctId, { merchant = false } = {}) {
+  const refresh = `${SECOTO_APP_URL}/?ecran=bank&connect=relancer`;
+  const retour = `${SECOTO_APP_URL}/?ecran=bank&connect=retour`;
+  try {
+    return await stripe.accountLinks.create({ account: acctId, type: "account_onboarding", refresh_url: refresh, return_url: retour });
+  } catch (erreurV1) {
+    if (erreurV1?.type !== "StripeInvalidRequestError") throw erreurV1;
+    // Compte créé en v2 : lien d'inscription v2. Si la version v2 échoue
+    // aussi, c'est le motif d'origine qui est remonté.
+    const lienV2 = (configurations) => stripe.v2.core.accountLinks.create({
+      account: acctId,
+      use_case: { type: "account_onboarding", account_onboarding: { configurations, refresh_url: refresh, return_url: retour } },
+    });
+    try {
+      return await lienV2(merchant ? ["recipient", "merchant"] : ["recipient"]);
+    } catch {
+      if (merchant) {
+        try { return await lienV2(["recipient"]); } catch { /* motif d'origine ci-dessous */ }
+      }
+      throw erreurV1;
+    }
+  }
+}
+
+// Activation du paiement direct sur un compte existant. Chaque réglage est
+// demandé séparément : un réglage refusé par Stripe pour ce type de compte
+// n'empêche pas les autres.
+export async function upgradeForDirect(stripe, acctId) {
+  const heure = new Date().toISOString().slice(0, 13);
+  try {
+    await stripe.accounts.update(acctId, {
+      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      business_profile: { product_description: DIRECT_PRODUCT_DESCRIPTION },
+    }, { idempotencyKey: `secoto-direct-upgrade-${acctId}-${heure}` });
+  } catch (error) {
+    if (!isAccountsV1Refused(error) && !/v2/i.test(String(error?.message || ""))) throw error;
+    await stripe.v2.core.accounts.update(acctId, {
+      configuration: { merchant: { mcc: "4214", capabilities: { card_payments: { requested: true } } } },
+    }, { idempotencyKey: `secoto-direct-upgrade-v2-${acctId}-${heure}` });
+  }
+  try {
+    await stripe.accounts.update(acctId, { settings: { payouts: { debit_negative_balances: true } } });
+  } catch (error) {
+    console.error("[connect-onboarding] debit_negative_balances", error?.message);
+  }
+}
+
 // Traduit l'état Stripe en un statut SECOTO simple, affiché au transporteur.
 export function connectStatusFromAccount(acct) {
   const transfers = acct?.capabilities?.transfers === "active";
@@ -79,7 +162,8 @@ const handler = async (event) => {
         const { data: flag } = await admin.from("secoto_feature_flags").select("enabled").eq("key", "plateau_paiement_direct").maybeSingle();
         const directOn = plateau && Boolean(flag?.enabled);
         // Clé par utilisateur : deux appuis simultanés ne créent qu'un compte.
-        const acct = await stripe.accounts.create({
+        const cle = `secoto-connect-account-${userId}-${new Date().toISOString().slice(0, 13)}`;
+        const acct = await createConnectedAccount(stripe, { email: account.email, userId, directOn, cle }, () => stripe.accounts.create({
           type: "express",
           country: "FR",
           email: account.email || undefined,
@@ -97,19 +181,14 @@ const handler = async (event) => {
           // La cle d'idempotence protege du double-clic, mais Stripe rejoue aussi
           // les ERREURS memorisees pendant 24 h : une panne passagere bloquerait
           // le transporteur une journee entiere. La cle change donc chaque heure.
-        }, { idempotencyKey: `secoto-connect-account-${userId}-${new Date().toISOString().slice(0, 13)}` });
+        }, { idempotencyKey: cle }));
         await admin.from("accounts")
           .update({ stripe_connect_account_id: acct.id, stripe_connect_status: "incomplete", stripe_connect_updated_at: new Date().toISOString() })
           .eq("id", userId).is("stripe_connect_account_id", null);
         const { data: relu } = await admin.from("accounts").select("stripe_connect_account_id").eq("id", userId).single();
         acctId = relu?.stripe_connect_account_id || acct.id;
       }
-      const link = await stripe.accountLinks.create({
-        account: acctId,
-        type: "account_onboarding",
-        refresh_url: `${SECOTO_APP_URL}/?ecran=bank&connect=relancer`,
-        return_url: `${SECOTO_APP_URL}/?ecran=bank&connect=retour`,
-      });
+      const link = await onboardingLink(stripe, acctId, { merchant: plateau });
       return json(200, { url: link.url });
     }
 
@@ -125,11 +204,7 @@ const handler = async (event) => {
     if (action === "direct") {
       if (!plateau) return json(403, { error: "plateau_only" });
       if (!acctId) return json(409, { error: "no_account" });
-      await stripe.accounts.update(acctId, {
-        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        settings: { payouts: { debit_negative_balances: true } },
-        business_profile: { product_description: DIRECT_PRODUCT_DESCRIPTION },
-      }, { idempotencyKey: `secoto-direct-upgrade-${acctId}-${new Date().toISOString().slice(0, 13)}` });
+      await upgradeForDirect(stripe, acctId);
       try {
         await stripe.paymentMethodDomains.create({ domain_name: PAYMENT_DOMAIN }, { stripeAccount: acctId });
       } catch (erreur) {
@@ -140,12 +215,7 @@ const handler = async (event) => {
       const acct = await stripe.accounts.retrieve(acctId);
       const etat = await sync(acct);
       if (etat.card_payments_enabled && !acct?.requirements?.currently_due?.length) return json(200, { ...etat, url: null });
-      const link = await stripe.accountLinks.create({
-        account: acctId,
-        type: "account_onboarding",
-        refresh_url: `${SECOTO_APP_URL}/?ecran=bank&connect=relancer`,
-        return_url: `${SECOTO_APP_URL}/?ecran=bank&connect=retour`,
-      });
+      const link = await onboardingLink(stripe, acctId, { merchant: true });
       return json(200, { ...etat, url: link.url });
     }
 

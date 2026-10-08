@@ -347,3 +347,40 @@ test("écrans client : textes du paiement direct, l'ancien circuit inchangé", a
   assert.match(copy.cancellationNotice({ cancellable: true, circuit: "direct", charged: true, last_minute: true }), /aucun remboursement/);
   assert.match(copy.cancellationNotice({ cancellable: true, circuit: "direct", charged: true, late: true, retained_pct: 50, refund_cents: 24000 }), /50 %/);
 });
+
+test("compte transporteur : création v2 si Stripe refuse la v1 (mode test), v1 inchangée sinon", async () => {
+  const co = await import("../netlify/functions/connect-onboarding.js");
+  const refus = Object.assign(new Error("Stripe no longer recommends Accounts v1 for new Connect integrations. Create connected accounts with POST /v2/core/accounts instead."), { type: "StripeInvalidRequestError" });
+  const appels = [];
+  const stripe = { v2: { core: { accounts: { create: async (p, o) => { appels.push({ p, o }); return { id: "acct_v2" }; } } } } };
+  const acct = await co.createConnectedAccount(stripe, { email: "t@test.invalid", userId: "u1", directOn: true, cle: "k" }, async () => { throw refus; });
+  assert.equal(acct.id, "acct_v2");
+  const p = appels[0].p;
+  assert.equal(p.dashboard, "express");
+  assert.deepEqual(p.defaults.responsibilities, { fees_collector: "application", losses_collector: "application" }, "frais Stripe à la charge de SECOTO");
+  assert.equal(p.configuration.merchant.capabilities.card_payments.requested, true);
+  assert.equal(p.configuration.recipient.capabilities.stripe_balance.stripe_transfers.requested, true);
+  assert.equal(appels[0].o.idempotencyKey, "k-v2");
+  // Convoyeur / interrupteur éteint : pas de configuration marchande.
+  assert.equal(co.v2AccountParams({ email: "x", userId: "u", directOn: false }).configuration.merchant, undefined);
+  // v1 acceptée : aucun appel v2.
+  const ok = await co.createConnectedAccount(stripe, { email: "t", userId: "u2", directOn: false, cle: "k2" }, async () => ({ id: "acct_v1" }));
+  assert.equal(ok.id, "acct_v1");
+  assert.equal(appels.length, 1);
+  // Autre erreur : remontée telle quelle.
+  await assert.rejects(co.createConnectedAccount(stripe, { cle: "k3" }, async () => { throw new Error("autre"); }), /autre/);
+});
+
+test("lien d'inscription : v1 d'abord, v2 si le compte a été créé en v2", async () => {
+  const co = await import("../netlify/functions/connect-onboarding.js");
+  const v2 = [];
+  const stripe = {
+    accountLinks: { create: async () => { throw Object.assign(new Error("account is v2"), { type: "StripeInvalidRequestError" }); } },
+    v2: { core: { accountLinks: { create: async (p) => { v2.push(p); return { url: "https://connect.stripe.test/v2" }; } } } },
+  };
+  const link = await co.onboardingLink(stripe, "acct_v2", { merchant: true });
+  assert.equal(link.url, "https://connect.stripe.test/v2");
+  assert.deepEqual(v2[0].use_case.account_onboarding.configurations, ["recipient", "merchant"]);
+  const v1 = await co.onboardingLink({ accountLinks: { create: async () => ({ url: "https://connect.stripe.test/v1" }) } }, "acct_v1");
+  assert.equal(v1.url, "https://connect.stripe.test/v1");
+});
