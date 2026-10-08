@@ -11,6 +11,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { createWithManagedPaymentsFallback, idempotencyKey } from "../lib/secoto-server.js";
+import { sessionDirecte } from "../lib/devis-direct.js";
 
 const {
   STRIPE_SECRET_KEY,
@@ -31,6 +32,9 @@ const MOTIFS = {
   date_depassee: "La date d'enlèvement est passée. Contactez SECOTO pour un nouveau devis.",
   reglement_especes: "Cette course se règle en espèces auprès du transporteur, le jour de la prestation.",
   compte_introuvable: "Paiement momentanément indisponible. Contactez SECOTO.",
+  // 077 : paiement direct au transporteur.
+  transporteur_non_pret: "Le paiement de cette course s'ouvrira dès que votre transporteur aura finalisé son compte de paiement. SECOTO vous renvoie le lien très vite ; rien n'a été débité.",
+  carte_deja_validee: "Votre carte est déjà enregistrée et votre demande est transmise aux transporteurs. Vous ne serez débité que lorsqu'un transporteur acceptera.",
 };
 
 export function page(titre, message, ton = "info") {
@@ -46,10 +50,37 @@ export function page(titre, message, ton = "info") {
 </div></body></html>`;
 }
 
+const LIBELLES_CONDITIONS = {
+  cgu: "les conditions générales",
+  confidentialite: "la politique de confidentialité",
+};
+
+function echapper(texte) {
+  return String(texte || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 075 : liens des conditions affichés à côté de la case, ouverts dans un
+// nouvel onglet (le client reste libre de les lire ou non).
+export function liensConditions(conditions, base = SECOTO_APP_URL) {
+  const urls = conditions?.urls || {};
+  return (conditions?.documents || [])
+    .filter((cle) => LIBELLES_CONDITIONS[cle] && urls[cle])
+    .map((cle) => {
+      const url = new URL(urls[cle], base);
+      url.searchParams.set("v", conditions.version);
+      return `<a href="${echapper(url.toString())}" target="_blank" rel="noopener noreferrer" style="color:#e8622a">${LIBELLES_CONDITIONS[cle]}</a>`;
+    })
+    .join(" et ");
+}
+
 // Le particulier qui paie en ligne doit demander expressement l'execution
 // immediate : sans cette trace, il garde 14 jours pour annuler, meme une fois
 // le vehicule livre. La case n'est jamais pre-cochee.
-export function pageRenonciation(token, montantCents, trajet) {
+// 075 : la meme page porte, si l'interrupteur est allume, la case
+// d'acceptation des conditions (jamais pre-cochee non plus).
+export function pageRenonciation(token, montantCents, trajet, options = {}) {
+  const avecRenonciation = options.renonciation !== false;
+  const conditions = options.conditions || null;
   const montant = (Number(montantCents || 0) / 100).toFixed(2).replace(".", ",");
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -60,11 +91,16 @@ export function pageRenonciation(token, montantCents, trajet) {
 <h1 style="font-size:20px;margin:0 0 6px">Transport de véhicule${trajet ? ` — ${trajet}` : ""}</h1>
 <p style="font-size:26px;font-weight:700;margin:0 0 20px">${montant} €</p>
 <form method="post" action="?t=${token}">
-<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:22px">
+${conditions ? `<input type="hidden" name="version" value="${echapper(conditions.version)}">
+<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:18px">
+<input type="checkbox" name="conditions" value="oui" required style="margin-top:4px;width:20px;height:20px">
+<span>J'accepte ${liensConditions(conditions)}.</span>
+</label>` : ""}
+${avecRenonciation ? `<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:22px">
 <input type="checkbox" name="consent" value="oui" required style="margin-top:4px;width:20px;height:20px">
 <span>Je demande l'exécution de la prestation avant la fin du délai de rétractation de 14 jours,
 et je reconnais perdre ce droit une fois le transport intégralement exécuté.</span>
-</label>
+</label>` : ""}
 <button type="submit" style="width:100%;padding:16px;border:0;border-radius:10px;background:#e8622a;color:#fff;font-size:16px;font-weight:700">
 Continuer vers le paiement
 </button>
@@ -101,6 +137,13 @@ const handler = async (event) => {
       "ok",
     ));
   }
+  if (retour === "carte") {
+    return html(200, page(
+      "Merci, votre carte est enregistrée",
+      "Aucun débit pour l'instant. Votre demande part aux transporteurs vérifiés : vous ne serez débité que lorsqu'un transporteur acceptera votre transport, directement sur son compte. Vous recevez une confirmation par e-mail à chaque étape.",
+      "ok",
+    ));
+  }
   if (retour === "annule") {
     return html(200, page(
       "Paiement interrompu",
@@ -117,19 +160,45 @@ const handler = async (event) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Consentement envoye par la page de renonciation.
+  // 075 : état des conditions pour ce lien (interrupteur éteint = rien à accepter).
+  // Une fonction absente (base pas encore migrée) ne bloque pas le paiement.
+  const etatConditions = async () => {
+    const r = await admin.rpc("secoto_devis_link_terms", { p_token: token });
+    return !r.error && r.data?.active ? r.data : null;
+  };
+
+  // Consentements envoyés par la page de confirmation.
   if (event.httpMethod === "POST") {
     const corps = event.isBase64Encoded
       ? Buffer.from(event.body || "", "base64").toString("utf8")
       : String(event.body || "");
-    const consent = new URLSearchParams(corps).get("consent") === "oui";
-    if (!consent) {
+    const champs = new URLSearchParams(corps);
+    const consent = champs.get("consent") === "oui";
+    const conditionsCochees = champs.get("conditions") === "oui";
+    const ouverture = await admin.rpc("secoto_devis_link_open", { p_token: token });
+    // Lien inutilisable (déjà payé, transporteur pas prêt…) : on n'enregistre
+    // rien et on laisse la suite afficher le motif exact.
+    const lienUtilisable = !ouverture.error && !ouverture.data?.error;
+    const conditions = lienUtilisable ? await etatConditions() : null;
+    const conditionsAttendues = Boolean(conditions && !conditions.accepted);
+    const renonciationAttendue = Boolean(lienUtilisable && ouverture.data?.waiver_required);
+    if (lienUtilisable && (conditionsAttendues && !conditionsCochees) || (renonciationAttendue && !consent)) {
       return html(200, page("Confirmation requise", "Cochez la case pour continuer vers le paiement."));
     }
-    await admin.rpc("secoto_devis_link_open", { p_token: token });
-    const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
-    if (accord.error || accord.data?.error) {
-      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    if (conditionsAttendues) {
+      const preuve = await admin.rpc("secoto_devis_link_accept_terms", { p_token: token, p_version: champs.get("version") || "" });
+      if (preuve.error || preuve.data?.error) {
+        const perimee = preuve.data?.error === "version_perimee";
+        return html(perimee ? 409 : 503, perimee
+          ? page("Conditions mises à jour", "Nos conditions viennent d'être mises à jour. Rouvrez le lien pour les lire avant de payer.")
+          : page("Paiement indisponible", MOTIFS.compte_introuvable));
+      }
+    }
+    if (lienUtilisable && consent) {
+      const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
+      if (accord.error || accord.data?.error) {
+        return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      }
     }
   }
 
@@ -137,15 +206,21 @@ const handler = async (event) => {
   if (error) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
   if (data?.error) {
     const motif = MOTIFS[data.error] || MOTIFS.lien_inconnu;
-    const paye = data.error === "deja_paye";
+    const paye = data.error === "deja_paye" || data.error === "carte_deja_validee";
     return html(paye ? 200 : 410, page(paye ? "Course déjà réglée" : "Lien inutilisable", motif, paye ? "ok" : "info"));
   }
 
   const trajet = String(data.trajet || "").replace(/^ - $/, "").trim();
 
-  // Particulier : la renonciation d'abord, le paiement ensuite.
-  if (data.waiver_required) {
-    return html(200, pageRenonciation(token, data.amount_cents, trajet));
+  // Particulier : la renonciation d'abord, le paiement ensuite. Conditions
+  // (075) : acceptées une fois, sur la même page, avant Stripe.
+  const conditions = await etatConditions();
+  const conditionsAFaire = conditions && !conditions.accepted ? conditions : null;
+  if (data.waiver_required || conditionsAFaire) {
+    return html(200, pageRenonciation(token, data.amount_cents, trajet, {
+      renonciation: Boolean(data.waiver_required),
+      conditions: conditionsAFaire,
+    }));
   }
   const description = ["SECOTO — transport de véhicule", trajet, data.vehicule]
     .filter((part) => part && String(part).trim())
@@ -153,6 +228,18 @@ const handler = async (event) => {
     .slice(0, 250);
 
   const stripe = new Stripe(STRIPE_SECRET_KEY);
+
+  // 077 : paiement direct au transporteur (plateau, interrupteur allumé).
+  if (data.circuit === "direct") {
+    try {
+      const session = await sessionDirecte({ admin, stripe, data, token, description });
+      if (!session?.url) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
+    } catch {
+      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    }
+  }
+
   try {
     const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {

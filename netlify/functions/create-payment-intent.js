@@ -12,6 +12,8 @@ import { MANAGED_PAYMENTS_ENABLED, createWithManagedPaymentsFallback, withCors }
 // Google. Implémenter StoreKit ou Play Billing serait un motif de rejet.
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
+import { messageDecomposition } from "../lib/devis-direct.js";
+import { urlRetour } from "../lib/retour-app.js";
 import { createClient } from "@supabase/supabase-js";
 
 const {
@@ -106,13 +108,19 @@ const handler = async (event) => {
 
   const { data: payment, error: paymentError } = await admin
     .from("payments")
-    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method")
+    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at")
     .eq("id", paymentId)
     .single();
   if (paymentError || !payment) return response(404, { error: "payment_not_found" });
   if (payment.account_id !== userId) return response(403, { error: "forbidden" });
   if (payment.status === "paid") return response(409, { error: "already_paid" });
-  if (!["pending", "processing"].includes(payment.status)) {
+  const direct = payment.payment_circuit === "direct";
+  // 074 : en paiement direct, la carte peut être (re)validée tant qu'aucun
+  // transporteur n'a été débité, et la validation bancaire peut être demandée.
+  const payableStatuses = direct
+    ? ["pending", "processing", "failed", "capture_failed", "requires_capture"]
+    : ["pending", "processing"];
+  if (!payableStatuses.includes(payment.status)) {
     return response(409, { error: "payment_not_payable" });
   }
 
@@ -165,6 +173,18 @@ const handler = async (event) => {
     secoto_order_id: payment.order_id || "",
     secoto_purpose: payment.purpose,
   };
+
+  if (direct) {
+    try {
+      return await directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery });
+    } catch (error) {
+      await admin.from("payments").update({
+        last_error: String(error?.message || "stripe_error").slice(0, 500),
+        updated_at: new Date().toISOString(),
+      }).eq("id", payment.id);
+      return response(502, { error: "stripe_unavailable" });
+    }
+  }
 
   try {
     // 4a. Sur le web, pas de feuille native : session Stripe Checkout hébergée.
@@ -317,5 +337,139 @@ const handler = async (event) => {
     return response(502, { error: "stripe_unavailable" });
   }
 };
+
+// ---------------------------------------------------------------------------
+// 074 — Paiement direct au transporteur (plateau et moto).
+//  · Réservation : le client VALIDE sa carte, sans débit (SetupIntent sur le
+//    compte SECOTO : aucune somme n'y est encaissée). Le débit aura lieu à
+//    l'acceptation, sur le compte du transporteur (netlify/lib/paiement-direct.js).
+//  · Si sa banque exige une validation au moment du débit : page de paiement
+//    Stripe ouverte SUR LE COMPTE DU TRANSPORTEUR, commission SECOTO comprise.
+// ---------------------------------------------------------------------------
+export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, now = Date.now() }) {
+  const { data: order } = await admin
+    .from("transport_orders")
+    .select("id,status,public_ref,lock_expires_at")
+    .eq("id", payment.order_id)
+    .single();
+  if (!order) return response(404, { error: "payment_not_found" });
+
+  const metadata = {
+    secoto_payment_id: payment.id,
+    secoto_order_id: payment.order_id || "",
+    secoto_purpose: payment.purpose,
+    secoto_circuit: "direct",
+  };
+  const retourOk = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`;
+  const retourAnnule = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`;
+  // Depuis l'iPhone / Android, la page Stripe s'ouvre dans le navigateur : la
+  // fin du parcours renvoie dans l'application (passerelle /retour-app.html).
+  const retourOkAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=ok`, platform);
+  const retourAnnuleAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=annule`, platform);
+
+  // Validation bancaire demandée au moment du débit.
+  if (order.status === "partner_locked" && payment.direct_action_required_at && payment.status === "requires_capture") {
+    const { data: ctx } = await admin.rpc("secoto_direct_charge_context", { p_order_id: order.id });
+    if (!ctx || ctx.error || !ctx.connected_account_id) return response(409, { error: "payment_not_payable" });
+    const lockMs = order.lock_expires_at ? Date.parse(order.lock_expires_at) : 0;
+    const expiresAt = Math.floor(Math.max(now + 31 * 60 * 1000, lockMs) / 1000);
+    const description = `Transport de véhicule sur plateau — commande ${order.public_ref}`;
+    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+      {
+        ...managed,
+        mode: "payment",
+        line_items: [{
+          price_data: { currency: ctx.currency || "eur", unit_amount: ctx.amount_cents, product_data: { name: description } },
+          quantity: 1,
+        }],
+        payment_intent_data: { application_fee_amount: ctx.application_fee_cents, description, metadata },
+        // 081 : décomposition affichée au-dessus du bouton, avant validation.
+        ...(messageDecomposition({ amount_cents: ctx.amount_cents, commission_cents: ctx.application_fee_cents })
+          ? { custom_text: { submit: { message: messageDecomposition({ amount_cents: ctx.amount_cents, commission_cents: ctx.application_fee_cents }) } } }
+          : {}),
+        customer_email: account?.email || undefined,
+        expires_at: expiresAt,
+        metadata,
+        success_url: retourOkAppli,
+        cancel_url: retourAnnuleAppli,
+      },
+      {
+        stripeAccount: ctx.connected_account_id,
+        idempotencyKey: idempotencyKey("secoto-direct-checkout", payment.id, {
+          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed, decompo: 1, platform,
+        }),
+      },
+    ));
+    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: ctx.amount_cents, currency: ctx.currency || "eur", circuit: "direct" });
+  }
+
+  // Carte (re)validée uniquement tant qu'aucun transporteur n'a été débité.
+  if (!["awaiting_payment", "searching_partner"].includes(order.status)) {
+    return response(409, { error: "payment_not_payable" });
+  }
+
+  if (platform === "web") {
+    // Stripe « Managed Payments » (actif par défaut sur le compte SECOTO)
+    // refuse le mode « setup » : on le désactive pour cette requête.
+    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+      {
+        ...managed,
+        mode: "setup",
+        customer: customerId,
+        currency: payment.currency || "eur",
+        setup_intent_data: { metadata, description: `Validation de carte — commande ${order.public_ref}` },
+        metadata,
+        success_url: retourOk,
+        cancel_url: retourAnnule,
+      },
+      { idempotencyKey: idempotencyKey("secoto-direct-setup-web", payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed }) },
+    ));
+    if (["pending", "failed"].includes(payment.status)) {
+      await admin.from("payments").update({ status: "processing", updated_at: new Date(now).toISOString() }).eq("id", payment.id);
+    }
+    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit: "direct", setup: true });
+  }
+
+  let setupIntent = null;
+  if (payment.setup_intent_id) {
+    setupIntent = await stripe.setupIntents.retrieve(payment.setup_intent_id);
+    if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(setupIntent.status)) setupIntent = null;
+  }
+  if (!setupIntent) {
+    setupIntent = await stripe.setupIntents.create(
+      {
+        customer: customerId,
+        usage: "off_session",
+        automatic_payment_methods: { enabled: true },
+        description: `Validation de carte — commande ${order.public_ref}`,
+        metadata,
+      },
+      { idempotencyKey: idempotencyKey("secoto-direct-setup", payment.id, { customerId, status: payment.status, previous: payment.setup_intent_id || "" }) },
+    );
+  }
+  await admin.from("payments").update({
+    setup_intent_id: setupIntent.id,
+    ...(["pending", "failed"].includes(payment.status) ? { status: "processing" } : {}),
+    updated_at: new Date(now).toISOString(),
+  }).eq("id", payment.id);
+
+  // Sans clé éphémère, la validation reste possible : seules les cartes
+  // enregistrées ne sont pas proposées.
+  const ephemeralKey = await stripe.ephemeralKeys
+    .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
+    .then((key) => key.secret)
+    .catch(() => null);
+  return response(200, {
+    mode: "setup_sheet",
+    setupIntentClientSecret: setupIntent.client_secret,
+    publishableKey: STRIPE_PUBLISHABLE_KEY || null,
+    customerId,
+    ephemeralKey,
+    amountCents: payment.amount_cents,
+    currency: payment.currency || "eur",
+    circuit: "direct",
+    returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
+  });
+}
 
 export default withLambda(withCors(handler));

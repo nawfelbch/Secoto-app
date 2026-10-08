@@ -3,6 +3,8 @@ import { humanizeError } from "../lib/humanError";
 import { formatCents, myOrders } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 import { conversionCommande } from "../lib/mesure";
+import DecompositionPrix from "./DecompositionPrix";
+import { OFFER_WINDOW_HOURS } from "../lib/orderCopy";
 
 // ============================================================================
 // SECOTO — course reservee mais pas encore reglee.
@@ -58,6 +60,8 @@ export default function PaiementAFinaliser({ onPaid }) {
   if (["paid", "requires_capture"].includes(paiement.status)) return null;
 
   const montant = formatCents(commande.client_price_cents ?? commande.collect_cents);
+  // 074/081 : plateau en paiement direct — validation de carte, aucun débit.
+  const direct = commande.payment_circuit === "direct";
   const renonciationRequise = paiement.waiverRequired && !paiement.waiverAccepted;
 
   async function payer() {
@@ -82,7 +86,9 @@ export default function PaiementAFinaliser({ onPaid }) {
 
   return (
     <div className="panel panel-full" style={{ borderColor: "var(--accent, #e8622a)", marginBottom: 14 }}>
-      <h2 style={{ marginTop: 0 }}>Votre transport est réservé — il ne reste qu’à régler</h2>
+      <h2 style={{ marginTop: 0 }}>
+        {direct ? "Votre transport est réservé — il reste à valider votre carte" : "Votre transport est réservé — il ne reste qu’à régler"}
+      </h2>
       <p className="muted" style={{ marginTop: 0 }}>
         {commande.pickup?.city || "Départ"} → {commande.delivery?.city || "Arrivée"}
         {commande.vehicle?.model ? ` · ${commande.vehicle.model}` : ""}
@@ -102,12 +108,22 @@ export default function PaiementAFinaliser({ onPaid }) {
         onClick={payer}
         style={{ minHeight: 56, fontSize: "1.02rem" }}
       >
-        {busy ? "Ouverture du paiement…" : `Payer ${montant}`}
+        {busy ? "Ouverture du paiement…" : direct ? "Valider ma carte — aucun débit maintenant" : `Payer ${montant}`}
       </button>
-      <p className="muted" style={{ marginTop: 10 }}>
-        Le montant est gardé en réserve 48 h, le temps qu’un transporteur accepte.
-        Si aucun ne se rend disponible, vous êtes intégralement remboursé.
-      </p>
+      {direct ? (
+        <>
+          <DecompositionPrix totalCents={commande.client_price_cents ?? commande.collect_cents} commissionCents={commande.commission_cents} />
+          <p className="muted" style={{ marginTop: 6, fontSize: "0.82rem", opacity: 0.85 }}>
+            Vous n’êtes débité de {montant} que lorsqu’un transporteur indépendant accepte votre transport, directement sur son compte.
+            Sans acceptation sous {OFFER_WINDOW_HOURS} h, la demande est annulée, sans aucun débit.
+          </p>
+        </>
+      ) : (
+        <p className="muted" style={{ marginTop: 10 }}>
+          Le montant est gardé en réserve 48 h, le temps qu’un transporteur accepte.
+          Si aucun ne se rend disponible, vous êtes intégralement remboursé.
+        </p>
+      )}
     </div>
   );
 }

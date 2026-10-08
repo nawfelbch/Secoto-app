@@ -103,6 +103,29 @@ export async function handleNewFlows(admin, stripeEvent) {
   return response(200, { ok: true, result });
 }
 
+// 074 — Carte validée (SetupIntent réussi) d'un paiement direct : la commande
+// part aux transporteurs. Rien n'est encaissé chez SECOTO.
+export async function handleDirectSetup(admin, stripeEvent) {
+  const si = stripeEvent.data?.object || {};
+  let paymentId = si.metadata?.secoto_payment_id || null;
+  if (!paymentId && si.id) {
+    const { data } = await admin.from("payments").select("id").eq("setup_intent_id", si.id).maybeSingle();
+    paymentId = data?.id || null;
+  }
+  if (!paymentId || si.metadata?.secoto_circuit !== "direct") {
+    return response(200, { ignored: stripeEvent.type });
+  }
+  const paymentMethod = typeof si.payment_method === "string" ? si.payment_method : si.payment_method?.id || null;
+  const { data, error } = await admin.rpc("secoto_direct_card_saved", {
+    p_payment_id: paymentId,
+    p_event_id: stripeEvent.id,
+    p_setup_intent_id: si.id || null,
+    p_payment_method_id: paymentMethod,
+  });
+  if (error) return response(500, { error: "settle_failed" });
+  return response(200, { ok: true, result: data });
+}
+
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -124,6 +147,9 @@ const handler = async (event) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // 074 : carte validée pour un paiement direct (plateau) — aucun encaissement.
+  if (stripeEvent.type === "setup_intent.succeeded") return handleDirectSetup(admin, stripeEvent);
 
   // Migration 030-031 : commandes à la demande, extensions, abonnements.
   const handled = await handleNewFlows(admin, stripeEvent);

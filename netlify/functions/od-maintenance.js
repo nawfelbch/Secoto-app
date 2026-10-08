@@ -8,9 +8,10 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 //  • versements transporteurs dus : Stripe Transfer vers le compte Connect
 //    (migration 036, interrupteur connect_payouts).
 import Stripe from "stripe";
-import { json, serviceClient } from "../lib/secoto-server.js";
+import { json, majCompteStripe, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
+import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -19,6 +20,13 @@ export async function runMaintenance({ admin, stripe }) {
   Object.assign(report, { expired_quotes: tick.expired_quotes, rebroadcast: tick.rebroadcast, no_partner: tick.no_partner });
 
   for (const lock of tick.expired_locks || []) {
+    // 074 : en paiement direct, la décision se prend toujours chez Stripe
+    // (débit éventuellement déjà passé, validation bancaire en attente…).
+    if (isDirect(lock) && lock.funding === "card") {
+      const outcome = await captureForOrder({ admin, stripe, orderId: lock.order_id, paymentId: lock.payment_id });
+      report.locks.push({ order: lock.order_id, outcome: outcome?.result, circuit: "direct" });
+      continue;
+    }
     if (lock.funding !== "card" || !lock.intent_id) {
       const { data } = await admin.rpc("secoto_od_expire_lock", { p_order_id: lock.order_id });
       report.locks.push({ order: lock.order_id, outcome: data?.result });
@@ -32,6 +40,21 @@ export async function runMaintenance({ admin, stripe }) {
     try {
       if (!action.intent_id) {
         await admin.rpc("secoto_od_payment_action_result", { p_payment_id: action.payment_id, p_action: action.action, p_success: true, p_error: null });
+      } else if (isDirect(action)) {
+        // 074 : tout se passe sur le compte du transporteur, jamais sur celui de SECOTO.
+        const stripeAccount = action.connected_account_id;
+        if (!stripeAccount) throw new Error("Compte du transporteur inconnu pour ce paiement direct.");
+        const intent = await stripe.paymentIntents.retrieve(action.intent_id, {}, { stripeAccount });
+        if (intent.status === "succeeded") {
+          await refundDirect({ stripe, action: { ...action, amount_cents: action.amount_cents || intent.amount } });
+          await admin.rpc("secoto_od_payment_action_result", { p_payment_id: action.payment_id, p_action: "refund", p_success: true, p_error: null });
+          report.actions.push({ payment: action.payment_id, outcome: "refund", circuit: "direct" });
+          continue;
+        }
+        if (["requires_payment_method", "requires_capture", "requires_confirmation", "requires_action", "processing"].includes(intent.status)) {
+          await stripe.paymentIntents.cancel(intent.id, {}, { stripeAccount, idempotencyKey: `secoto-direct-cancel-${action.payment_id}` });
+        }
+        await admin.rpc("secoto_od_payment_action_result", { p_payment_id: action.payment_id, p_action: "cancel", p_success: true, p_error: null });
       } else if (action.action === "refund") {
         await stripe.refunds.create(
           { payment_intent: action.intent_id, amount: action.amount_cents, reason: "requested_by_customer", metadata: { secoto_payment_id: action.payment_id } },
@@ -79,6 +102,11 @@ export async function runMaintenance({ admin, stripe }) {
     report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
   }
   report.payouts = await processPayouts({ admin, stripe });
+  // 076 : virements bancaires déclenchés par SECOTO depuis le solde du
+  // transporteur (circuit direct, et Transfers reçus par un compte en
+  // virement manuel).
+  report.direct_payouts = await processDirectPayouts({ admin, stripe });
+  report.bank_payouts = await processBankPayouts({ admin, stripe });
   return report;
 }
 
@@ -122,10 +150,12 @@ export async function resyncConnectAccounts({ admin, stripe, maintenant = Date.n
         stripe_connect_status: s.status,
         stripe_transfers_enabled: s.transfers_enabled,
         stripe_payouts_enabled: s.payouts_enabled,
+        stripe_card_payments_enabled: s.card_payments_enabled,
+        stripe_payouts_manual: s.payouts_manual,
         stripe_connect_updated_at: horodatage,
       };
       if (s.status === "active" && !c.stripe_connect_onboarded_at) maj.stripe_connect_onboarded_at = horodatage;
-      await admin.from("accounts").update(maj).eq("id", c.id);
+      await majCompteStripe((patch) => admin.from("accounts").update(patch).eq("id", c.id), maj);
       if (s.status !== c.stripe_connect_status) rapport.push({ compte: c.id, avant: c.stripe_connect_status, apres: s.status });
     } catch (erreur) {
       // Compte introuvable ou Stripe indisponible : on repousse simplement la

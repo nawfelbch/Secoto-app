@@ -9,11 +9,14 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // « od-maintenance » vérifie l'état réel chez Stripe.
 import Stripe from "stripe";
 import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, userClient, withCors } from "../lib/secoto-server.js";
+import { chargeDirect, isDirect } from "../lib/paiement-direct.js";
 
 const DECLINE_CODES = new Set(["card_declined", "expired_card", "insufficient_funds", "payment_intent_unexpected_state", "authentication_required"]);
 
 export async function captureForOrder({ admin, stripe, orderId, paymentId }) {
-  const { data: payment } = await admin.from("payments").select("id,provider_intent_id,status").eq("id", paymentId).single();
+  const { data: payment } = await admin.from("payments").select("id,provider_intent_id,status,payment_circuit").eq("id", paymentId).single();
+  // 074 : plateau en paiement direct -> débit sur le compte du transporteur.
+  if (isDirect(payment)) return chargeDirect({ admin, stripe, orderId });
   if (!payment?.provider_intent_id) {
     await admin.rpc("secoto_od_capture_result", { p_order_id: orderId, p_success: false, p_error: "intent_absent" });
     return { result: "capture_failed" };

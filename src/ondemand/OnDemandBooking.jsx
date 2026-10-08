@@ -1,5 +1,7 @@
 import { humanizeError } from "../lib/humanError";
 import { useEffect, useMemo, useRef, useState } from "react";
+import DecompositionPrix from "./DecompositionPrix";
+import ReassuranceReservation from "./ReassuranceReservation";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
@@ -206,11 +208,19 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   }
 
   const guaranteed = order && (order.funding === "subscription" || ["requires_capture", "paid"].includes(payment?.status));
+  // 074 : plateau et moto en paiement direct — carte validée, débit à l'acceptation.
+  const direct = order?.payment_circuit === "direct";
+  // 081 : le devis plateau annonce déjà le circuit direct (interrupteur allumé).
+  const devisDirect = quote?.payment_circuit === "direct";
 
   return (
     <div className="panel panel-full">
       <h2>Transport à la demande</h2>
-      <p className="muted">Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.</p>
+      <p className="muted">
+        {direct || devisDirect
+          ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
+          : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
+      </p>
       <ol className="od-steps" aria-label="Étapes">
         {STEPS.map((label, i) => (
           <li key={label} className={i === step ? "is-current" : i < step ? "is-done" : ""} aria-current={i === step ? "step" : undefined}>{i + 1}. {label}</li>
@@ -362,11 +372,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
               <p className="muted">
-                {(quote.vehicles?.length || 1) > 1
-                  ? `${quote.vehicles.length} véhicules sur le même trajet. Tout compris, réglé en une seule fois à SECOTO. `
+                {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
+                {devisDirect
+                  ? "Tout compris, réglé en une seule fois, directement au transporteur qui accepte votre transport. "
                   : "Tout compris, réglé en une seule fois à SECOTO. "}
                 {TVA_MENTION}
               </p>
+              {devisDirect && <DecompositionPrix totalCents={quote.client_price_cents} commissionCents={quote.commission_cents} />}
               {quote.group_discount_cents > 0 && quote.vehicles?.length > 1 && (
                 <p className="od-remise">
                   <strong>Groupage : vous économisez {formatCents(quote.group_discount_cents)}</strong>
@@ -380,8 +392,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <div><strong>Inclus</strong><ul>{(quote.included || []).map((x) => <li key={x}>{x}</li>)}</ul></div>
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
+              <ReassuranceReservation mode={quote.mode} circuit={quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
-              <p className="muted">{cancellationPolicy()}</p>
+              <p className="muted">{cancellationPolicy(order)}</p>
               {subscriptionActive && (
                 <label className="od-checks"><input type="checkbox" checked={useSubscription} onChange={(e) => setUseSubscription(e.target.checked)} /> Utiliser mon forfait (si ce trajet est couvert)</label>
               )}
@@ -414,16 +427,24 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
-                {busy ? "Validation en cours…" : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
+                {busy ? "Validation en cours…" : direct
+                  ? "Valider ma carte — aucun débit maintenant"
+                  : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
+              {direct && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
+              <ReassuranceReservation mode={order.mode} circuit={order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
           {guaranteed && (
             <div className="alert success">
-              {order.funding === "subscription" ? "Forfait réservé." : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
-              Votre demande part à tous nos transporteurs compatibles : ils ont {OFFER_WINDOW_HOURS} h pour l’accepter.
-              Vous êtes notifié dès qu’un transporteur confirme.
+              {order.funding === "subscription" ? "Forfait réservé." : direct
+                ? `Carte validée, rien n’a été débité. Vous serez débité de ${formatCents(order.client_price_cents ?? order.collect_cents)} au nom du transporteur qui accepte la mission.`
+                : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
+              {direct
+                ? `Votre demande est proposée aux transporteurs indépendants vérifiés : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter. Sans acceptation, elle est annulée, sans aucun débit.`
+                : `Votre demande part à tous nos transporteurs compatibles : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter.`}
+              Vous êtes notifié dès qu’un transporteur confirme{direct && flags?.mise_en_relation_v2 ? " : ses coordonnées s’affichent alors dans votre commande et vous échangez directement avec lui jusqu’à la livraison." : "."}
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
             </div>
           )}

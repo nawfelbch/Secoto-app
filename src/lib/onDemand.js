@@ -5,7 +5,7 @@
 // prises côté serveur. Ce module ne fait qu'appeler les RPC et formater.
 // ============================================================================
 import { supabase } from "../supabaseClient";
-import { getServerFunctionUrl } from "../platform/runtime";
+import { getPlatform, getServerFunctionUrl } from "../platform/runtime";
 import { humanizeError } from "./humanError";
 import { randomIdempotencyKey } from "./fileSafety";
 
@@ -58,7 +58,9 @@ export function orderHeadline(order) {
   if (order.status === "searching_partner" || order.status === "partner_locked") {
     return order.payment_status === "capture_failed"
       ? "L’encaissement a échoué : mettez à jour votre moyen de paiement"
-      : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
+      : order.payment_circuit === "direct"
+        ? `Votre demande est proposée aux transporteurs indépendants vérifiés (${OFFER_WINDOW_HOURS} h)`
+        : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
   }
   return ORDER_STATUS_LABEL[order.status] || order.status;
 }
@@ -223,7 +225,14 @@ export const acceptMission = (missionId) =>
   rpc("secoto_mission_accept", { p_mission_id: missionId, p_idempotency_key: randomIdempotencyKey() });
 export const declineMission = (missionId) => rpc("secoto_mission_decline", { p_mission_id: missionId });
 // Compte de versement Stripe Connect : "status", "link" ou "dashboard".
-export const connectOnboarding = (action) => callFunction("connect-onboarding", { action });
+export const connectOnboarding = (action) => callFunction("connect-onboarding", { action, platform: getPlatform() });
+// 074 : paiement direct plateau (mandat de facturation et état du compte).
+export const carrierDirectStatus = () => rpc("secoto_carrier_direct_status", {});
+export const carrierAcceptBillingMandate = ({ version, legalName, siren, address, vatRegime, vatNumber }) =>
+  rpc("secoto_carrier_accept_billing_mandate", {
+    p_version: version, p_legal_name: legalName, p_siren: siren, p_address: address,
+    p_vat_regime: vatRegime, p_vat_number: vatNumber || null,
+  });
 
 // ---- Suivi -----------------------------------------------------------------
 export const liveView = (missionId) => rpc("secoto_live_view", { p_mission_id: missionId });

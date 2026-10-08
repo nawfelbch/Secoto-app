@@ -285,3 +285,19 @@ export function idempotencyKey(prefix, id, params) {
   const empreinte = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 16);
   return `${prefix}-${id}-${empreinte}`;
 }
+
+// Colonnes ajoutées par les migrations 074 et 076. Si le code est en ligne
+// avant la migration, une mise à jour qui les nomme serait rejetée EN ENTIER
+// (statut Stripe du transporteur figé). On réessaie alors sans elles : l'état
+// historique continue d'être synchronisé.
+const COLONNES_STRIPE_RECENTES = ["stripe_card_payments_enabled", "stripe_payouts_manual"];
+export async function majCompteStripe(executer, patch) {
+  const r = await executer(patch);
+  const message = String(r?.error?.message || "");
+  if (r?.error && COLONNES_STRIPE_RECENTES.some((c) => message.includes(c))) {
+    const reduit = { ...patch };
+    for (const c of COLONNES_STRIPE_RECENTES) delete reduit[c];
+    return executer(reduit);
+  }
+  return r;
+}

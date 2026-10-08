@@ -62,6 +62,14 @@ export function normalizePublicSignupMetadata(input = {}) {
     transporter_type: transporterType,
     receives_standard_plateau: receivesStandardPlateau,
     luxury_closed_transport_requested: luxuryClosedTransportRequested,
+    // 075 : version des conditions cochee a l'inscription (la base verifie
+    // qu'elle est bien en vigueur avant d'enregistrer l'accord).
+    ...(typeof input.terms_version === "string" && input.terms_version.trim()
+      ? { terms_version: input.terms_version.trim().slice(0, 40) }
+      : {}),
+    ...(["web", "ios", "android"].includes(input.terms_platform)
+      ? { terms_platform: input.terms_platform }
+      : {}),
   };
 }
 

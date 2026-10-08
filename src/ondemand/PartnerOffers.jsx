@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import {
   VEHICLE_CLASSES, VEHICLE_CONSTRAINTS, SLOTS,
-  acceptOffer, declineOffer, departmentsFromText, formatCents, formatDateTime,
+  acceptOffer, carrierDirectStatus, declineOffer, departmentsFromText, formatCents, formatDateTime,
   getOffer, markOfferSeen, myDispatchPreferences, myOffers, updateDispatchPreferences,
 } from "../lib/onDemand";
 import { randomIdempotencyKey } from "../lib/fileSafety";
@@ -25,6 +25,9 @@ const RESULT_TEXT = {
   unavailable: "Cette mission n’est plus disponible.",
   not_eligible: "Votre profil ne permet pas d’accepter cette mission (documents à jour, disponibilité ou préférences).",
   capture_failed: "Le paiement du client n’a pas pu être finalisé : la mission n’est pas confirmée. Aucune pénalité.",
+  // 074 : paiement direct (plateau).
+  payment_account_required: "Pour accepter les missions plateau, activez d’abord le paiement direct : le client vous paie directement, SECOTO ne garde que ses frais.",
+  needs_action: "Mission réservée pour vous : le client valide son paiement auprès de sa banque. Vous êtes prévenu dès que c’est fait.",
 };
 
 // ---------------------------------------------------------------------------
@@ -116,7 +119,7 @@ export function DispatchPreferencesPanel({ transporterType }) {
 // ---------------------------------------------------------------------------
 // Détail d'une proposition + acceptation / refus.
 // ---------------------------------------------------------------------------
-export function OfferDetail({ offerId, onClose, onConfirmed }) {
+export function OfferDetail({ offerId, onClose, onConfirmed, onOpenBank }) {
   const [offer, setOffer] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -199,7 +202,10 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
           À accepter avant le {formatDateTime(offer.expires_at)}.
         </p>
       )}
-      {result && <div className={`alert ${result === "confirmed" ? "success" : result === "pending_capture" ? "" : "error"}`} role="status">{RESULT_TEXT[result] || RESULT_TEXT.unavailable}</div>}
+      {result && <div className={`alert ${result === "confirmed" ? "success" : ["pending_capture", "needs_action"].includes(result) ? "" : "error"}`} role="status">{RESULT_TEXT[result] || RESULT_TEXT.unavailable}</div>}
+      {result === "payment_account_required" && onOpenBank && (
+        <div className="actions-row"><button className="btn primary small" type="button" onClick={onOpenBank}>Activer le paiement direct</button></div>
+      )}
       {error && <div className="alert error">{error}</div>}
       <div className="actions-row">
         {available && !result && <button className="btn primary" type="button" disabled={busy} onClick={accept}>{busy ? "Envoi…" : "Accepter"}</button>}
@@ -213,12 +219,19 @@ export function OfferDetail({ offerId, onClose, onConfirmed }) {
 // ---------------------------------------------------------------------------
 // Liste des propositions reçues.
 // ---------------------------------------------------------------------------
-export function OffersPanel({ focusOfferId, onOpenMission }) {
+export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementDirect = false }) {
   const [offers, setOffers] = useState(null);
   const [open, setOpen] = useState(focusOfferId || null);
   const [error, setError] = useState("");
 
   const load = useCallback(() => myOffers().then((list) => { setOffers(list); setError(""); }).catch((e) => setError(humanizeError(e))), []);
+  // 074 : un transporteur plateau sans paiement direct voit les missions mais
+  // ne peut pas les accepter : on le lui dit avant qu'il essaie.
+  const [direct, setDirect] = useState(null);
+  useEffect(() => {
+    if (!paiementDirect) return;
+    carrierDirectStatus().then(setDirect).catch(() => setDirect(null));
+  }, [paiementDirect]);
   useEffect(() => { queueMicrotask(load); const id = setInterval(() => document.visibilityState === "visible" && load(), 20000); return () => clearInterval(id); }, [load]);
   useEffect(() => { if (focusOfferId) queueMicrotask(() => setOpen(focusOfferId)); }, [focusOfferId]);
 
@@ -228,6 +241,12 @@ export function OffersPanel({ focusOfferId, onOpenMission }) {
     <div className="panel panel-full">
       <h2>Missions disponibles</h2>
       {error && <div className="alert error">{error}</div>}
+      {direct && !direct.ready && available.some((o) => o.mode === "plateau") && (
+        <div className="alert" role="status">
+          Pour accepter les missions plateau, activez le paiement direct : le client vous paie directement, SECOTO ne garde que ses frais.
+          {onOpenBank && <div className="actions-row"><button className="btn primary small" type="button" onClick={onOpenBank}>Activer le paiement direct</button></div>}
+        </div>
+      )}
       {offers === null && <p className="muted">Chargement…</p>}
       {offers && available.length === 0 && <div className="empty-state"><strong>Aucune mission disponible pour le moment</strong>Les propositions compatibles avec vos préférences apparaissent ici.</div>}
       <div className="cards">
@@ -250,7 +269,7 @@ export function OffersPanel({ focusOfferId, onOpenMission }) {
       )}
       {open && (
         <div className="od-offer-backdrop" onClick={(e) => { if (e.target === e.currentTarget) { setOpen(null); load(); } }}>
-          <OfferDetail offerId={open} onClose={() => { setOpen(null); load(); }} onConfirmed={(o) => { load(); onOpenMission?.(o?.mission_id); }} />
+          <OfferDetail offerId={open} onOpenBank={onOpenBank} onClose={() => { setOpen(null); load(); }} onConfirmed={(o) => { load(); onOpenMission?.(o?.mission_id); }} />
         </div>
       )}
     </div>
@@ -260,7 +279,7 @@ export function OffersPanel({ focusOfferId, onOpenMission }) {
 // ---------------------------------------------------------------------------
 // Popup quand l'application est ouverte : nouvelle proposition en temps réel.
 // ---------------------------------------------------------------------------
-export function OfferPopupHost({ accountId, suppressed = false, onOpenMission }) {
+export function OfferPopupHost({ accountId, suppressed = false, onOpenMission, onOpenBank }) {
   const [offerId, setOfferId] = useState(null);
   const shownRef = useRef(new Set());
 
@@ -281,7 +300,7 @@ export function OfferPopupHost({ accountId, suppressed = false, onOpenMission })
   if (!offerId || suppressed) return null;
   return (
     <div className="od-offer-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setOfferId(null); }}>
-      <OfferDetail offerId={offerId} onClose={() => setOfferId(null)} onConfirmed={(o) => { setOfferId(null); onOpenMission?.(o?.mission_id); }} />
+      <OfferDetail offerId={offerId} onOpenBank={onOpenBank ? () => { setOfferId(null); onOpenBank(); } : undefined} onClose={() => setOfferId(null)} onConfirmed={(o) => { setOfferId(null); onOpenMission?.(o?.mission_id); }} />
     </div>
   );
 }

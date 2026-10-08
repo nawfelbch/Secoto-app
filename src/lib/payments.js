@@ -194,8 +194,14 @@ export async function payNow(paymentId) {
       }
     : {};
 
+  // 074 : plateau en paiement direct — la feuille VALIDE la carte, sans débit.
+  // Le débit aura lieu à l'acceptation, au nom du transporteur.
+  const secret = intent.mode === "setup_sheet"
+    ? { setupIntentClientSecret: intent.setupIntentClientSecret }
+    : { paymentIntentClientSecret: intent.clientSecret };
+
   await StripePlugin.createPaymentSheet({
-    paymentIntentClientSecret: intent.clientSecret,
+    ...secret,
     ...customerOptions,
     merchantDisplayName: "SECOTO",
     countryCode: "FR",
@@ -204,7 +210,8 @@ export async function payNow(paymentId) {
     applePayMerchantId: import.meta.env.VITE_APPLE_PAY_MERCHANT_ID || undefined,
     enableApplePay: platform() === "ios" && Boolean(import.meta.env.VITE_APPLE_PAY_MERCHANT_ID),
     enableGooglePay: platform() === "android",
-    googlePayIsTesting: false,
+    // Clé de test Stripe : Google Pay doit être en mode test, sinon il refuse.
+    googlePayIsTesting: String(intent.publishableKey || "").startsWith("pk_test_"),
   });
 
   const outcome = await StripePlugin.presentPaymentSheet();
@@ -218,7 +225,9 @@ export async function payNow(paymentId) {
   if (value === "paymentSheetCanceled") {
     return { ok: false, pending: false, cancelled: true };
   }
-  throw new Error("Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
+  throw new Error(intent.mode === "setup_sheet"
+    ? "La carte n'a pas pu être validée. Aucun montant n'a été prélevé."
+    : "Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
 }
 
 function explain(error) {
