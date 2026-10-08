@@ -63,7 +63,8 @@ export default function ConditionsGate({ status, onAccepted, onRefresh, onSignOu
   }
 
   return (
-    <main className="layout">
+    <main className="app-shell">
+      <div className="layout">
       <div className="panel panel-full conditions-gate" role="dialog" aria-modal="true" aria-labelledby="conditions-titre">
         <h2 id="conditions-titre">Nos conditions évoluent</h2>
         <p className="muted">
@@ -83,6 +84,7 @@ export default function ConditionsGate({ status, onAccepted, onRefresh, onSignOu
           )}
         </div>
       </div>
+    </div>
     </main>
   );
 }

@@ -348,6 +348,9 @@ test("paiement côté client : carte validée sans débit (natif et web), valida
   assert.equal(cs.args[1].stripeAccount, "acct_T", "paiement sur le compte du transporteur");
   assert.equal(cs.args[0].payment_intent_data.application_fee_amount, 8000);
   assert.equal(cs.args[0].payment_intent_data.metadata.secoto_payment_id, "p1");
+  // Depuis l'iPhone, la validation s'ouvre dans le navigateur : retour dans l'application.
+  assert.match(cs.args[0].success_url, /\/retour-app\.html\?ecran=courses&commande=o1&paiement=ok$/);
+  assert.match(cs.args[0].cancel_url, /\/retour-app\.html\?ecran=courses&commande=o1&paiement=annule$/);
 
   const done = { transport_orders: [{ id: "o1", status: "partner_confirmed", public_ref: "CMD", lock_expires_at: null }] };
   const r4 = await directFlow({ admin: fakeAdmin({ tables: done }), stripe: fakeStripe(), payment: { ...base, status: "requires_capture" }, ...args });

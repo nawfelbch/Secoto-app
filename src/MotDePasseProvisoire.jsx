@@ -31,7 +31,8 @@ export default function MotDePasseProvisoire({ account, onChanged }) {
   }
 
   return (
-    <main className="layout">
+    <main className="app-shell">
+      <div className="layout">
       <div className="panel panel-full">
         <h2>Choisissez votre mot de passe</h2>
         <p className="muted">
@@ -60,6 +61,7 @@ export default function MotDePasseProvisoire({ account, onChanged }) {
           </button>
         </div>
       </div>
+    </div>
     </main>
   );
 }
