@@ -352,17 +352,22 @@ test("compte transporteur : création v2 si Stripe refuse la v1 (mode test), v1 
   const co = await import("../netlify/functions/connect-onboarding.js");
   const refus = Object.assign(new Error("Stripe no longer recommends Accounts v1 for new Connect integrations. Create connected accounts with POST /v2/core/accounts instead."), { type: "StripeInvalidRequestError" });
   const appels = [];
-  const stripe = { v2: { core: { accounts: { create: async (p, o) => { appels.push({ p, o }); return { id: "acct_v2" }; } } } } };
+  const majs = [];
+  const stripe = { v2: { core: { accounts: {
+    create: async (p, o) => { appels.push({ p, o }); return { id: "acct_v2" }; },
+    update: async (id, p) => { majs.push({ id, p }); return { id }; },
+  } } } };
   const acct = await co.createConnectedAccount(stripe, { email: "t@test.invalid", userId: "u1", directOn: true, cle: "k" }, async () => { throw refus; });
   assert.equal(acct.id, "acct_v2");
   const p = appels[0].p;
   assert.equal(p.dashboard, "express");
   assert.deepEqual(p.defaults.responsibilities, { fees_collector: "application", losses_collector: "application" }, "frais Stripe à la charge de SECOTO");
-  assert.equal(p.configuration.merchant.capabilities.card_payments.requested, true);
+  assert.equal(p.configuration.merchant, undefined, "création sans configuration marchande (règle Stripe France)");
   assert.equal(p.configuration.recipient.capabilities.stripe_balance.stripe_transfers.requested, true);
   assert.equal(appels[0].o.idempotencyKey, "k-v2");
-  // Convoyeur / interrupteur éteint : pas de configuration marchande.
-  assert.equal(co.v2AccountParams({ email: "x", userId: "u", directOn: false }).configuration.merchant, undefined);
+  assert.equal(majs[0].id, "acct_v2");
+  assert.equal(majs[0].p.configuration.merchant.capabilities.card_payments.requested, true, "encaissement par carte ajouté ensuite");
+  assert.equal(majs[0].p.identity, undefined, "aucune donnée d'identité envoyée");
   // v1 acceptée : aucun appel v2.
   const ok = await co.createConnectedAccount(stripe, { email: "t", userId: "u2", directOn: false, cle: "k2" }, async () => ({ id: "acct_v1" }));
   assert.equal(ok.id, "acct_v1");

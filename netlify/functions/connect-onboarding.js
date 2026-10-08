@@ -27,7 +27,12 @@ export function isAccountsV1Refused(error) {
   return /v2\/core\/accounts|Accounts v1/i.test(message);
 }
 
-export function v2AccountParams({ email, userId, directOn }) {
+// Une plateforme française ne peut pas transmettre d'informations d'identité
+// à un compte v2 qui a la configuration « marchand » (Stripe exige alors des
+// jetons). Le compte est donc créé « destinataire » avec son seul pays, puis
+// la configuration marchande (encaisser les cartes) est ajoutée sans aucune
+// donnée d'identité : c'est Stripe qui collecte tout dans son formulaire.
+export function v2AccountParams({ email, userId }) {
   return {
     contact_email: email || undefined,
     identity: { country: "fr" },
@@ -38,18 +43,30 @@ export function v2AccountParams({ email, userId, directOn }) {
     },
     configuration: {
       recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
-      ...(directOn ? { merchant: { mcc: "4214", capabilities: { card_payments: { requested: true } } } } : {}),
     },
     metadata: { secoto_account_id: userId },
   };
 }
+
+export const V2_MERCHANT_CONFIGURATION = {
+  configuration: { merchant: { mcc: "4214", capabilities: { card_payments: { requested: true } } } },
+};
 
 export async function createConnectedAccount(stripe, { email, userId, directOn, cle }, creerV1) {
   try {
     return await creerV1();
   } catch (error) {
     if (!isAccountsV1Refused(error)) throw error;
-    return stripe.v2.core.accounts.create(v2AccountParams({ email, userId, directOn }), { idempotencyKey: `${cle}-v2` });
+    const acct = await stripe.v2.core.accounts.create(v2AccountParams({ email, userId }), { idempotencyKey: `${cle}-v2` });
+    if (directOn) {
+      try {
+        await stripe.v2.core.accounts.update(acct.id, V2_MERCHANT_CONFIGURATION, { idempotencyKey: `${cle}-v2-marchand` });
+      } catch (erreur) {
+        // Le compte existe : l'activation du paiement direct le complétera.
+        console.error("[connect-onboarding] configuration marchande", erreur?.message);
+      }
+    }
+    return acct;
   }
 }
 
@@ -89,9 +106,7 @@ export async function upgradeForDirect(stripe, acctId) {
     }, { idempotencyKey: `secoto-direct-upgrade-${acctId}-${heure}` });
   } catch (error) {
     if (!isAccountsV1Refused(error) && !/v2/i.test(String(error?.message || ""))) throw error;
-    await stripe.v2.core.accounts.update(acctId, {
-      configuration: { merchant: { mcc: "4214", capabilities: { card_payments: { requested: true } } } },
-    }, { idempotencyKey: `secoto-direct-upgrade-v2-${acctId}-${heure}` });
+    await stripe.v2.core.accounts.update(acctId, V2_MERCHANT_CONFIGURATION, { idempotencyKey: `secoto-direct-upgrade-v2-${acctId}-${heure}` });
   }
   try {
     await stripe.accounts.update(acctId, { settings: { payouts: { debit_negative_balances: true } } });
