@@ -79,7 +79,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
       {error && <div className="alert error" role="alert">{error}</div>}
       {message && <div className="alert success" role="status">{message}</div>}
 
-      {tab === "orders" && <AdminOrders orders={data.orders} busy={busy} run={run} transporters={transporters} />}
+      {tab === "orders" && <AdminOrders orders={data.orders} busy={busy} run={run} transporters={transporters} relation={Boolean(flags?.mise_en_relation_v2)} />}
       {tab === "quotes" && <AdminQuotes quotes={data.quotes} busy={busy} run={run} />}
       {tab === "grids" && <AdminGrids grids={data.grids} flags={flags} busy={busy} run={run} onFlagsChange={onFlagsChange} />}
       {tab === "partners" && <AdminPartners partners={data.partners} busy={busy} run={run} />}
@@ -90,7 +90,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
   );
 }
 
-function AdminOrders({ orders, busy, run, transporters }) {
+function AdminOrders({ orders, busy, run, transporters, relation = false }) {
   const [openId, setOpenId] = useState(null);
   const [pay, setPay] = useState("");
   const [note, setNote] = useState("");
@@ -101,6 +101,8 @@ function AdminOrders({ orders, busy, run, transporters }) {
   if (!orders) return <p className="muted">Chargement…</p>;
   const live = orders.filter((o) => !["delivered", "cancelled"].includes(o.status));
   const archive = orders.filter((o) => ["delivered", "cancelled"].includes(o.status));
+  // 084 : une course acceptée appartient au client et à son transporteur.
+  const verrouillee = (o) => relation && ["partner_locked", "partner_confirmed", "picked_up", "delivered"].includes(o.status);
   const render = (o) => (
     <article className="mission-card" key={o.id}>
       <div className="card-top">
@@ -119,7 +121,24 @@ function AdminOrders({ orders, busy, run, transporters }) {
         {o.refund_pending ? " · remboursement/libération en cours" : ""}
         {o.dispute ? ` · contestation ${o.dispute}` : ""}
       </p>
-      {openId === o.id ? (
+      {openId === o.id && verrouillee(o) ? (
+        <div className="card-section">
+          <p className="muted">
+            Course acceptée par le transporteur : elle n’est plus modifiable par SECOTO (prix, date, transporteur, étapes).
+            En cas de problème signalé au SAV, seule l’annulation avec remboursement intégral du client reste possible.
+          </p>
+          <div className="actions-row">
+            <button className="btn danger small" type="button" disabled={busy}
+              onClick={() => {
+                const motif = window.prompt("Motif de l’annulation (SAV) ?") || "";
+                if (motif.trim().length < 5) return;
+                if (!window.confirm("Annuler la course et rembourser intégralement le client ?")) return;
+                run(() => admin.cancelOrder(o.id, motif, true), "Course annulée, client remboursé intégralement.");
+              }}>Annuler et rembourser intégralement</button>
+            <button className="btn ghost small" type="button" onClick={() => setOpenId(null)}>Fermer</button>
+          </div>
+        </div>
+      ) : openId === o.id ? (
         <div className="card-section">
           <div className="od-inline-form">
             <label className="field"><span>Rémunération partenaire (€)</span><input inputMode="decimal" value={pay} onChange={(e) => setPay(e.target.value)} /></label>
@@ -127,7 +146,7 @@ function AdminOrders({ orders, busy, run, transporters }) {
             <button className="btn ghost small" type="button" disabled={busy}
               onClick={() => run(() => admin.setPartnerPay(o.id, Math.round(Number(pay.replace(",", ".")) * 100), Boolean(note), note || null), "Rémunération mise à jour.")}>Appliquer</button>
           </div>
-          <div className="od-inline-form">
+          {!relation && <div className="od-inline-form">
             <label className="field"><span>Attribuer à</span>
               <select value={partner} onChange={(e) => setPartner(e.target.value)}>
                 <option value="">Choisir un partenaire…</option>
@@ -136,7 +155,7 @@ function AdminOrders({ orders, busy, run, transporters }) {
             </label>
             <button className="btn ghost small" type="button" disabled={busy || !partner}
               onClick={() => run(() => admin.lockForPartner(o.id, partner), "Attribution demandée (capture du paiement en cours).")}>Attribuer</button>
-          </div>
+          </div>}
           <div className="od-inline-form">
             <label className="field"><span>Prix client (€)</span><input inputMode="decimal" value={cond.client} onChange={(e) => setCond({ ...cond, client: e.target.value })} /></label>
             <label className="field"><span>Rémunération transporteur (€)</span><input inputMode="decimal" value={cond.pay} onChange={(e) => setCond({ ...cond, pay: e.target.value })} /></label>

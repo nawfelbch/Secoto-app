@@ -500,6 +500,7 @@ export default function AdminMissionPilot({
   onSettleCommission,
   onNotice,
   onError,
+  verrouillee = false,
 }) {
   const [open, setOpen] = useState(false);
   const transporter = (transporters || []).find((t) => t.id === mission.assignedTransporterId) || null;
@@ -529,17 +530,28 @@ export default function AdminMissionPilot({
             </>
           )}
 
-          {assigned && (
+          {verrouillee && (
+            <p className="muted" style={{ marginTop: 10 }}>
+              Course acceptée par le transporteur : ses montants, son transporteur et ses étapes ne sont plus
+              modifiables par SECOTO. Le client et le transporteur échangent directement ; le SAV intervient en cas de difficulté.
+            </p>
+          )}
+
+          {assigned && !verrouillee && (
             <>
               <h4 style={{ marginBottom: 0 }}>Montants de la mission</h4>
               <PricingEditor mission={mission} busy={busy} onSave={onSavePricing} />
             </>
           )}
 
-          <h4 style={{ marginBottom: 0 }}>Étape</h4>
-          <StagePicker mission={mission} busy={busy} onSetStage={onSetStage} />
+          {!verrouillee && (
+            <>
+              <h4 style={{ marginBottom: 0 }}>Étape</h4>
+              <StagePicker mission={mission} busy={busy} onSetStage={onSetStage} />
+            </>
+          )}
 
-          {assigned && onReopenStep && (
+          {assigned && onReopenStep && !verrouillee && (
             <>
               <h4 style={{ marginBottom: 0 }}>Rendre la main au transporteur</h4>
               <p className="muted" style={{ marginTop: 4 }}>
@@ -577,14 +589,18 @@ export default function AdminMissionPilot({
             </>
           )}
 
-          <h4 style={{ marginBottom: 0 }}>Prévenir le client</h4>
-          <ClientSmsPanel
-            mission={mission}
-            transporter={transporter}
-            trackingUrl={trackingUrl}
-            onNotice={onNotice}
-            onError={onError}
-          />
+          {!verrouillee && (
+            <>
+              <h4 style={{ marginBottom: 0 }}>Prévenir le client</h4>
+              <ClientSmsPanel
+                mission={mission}
+                transporter={transporter}
+                trackingUrl={trackingUrl}
+                onNotice={onNotice}
+                onError={onError}
+              />
+            </>
+          )}
 
           <h4 style={{ marginBottom: 0 }}>Devis déjà signé</h4>
           <SignedDevisUploader
