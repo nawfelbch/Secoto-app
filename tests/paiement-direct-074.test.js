@@ -440,3 +440,55 @@ test("076 : le réglage « virement manuel » est relu de Stripe et posé à l'a
   assert.equal(payouts[1].settings.payouts.schedule.interval, "manual");
   assert.equal(payouts[1].settings.payouts.debit_negative_balances, true);
 });
+
+// ---------------------------------------------------------------------------
+// 077 — liens de paiement de devis plateau en paiement direct
+// ---------------------------------------------------------------------------
+test("077 : mission manuelle -> paiement chez le transporteur, commission prélevée par Stripe", async () => {
+  const { sessionDirecte } = await import("../netlify/lib/devis-direct.js");
+  const stripe = fakeStripe();
+  stripe.checkout = { sessions: { create: async (...args) => { stripe.calls.push({ name: "checkout.create", args }); return { url: "https://checkout.test/s" }; } } };
+  const data = { payment_id: "pay1", purpose: "devis_course", reference: "MIS-1", amount_cents: 45000, application_fee_cents: 5000, currency: "eur", connected_account_id: "acct_T", circuit: "direct" };
+  const s = await sessionDirecte({ admin: fakeAdmin(), stripe, data, token: "abc", description: "Transport" });
+  assert.equal(s.url, "https://checkout.test/s");
+  const [params, opts] = stripe.calls.find((c) => c.name === "checkout.create").args;
+  assert.equal(params.mode, "payment");
+  assert.equal(params.line_items[0].price_data.unit_amount, 45000);
+  assert.equal(params.payment_intent_data.application_fee_amount, 5000);
+  assert.equal(params.payment_intent_data.metadata.secoto_circuit, "direct");
+  assert.equal(opts.stripeAccount, "acct_T", "encaissé sur le compte du transporteur, jamais chez SECOTO");
+});
+
+test("077 : devis à la demande -> carte enregistrée, aucun débit", async () => {
+  const { sessionDirecte } = await import("../netlify/lib/devis-direct.js");
+  const stripe = fakeStripe();
+  stripe.customers = { create: async () => ({ id: "cus_new" }) };
+  stripe.checkout = { sessions: { create: async (...args) => { stripe.calls.push({ name: "checkout.create", args }); return { url: "https://checkout.test/setup" }; } } };
+  const admin = fakeAdmin({ tables: { accounts: [{ id: "acc1", email: "c@test.invalid", full_name: "C", stripe_customer_id: null }] } });
+  const data = { payment_id: "pay2", purpose: "od_plateau", amount_cents: 48000, currency: "eur", account_id: "acc1", circuit: "direct" };
+  await sessionDirecte({ admin, stripe, data, token: "abc", description: "Transport" });
+  const [params, opts] = stripe.calls.find((c) => c.name === "checkout.create").args;
+  assert.equal(params.mode, "setup");
+  assert.equal(params.customer, "cus_new");
+  assert.equal(params.setup_intent_data.metadata.secoto_circuit, "direct");
+  assert.match(params.success_url, /retour=carte/);
+  assert.equal(opts.stripeAccount, undefined, "la carte est enregistrée chez SECOTO, débitée plus tard chez le transporteur");
+});
+
+test("077 : webhook transporteur -> encaissement d'un lien de mission manuelle, uniquement s'il est direct et sur CE compte", async () => {
+  const { handleConnectEvent } = await import("../netlify/functions/stripe-connect-webhook.js");
+  const mk = (payment) => fakeAdmin({
+    rpc: { secoto_settle_payment: async () => ({ data: { ok: true }, error: null }) },
+    tables: { payments: [payment] },
+  });
+  const ev = { id: "evt1", type: "payment_intent.succeeded", account: "acct_T", data: { object: { id: "pi_1", metadata: { secoto_payment_id: "p1" } } } };
+  const ok = mk({ id: "p1", purpose: "devis_course", payment_circuit: "direct", connected_account_id: "acct_T" });
+  await handleConnectEvent(ok, ev);
+  assert.ok(ok.calls.some((c) => c.name === "secoto_settle_payment" && c.args.p_status === "paid"));
+  const autre = mk({ id: "p1", purpose: "devis_course", payment_circuit: "direct", connected_account_id: "acct_AUTRE" });
+  await handleConnectEvent(autre, ev);
+  assert.ok(!autre.calls.some((c) => c.name === "secoto_settle_payment"), "un autre compte ne peut pas solder ce paiement");
+  const ancien = mk({ id: "p1", purpose: "devis_course", payment_circuit: null, connected_account_id: null });
+  await handleConnectEvent(ancien, ev);
+  assert.ok(!ancien.calls.some((c) => c.name === "secoto_settle_payment"), "ancien circuit : rien via le webhook transporteur");
+});

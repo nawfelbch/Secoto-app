@@ -11,7 +11,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // circuit historique (idempotentes : un événement rejoué n'a aucun effet).
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
-import { handleNewFlows } from "./stripe-webhook.js";
+import { handleNewFlows, mapStripeEvent } from "./stripe-webhook.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
 
 const { STRIPE_SECRET_KEY, STRIPE_CONNECT_WEBHOOK_SECRET, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } = process.env;
@@ -57,6 +57,36 @@ export async function handleConnectEvent(admin, stripeEvent) {
   // paiement connu en base) sont traités ; le reste est acquitté sans effet.
   const handled = await handleNewFlows(admin, stripeEvent);
   if (handled) return handled;
+
+  // 077 : lien de devis d'une mission manuelle payé directement chez le
+  // transporteur. Même traitement que l'ancien encaissement (bon de mission
+  // libéré, devis signé), mais uniquement pour un paiement du circuit direct
+  // créé par SECOTO.
+  const status = mapStripeEvent(stripeEvent.type);
+  if (status) {
+    const object = stripeEvent.data?.object || {};
+    const intentId = object.payment_intent || object.id || null;
+    let paymentId = object.metadata?.secoto_payment_id || null;
+    if (!paymentId && intentId) {
+      const { data } = await admin.from("payments").select("id").eq("provider_intent_id", intentId).maybeSingle();
+      paymentId = data?.id || null;
+    }
+    if (paymentId) {
+      const { data: p } = await admin.from("payments")
+        .select("id,purpose,payment_circuit,connected_account_id").eq("id", paymentId).maybeSingle();
+      if (p && p.purpose === "devis_course" && p.payment_circuit === "direct" && p.connected_account_id === stripeEvent.account) {
+        const { data, error } = await admin.rpc("secoto_settle_payment", {
+          p_payment_id: p.id,
+          p_provider_intent_id: intentId,
+          p_status: status,
+          p_provider_event_id: stripeEvent.id,
+          p_error: object.last_payment_error?.message || object.failure_message || null,
+        });
+        if (error) return response(500, { error: "settle_failed" });
+        return response(200, { ok: true, result: data });
+      }
+    }
+  }
   return response(200, { ignored: stripeEvent.type });
 }
 

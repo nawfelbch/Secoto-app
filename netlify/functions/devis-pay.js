@@ -11,6 +11,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { createWithManagedPaymentsFallback, idempotencyKey } from "../lib/secoto-server.js";
+import { sessionDirecte } from "../lib/devis-direct.js";
 
 const {
   STRIPE_SECRET_KEY,
@@ -31,6 +32,9 @@ const MOTIFS = {
   date_depassee: "La date d'enlèvement est passée. Contactez SECOTO pour un nouveau devis.",
   reglement_especes: "Cette course se règle en espèces auprès du transporteur, le jour de la prestation.",
   compte_introuvable: "Paiement momentanément indisponible. Contactez SECOTO.",
+  // 077 : paiement direct au transporteur.
+  transporteur_non_pret: "Le paiement de cette course s'ouvrira dès que votre transporteur aura finalisé son compte de paiement. SECOTO vous renvoie le lien très vite ; rien n'a été débité.",
+  carte_deja_validee: "Votre carte est déjà enregistrée et votre demande est transmise aux transporteurs. Vous ne serez débité que lorsqu'un transporteur acceptera.",
 };
 
 export function page(titre, message, ton = "info") {
@@ -133,6 +137,13 @@ const handler = async (event) => {
       "ok",
     ));
   }
+  if (retour === "carte") {
+    return html(200, page(
+      "Merci, votre carte est enregistrée",
+      "Aucun débit pour l'instant. Votre demande part aux transporteurs vérifiés : vous ne serez débité que lorsqu'un transporteur acceptera votre transport, directement sur son compte. Vous recevez une confirmation par e-mail à chaque étape.",
+      "ok",
+    ));
+  }
   if (retour === "annule") {
     return html(200, page(
       "Paiement interrompu",
@@ -192,7 +203,7 @@ const handler = async (event) => {
   if (error) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
   if (data?.error) {
     const motif = MOTIFS[data.error] || MOTIFS.lien_inconnu;
-    const paye = data.error === "deja_paye";
+    const paye = data.error === "deja_paye" || data.error === "carte_deja_validee";
     return html(paye ? 200 : 410, page(paye ? "Course déjà réglée" : "Lien inutilisable", motif, paye ? "ok" : "info"));
   }
 
@@ -214,6 +225,18 @@ const handler = async (event) => {
     .slice(0, 250);
 
   const stripe = new Stripe(STRIPE_SECRET_KEY);
+
+  // 077 : paiement direct au transporteur (plateau, interrupteur allumé).
+  if (data.circuit === "direct") {
+    try {
+      const session = await sessionDirecte({ admin, stripe, data, token, description });
+      if (!session?.url) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
+    } catch {
+      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    }
+  }
+
   try {
     const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {

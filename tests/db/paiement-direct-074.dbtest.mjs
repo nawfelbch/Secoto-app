@@ -83,6 +83,9 @@ async function acceptAndCharge(order, partnerId) {
 }
 
 test.before(async () => {
+  // Sous-traitance totale en vigueur (réglage de production depuis septembre).
+  await sql(`update public.app_settings set value = value || jsonb_build_object('sous_traitance_totale_since', '2026-09-01T00:00:00Z')
+             where key = 'dispatch_policy' and value ->> 'sous_traitance_totale_since' is null`);
   await sql("update public.secoto_feature_flags set enabled = true where key in ('auto_pricing','od_payments','connect_payouts','direct_accept','dispatch_notifications')");
   await account("client", "client");
   await account("other", "client");
@@ -402,4 +405,108 @@ test("076 : un Transfer de l'ancien circuit reçu par un compte en virement manu
   const fin = (await service("select public.secoto_bank_payout_result($1,true,'po_bank',null) as r", [b.bank_payout_id]))[0].r;
   assert.equal(fin.result, "paid");
   await assert.rejects(as(ids.ready, "select * from public.connect_bank_payouts"), /permission denied/);
+});
+
+// ---------------------------------------------------------------------------
+// 077 — liens de paiement de devis plateau en paiement direct
+// ---------------------------------------------------------------------------
+const token = () => randomUUID().replace(/-/g, "");
+const openLink = (t) => service("select public.secoto_devis_link_open($1) as r", [t]).then((r) => r[0].r);
+async function quoteLink(over = {}) {
+  const q = await createQuote(ids.client, over);
+  const t = token();
+  await sql(`insert into public.devis_payment_links(quote_id, token, amount_cents, currency, expires_at)
+             values ($1,$2,$3,'eur', now() + interval '30 days')`, [q.id, t, q.client_price_cents]);
+  return { q, t };
+}
+async function manualMission({ type = "plateau", partner = null, carrierPay = 400, clientPrice = 450 } = {}) {
+  // Prix saisis à la main (manual_pricing) : paie transporteur + marge SECOTO.
+  const m = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, manual_pricing,
+                          manual_carrier_pay, manual_margin, client_account_id, assigned_transporter_id, payment_method)
+                        values ('MIS-TEST-' || substr(md5(random()::text),1,6), $1, 'assigned', 'Massy', 'Lyon', true,
+                                $3, $2::numeric - $3::numeric, $4, $5, 'carte')
+                        returning id, client_price, carrier_pay`, [type, clientPrice, carrierPay, ids.client, partner]))[0];
+  assert.equal(Number(m.client_price), clientPrice, "prix client recalculé par la base");
+  const t = token();
+  await sql(`insert into public.devis_payment_links(mission_id, token, amount_cents, currency, expires_at)
+             values ($1,$2,$3,'eur', now() + interval '30 days')`, [m.id, t, Math.round(clientPrice * 100)]);
+  return { id: m.id, t };
+}
+
+test("077 A : devis à la demande payé par lien -> carte enregistrée, commande en paiement direct", async () => {
+  await setFlag(true);
+  const { t } = await quoteLink();
+  const r = await openLink(t);
+  assert.equal(r.circuit, "direct", JSON.stringify(r));
+  assert.equal(r.account_id, ids.client);
+  const p = (await sql("select payment_circuit, capture_method, order_id from public.payments where id=$1", [r.payment_id]))[0];
+  assert.equal(p.payment_circuit, "direct");
+  assert.equal(p.capture_method, "manual");
+  const o = (await sql("select payment_circuit, payment_strategy from public.transport_orders where id=$1", [p.order_id]))[0];
+  assert.equal(o.payment_circuit, "direct");
+  assert.equal(o.payment_strategy, "authorize_then_capture");
+  await cardSaved(r.payment_id);
+  assert.ok(await offerFor(p.order_id, ids.ready), "la demande part aux transporteurs");
+  const again = await openLink(t);
+  assert.equal(again.error, "carte_deja_validee", "un second clic ne redemande pas la carte");
+});
+
+test("077 A : interrupteur éteint ou convoyage -> lien de devis inchangé", async () => {
+  await setFlag(false);
+  const off = await openLink((await quoteLink()).t);
+  assert.equal(off.circuit, null);
+  await setFlag(true);
+  const conv = await openLink((await quoteLink({ mode: "convoyage" })).t);
+  assert.equal(conv.circuit, null, "le convoyage n'est jamais en paiement direct");
+});
+
+test("077 B : mission manuelle plateau -> paiement chez le transporteur attribué, commission = prix - paie", async () => {
+  await setFlag(true);
+  const m = await manualMission({ partner: ids.ready });
+  const r = await openLink(m.t);
+  assert.equal(r.circuit, "direct", JSON.stringify(r));
+  assert.equal(r.connected_account_id, "acct_test_ready");
+  assert.equal(r.amount_cents, 45000);
+  assert.equal(r.application_fee_cents, 5000);
+  const r2 = await openLink(m.t);
+  assert.equal(r2.payment_id, r.payment_id, "un second clic réutilise le même paiement");
+  // Encaissement confirmé par le webhook du compte transporteur (chemin historique).
+  await service("select public.secoto_settle_payment($1,'pi_dc',$2,'evt_dc_1',null)", [r.payment_id, "paid"]);
+  assert.equal((await sql("select paid_at is not null as ok from public.devis_payment_links where token=$1", [m.t]))[0].ok, true);
+  // Livraison : versement du circuit direct, jamais de Transfer.
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [m.id]);
+  const pp = (await sql("select id, payment_circuit, connected_account_id, status, amount_cents from public.partner_payouts where mission_id=$1", [m.id]))[0];
+  assert.equal(pp.payment_circuit, "direct");
+  assert.equal(pp.connected_account_id, "acct_test_ready");
+  assert.equal(pp.status, "to_pay");
+  assert.equal(pp.amount_cents, 40000);
+  await sql("update public.partner_payouts set due_at = now() - interval '1 minute' where id=$1", [pp.id]);
+  const transfers = (await service("select public.secoto_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!transfers.some((x) => x.payout_id === pp.id), "aucun Transfer depuis SECOTO");
+  const direct = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(direct.some((x) => x.payout_id === pp.id), "virement du solde du transporteur vers sa banque");
+});
+
+test("077 B : transporteur pas prêt ou non attribué -> rien n'est encaissé, SECOTO prévenu", async () => {
+  await setFlag(true);
+  if (!ids.admin) await account("admin", "admin");
+  const a = await openLink((await manualMission({ partner: ids.notReady })).t);
+  assert.equal(a.error, "transporteur_non_pret");
+  const b = await openLink((await manualMission({ partner: null })).t);
+  assert.equal(b.error, "transporteur_non_pret");
+  const n = await sql("select count(*)::int n from public.notifications where account_id=$1 and title='Lien de paiement en attente du transporteur'", [ids.admin]);
+  assert.ok(n[0].n >= 2);
+  const c = await openLink((await manualMission({ partner: ids.ready, carrierPay: 0, clientPrice: 450 })).t);
+  assert.equal(c.error, "compte_introuvable", "paie transporteur absente : refus, rien d'encaissé");
+});
+
+test("077 B : convoyage ou interrupteur éteint -> lien de devis inchangé (encaissement SECOTO)", async () => {
+  await setFlag(true);
+  const conv = await openLink((await manualMission({ type: "convoyage", partner: ids.ready })).t);
+  assert.equal(conv.circuit, null);
+  assert.equal(conv.connected_account_id, null);
+  await setFlag(false);
+  const off = await openLink((await manualMission({ partner: ids.ready })).t);
+  assert.equal(off.circuit, null);
+  await setFlag(true);
 });
