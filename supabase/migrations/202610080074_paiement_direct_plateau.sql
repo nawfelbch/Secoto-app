@@ -57,7 +57,9 @@ alter table public.secoto_feature_flags add constraint secoto_feature_flags_key_
   check (key in ('auto_pricing', 'od_payments', 'subscriptions', 'dispatch_notifications', 'live_tracking',
                  'direct_accept', 'connect_payouts', 'plateau_paiement_direct',
                  -- clés ajoutées par 075 (gardées ici pour qu'un nouveau passage de 074 ne les rejette pas)
-                 'conditions_v2', 'commission_client'));
+                 'conditions_v2', 'commission_client',
+                 -- clés ajoutées par 084 et 085 (même raison)
+                 'mise_en_relation_v2', 'bareme_transporteurs'));
 insert into public.secoto_feature_flags(key) values ('plateau_paiement_direct') on conflict (key) do nothing;
 
 update public.app_settings

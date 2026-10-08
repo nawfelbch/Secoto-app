@@ -66,7 +66,7 @@ async function paid(paymentId) {
 }
 
 test.before(async () => {
-  await sql("update public.secoto_feature_flags set enabled = true");
+  await sql("update public.secoto_feature_flags set enabled = true where key not in ('mise_en_relation_v2','bareme_transporteurs')");
   await account("admin", "admin");
   await account("client", "client");
   await account("client2", "client");
@@ -464,7 +464,7 @@ test("flags désactivés : devis manuel et aucun paiement en ligne", async () =>
     assert.equal(priced.status, "manual_priced");
     await assert.rejects(as(ids.client, "select public.secoto_od_book_quote($1,false,$2)", [q.id, randomUUID()]), /pas encore ouvert/);
   } finally {
-    await sql("update public.secoto_feature_flags set enabled = true");
+    await sql("update public.secoto_feature_flags set enabled = true where key not in ('mise_en_relation_v2','bareme_transporteurs')");
   }
 });
 

@@ -1,6 +1,7 @@
 import { humanizeError } from "../lib/humanError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import DecompositionPrix from "./DecompositionPrix";
+import ReassuranceReservation from "./ReassuranceReservation";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
@@ -391,6 +392,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <div><strong>Inclus</strong><ul>{(quote.included || []).map((x) => <li key={x}>{x}</li>)}</ul></div>
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
+              <ReassuranceReservation mode={quote.mode} circuit={quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
               <p className="muted">{cancellationPolicy(order)}</p>
               {subscriptionActive && (
@@ -430,6 +432,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
               {direct && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
+              <ReassuranceReservation mode={order.mode} circuit={order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
@@ -441,7 +444,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               {direct
                 ? `Votre demande est proposée aux transporteurs indépendants vérifiés : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter. Sans acceptation, elle est annulée, sans aucun débit.`
                 : `Votre demande part à tous nos transporteurs compatibles : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter.`}
-              Vous êtes notifié dès qu’un transporteur confirme.
+              Vous êtes notifié dès qu’un transporteur confirme{direct && flags?.mise_en_relation_v2 ? " : ses coordonnées s’affichent alors dans votre commande et vous échangez directement avec lui jusqu’à la livraison." : "."}
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
             </div>
           )}

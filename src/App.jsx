@@ -109,6 +109,12 @@ import EspaceEntreprise, { memoriserCreationEntreprise, ouvertureEntrepriseDeman
 import MotDePasseProvisoire from "./MotDePasseProvisoire";
 import ConditionsGate, { ConditionsSentence } from "./ConditionsGate";
 import LiensLegaux, { DocumentsLegaux } from "./DocumentsLegaux";
+import SavPanel from "./SavPanel";
+import AdminSavPanel from "./AdminSavPanel";
+import { clientHasCourse } from "./lib/sav";
+import BaremeTransporteur from "./BaremeTransporteur";
+import { carrierRatesStatus } from "./lib/carrierRates";
+import CarteContact, { CarteTransporteur } from "./CarteContact";
 import { conditionsLinks, termsPublic, termsStatus } from "./lib/conditions";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
@@ -918,7 +924,7 @@ function PublicMissionInfo({ mission }) {
   );
 }
 
-function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none" }) {
+function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none", relation = false }) {
   const visiblePricing = showPricing ? "admin" : pricingView;
   const clientAmount = mission.clientPrice ?? computeClientPrice(mission);
   const carrierAmount = mission.carrierPay ?? computeCarrierPay(mission);
@@ -950,7 +956,17 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
         )
       )}
       {visiblePricing === "transporter" && <p><strong>Votre rémunération :</strong> {formatAmount(carrierAmount)}</p>}
-      <p><strong>Notes internes :</strong> {mission.notes || "Aucune note"}</p>
+      {/* 084 : le transporteur échange directement avec son client. */}
+      {relation && mission.type === "plateau" && visiblePricing === "transporter" && mission.clientPhone && mission.status !== "completed" && (
+        <CarteContact
+          titre="Votre client"
+          nom={mission.clientName}
+          phone={mission.clientPhone}
+          message={`Bonjour, je suis votre transporteur pour le transport ${mission.publicRef || ""} réservé sur SECOTO.`}
+          note="Contactez-le directement pour caler l’enlèvement et la livraison."
+        />
+      )}
+      <p><strong>{visiblePricing === "transporter" ? "Notes :" : "Notes internes :"}</strong> {mission.notes || "Aucune note"}</p>
     </div>
   );
 }
@@ -973,6 +989,7 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
       </div>
       <div className={`timeline-step ${mission.assignedTransporterName ? "" : "pending"}`}>
         <strong>{mission.assignedTransporterName ? `Transporteur attribué : ${mission.assignedTransporterName}` : "En attente d’un transporteur"}</strong>
+        {mission.transporterContact && <CarteTransporteur contact={mission.transporterContact} reference={mission.publicRef} />}
       </div>
       {steps.map((s) => {
         const ev = byType[s.key];
@@ -1616,6 +1633,8 @@ export default function App() {
   // Migration 030 : fonctionnalités activées par l'administrateur (toutes
   // désactivées par défaut : aucun écran n'apparaît tant qu'elles sont fermées).
   const [flags, setFlags] = useState({});
+  // 084 : client ayant déjà validé une course -> « SAV SECOTO » au lieu du contact.
+  const [clientDejaCourse, setClientDejaCourse] = useState(false);
   // 075 : fenêtre d'acceptation des conditions (clients et transporteurs).
   const [conditionsStatut, setConditionsStatut] = useState(null);
   const accountIdPourConditions = account?.id;
@@ -1626,6 +1645,22 @@ export default function App() {
     // Le statut est rattaché au compte : après un changement de compte, celui
     // du compte précédent n'est jamais réutilisé.
     termsStatus().then((s) => { if (vivant) setConditionsStatut({ ...s, accountId: accountIdPourConditions }); });
+    return () => { vivant = false; };
+  }, [accountIdPourConditions, accountRolePourConditions]);
+  // 084 : missions acceptées dans l'application, plus modifiables par SECOTO.
+  const [missionsVerrouillees, setMissionsVerrouillees] = useState([]);
+  useEffect(() => {
+    if (accountRolePourConditions !== "admin" || !flags.mise_en_relation_v2) return undefined;
+    let vivant = true;
+    supabase.rpc("secoto_admin_locked_mission_ids").then(({ data }) => { if (vivant) setMissionsVerrouillees(Array.isArray(data) ? data : []); });
+    return () => { vivant = false; };
+  }, [accountRolePourConditions, flags.mise_en_relation_v2, missions]);
+  // 085 : barème du transporteur (il fixe librement son prix).
+  const [bareme, setBareme] = useState(null);
+  useEffect(() => {
+    if (!accountIdPourConditions || accountRolePourConditions !== "transporter") return undefined;
+    let vivant = true;
+    carrierRatesStatus().then((s) => { if (vivant) setBareme({ ...s, accountId: accountIdPourConditions }); });
     return () => { vivant = false; };
   }, [accountIdPourConditions, accountRolePourConditions]);
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
@@ -1720,6 +1755,13 @@ export default function App() {
       .catch((err) => setError(humanizeError(err, "Votre devis n'a pas pu être repris. Recalculez votre prix, cela prend une minute.")));
   }, [account?.id, account?.role]);
 
+  useEffect(() => {
+    if (!account?.id || account.role !== "client" || !flags.mise_en_relation_v2) return undefined;
+    let vivant = true;
+    clientHasCourse().then((v) => { if (vivant) setClientDejaCourse(v); });
+    return () => { vivant = false; };
+  }, [account?.id, account?.role, flags.mise_en_relation_v2, missions.length]);
+
   // L'etat des versements est relu a chaque ouverture de l'espace : le
   // transporteur peut s'etre inscrit depuis un autre appareil, et Stripe peut
   // avoir termine sa verification entre-temps.
@@ -1807,6 +1849,7 @@ export default function App() {
   // On dérive l'onglet affiché au lieu de corriger l'état après coup : pas de
   // rendu en cascade, et aucun écran mort si les interrupteurs changent.
   const onDemandOpen = Boolean(flags.auto_pricing || flags.od_payments);
+  const savClient = Boolean(flags.mise_en_relation_v2 && clientDejaCourse);
   const activeClientTab = onDemandOpen && clientTab === "post" ? "ondemand" : clientTab;
 
 
@@ -2657,7 +2700,12 @@ export default function App() {
         setTrackingPhotos(signedPhotos);
       } else if (currentAccount.role === "client") {
         const [missionsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
-          supabase.from("secoto_missions_client_v2").select(MISSION_CLIENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          // 084 : coordonnées du transporteur. Si la base n'a pas encore la
+          // colonne (code en ligne avant la migration), on relit sans elle.
+          supabase.from("secoto_missions_client_v2").select(`${MISSION_CLIENT_COLUMNS},transporter_contact`).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE)
+            .then((r) => (r.error && /transporter_contact/.test(r.error.message || "")
+              ? supabase.from("secoto_missions_client_v2").select(MISSION_CLIENT_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE)
+              : r)),
           fetchTrackingEvents(),
           supabase.from("mission_tracking_photos").select(TRACKING_PHOTO_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
         ]);
@@ -4032,6 +4080,7 @@ export default function App() {
               onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
+              verrouillee={missionsVerrouillees.includes(mission.id)}
               onNotice={setNotice}
               onError={setError}
             />
@@ -4099,7 +4148,7 @@ export default function App() {
         </summary>
         <div style={{ marginTop: 14 }}>
           <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} pricingView="transporter" />
+          <PrivateMissionInfo mission={mission} pricingView="transporter" relation={Boolean(flags.mise_en_relation_v2)} />
           {renderTrackingTimeline(mission)}
         </div>
       </details>
@@ -4177,6 +4226,7 @@ export default function App() {
               onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
+              verrouillee={missionsVerrouillees.includes(mission.id)}
               onNotice={setNotice}
               onError={setError}
             />
@@ -4233,7 +4283,7 @@ export default function App() {
             ...(flags.subscriptions ? [{ key: "abonnement", label: "Abonnement pro", icon: "bank" }] : []),
           ] },
           { title: "Compte", items: [
-            { key: "contact", label: "Contact SECOTO", icon: "phone" },
+            { key: "contact", label: savClient ? "SAV SECOTO" : "Contact SECOTO", icon: "phone" },
             { key: "notifications", label: "Notifications", icon: "settings" },
             { key: "legal", label: "Informations légales", icon: "inbox" },
             { key: "profile", label: "Profil", icon: "user" },
@@ -4259,6 +4309,7 @@ export default function App() {
             { key: "requests", label: "Demandes", icon: "inbox", count: pendingRequests.length },
             { key: "applications", label: "Candidatures", icon: "hand", count: pendingApplications.length },
             { key: "frais", label: "Frais réels", icon: "settings" },
+            ...(flags.mise_en_relation_v2 ? [{ key: "sav", label: "SAV clients", icon: "phone" }] : []),
           ] },
           { title: "Réseau", items: [
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
@@ -4303,6 +4354,7 @@ export default function App() {
             ? [
               { key: "bank", label: "Coordonnées bancaires", icon: "bank" },
               { key: "entreprise", label: "Mon entreprise", icon: "users", count: decisionsEntreprise || undefined },
+              ...(bareme?.concerned && bareme?.active ? [{ key: "bareme", label: "Mon barème", icon: "settings" }] : []),
             ]
             : []),
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
@@ -4447,6 +4499,18 @@ export default function App() {
 
   // Conditions mises à jour : rien d'autre n'est accessible tant qu'elles ne
   // sont pas acceptées. Jamais pour l'administrateur (la base le garantit).
+  // 085 : le transporteur valide (ou modifie) son barème avant de recevoir des missions.
+  if (bareme?.accountId === account.id && bareme?.required && account.role === "transporter"
+      && !(conditionsStatut?.accountId === account.id && conditionsStatut?.required)) {
+    return (
+      <main className="app-shell">
+        <div className="layout">
+          <BaremeTransporteur gate status={bareme} onSaved={(s) => setBareme({ ...(s || { required: false }), accountId: account.id })} />
+        </div>
+      </main>
+    );
+  }
+
   if (conditionsStatut?.accountId === account.id && conditionsStatut?.required && conditionsStatut?.version
       && account.role !== "admin") {
     return (
@@ -4778,7 +4842,7 @@ export default function App() {
 
           {activeClientTab === "contact" && (
             <section className="layout">
-              <div className="panel-full"><ContactPanel /></div>
+              <div className="panel-full">{savClient ? <SavPanel /> : <ContactPanel />}</div>
             </section>
           )}
 
@@ -5106,6 +5170,12 @@ export default function App() {
               <LegalNoticesPanel role="admin" />
             </section>
           )}
+
+          {adminTab === "sav" && (
+            <section className="layout">
+              <AdminSavPanel />
+            </section>
+          )}
         </>
       )}
 
@@ -5297,7 +5367,7 @@ export default function App() {
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />
-                            <PrivateMissionInfo mission={mission} pricingView="transporter" />
+                            <PrivateMissionInfo mission={mission} pricingView="transporter" relation={Boolean(flags.mise_en_relation_v2)} />
                             <div className="actions-row">
                               <button
                                 className="btn ghost small"
@@ -5445,6 +5515,12 @@ export default function App() {
           {transporterTab === "legal" && (
             <section className="layout">
               <LegalNoticesPanel role="transporter" />
+            </section>
+          )}
+
+          {transporterTab === "bareme" && bareme?.concerned && (
+            <section className="layout">
+              <BaremeTransporteur status={bareme} onSaved={(s) => setBareme({ ...(s || {}), accountId: account.id })} />
             </section>
           )}
 

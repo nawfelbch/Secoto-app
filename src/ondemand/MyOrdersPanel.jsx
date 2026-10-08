@@ -1,3 +1,4 @@
+import { CarteTransporteur } from "../CarteContact";
 import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useState } from "react";
 import DecompositionPrix from "./DecompositionPrix";
@@ -99,7 +100,9 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                 <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />
               )}
               {order.funding === "subscription" && <p><span className="od-pill is-ok">Inclus dans votre forfait</span></p>}
-              {order.partner_name && <p>Partenaire : <strong>{order.partner_name}</strong></p>}
+              {order.partner_contact
+                ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
+                : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
               <ol className="od-milestones">
                 {MILESTONES.filter((m) => order.funding === "card" || !m.key.startsWith("paiement")).map((m) => (
                   <li key={m.key} className={order.milestones?.[m.key] ? "is-done" : ""}>{m.label}{order.milestones?.[m.key] && <time>{formatDateTime(order.milestones[m.key])}</time>}</li>
