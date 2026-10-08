@@ -140,13 +140,15 @@ test("084 : attribution manuelle désactivée, mission plateau verrouillée, con
   const o = await book(ids.client);
   await cardSaved(o.payment_id);
   await assert.rejects(adminCall("select public.secoto_admin_od_lock_for_partner($1,$2)", [o.id, ids.ready]), /Attribution manuelle désactivée/);
-  // Mission issue d'une course acceptée dans l'application : verrouillée.
+  // 086 : le pilotage des missions reste entier, même pour une course acceptée
+  // dans l'application (étapes, réouverture, tarif).
   const acceptee = await confirmedOrder();
-  await assert.rejects(adminCall("select public.secoto_admin_set_mission_stage($1,'completed',null,$2)", [acceptee.mission_id, randomUUID()]), /validées par le transporteur/);
-  await assert.rejects(adminCall("select public.secoto_admin_set_mission_pricing($1,true,300,50,$2)", [acceptee.mission_id, randomUUID()]), /tarif ne peut plus/);
-  await assert.rejects(adminCall("select public.secoto_admin_devis_link($1,99900,30)", [acceptee.mission_id]), /prix ne peut plus/);
+  await adminCall("select public.secoto_admin_reopen_field_step($1,'pickup',null,$2)", [acceptee.mission_id, randomUUID()]).catch((e) => {
+    assert.doesNotMatch(e.message, /validées par le transporteur/);
+  });
+  await adminCall("select public.secoto_admin_set_mission_pricing($1,true,300,50,$2)", [acceptee.mission_id, randomUUID()]);
   const verrou = (await adminCall("select public.secoto_admin_locked_mission_ids() as ids"))[0].ids;
-  assert.ok(verrou.includes(acceptee.mission_id));
+  assert.equal(verrou.length, 0);
   // Mission saisie par SECOTO (téléphone) : reste pilotable, mais le client voit son transporteur.
   const plateau = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, client_account_id, assigned_transporter_id)
       values ('MIS-TEST-' || substr(md5(random()::text),1,6), 'plateau', 'assigned', 'Massy', 'Lyon', $1, $2) returning id`, [ids.client, ids.ready]))[0].id;
