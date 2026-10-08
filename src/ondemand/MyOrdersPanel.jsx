@@ -104,7 +104,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               {order.partner_contact
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
                 : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
-              {order.mission_id && ["partner_confirmed", "picked_up", "delivered"].includes(order.status) && (
+              {order.mission_id && ["picked_up", "delivered", "partner_confirmed"].includes(order.status) && (
                 <EtatsDesLieuxCommande missionId={order.mission_id} refreshKey={`${order.status}:${order.updated_at}`} />
               )}
               <ol className="od-milestones">
