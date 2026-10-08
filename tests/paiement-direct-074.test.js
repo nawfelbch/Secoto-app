@@ -335,3 +335,19 @@ test("convoyage et ancien circuit : le code historique de création de paiement 
   const offer = readFileSync(new URL("../netlify/functions/offer-accept.js", import.meta.url), "utf8");
   assert.match(offer, /if \(isDirect\(payment\)\) return chargeDirect/);
 });
+
+test("écrans client : textes du paiement direct, l'ancien circuit inchangé", async () => {
+  const copy = await import("../src/lib/orderCopy.js");
+  const directOrder = { payment_circuit: "direct", funding: "card", client_price_cents: 48000, payment_status: "requires_capture" };
+  const oldOrder = { funding: "card", client_price_cents: 48000, payment_status: "requires_capture" };
+  assert.match(copy.paymentExplanation(directOrder), /sans aucun débit/);
+  assert.match(copy.paymentExplanation(directOrder), /au nom de ce transporteur/);
+  assert.match(copy.paymentExplanation(oldOrder), /encaissés dès la validation/, "ancien texte conservé");
+  assert.equal(copy.paymentStateLabel(directOrder), "Carte validée (non débitée)");
+  assert.equal(copy.paymentStateLabel(oldOrder), "Paiement autorisé (non débité)");
+  assert.match(copy.cancellationPolicy(directOrder), /moins de 2 h/);
+  assert.equal(copy.cancellationPolicy(), copy.cancellationPolicy(oldOrder));
+  assert.match(copy.cancellationNotice({ cancellable: true, circuit: "direct", charged: false }), /pas été débitée/);
+  assert.match(copy.cancellationNotice({ cancellable: true, circuit: "direct", charged: true, last_minute: true }), /aucun remboursement/);
+  assert.match(copy.cancellationNotice({ cancellable: true, circuit: "direct", charged: true, late: true, retained_pct: 50, refund_cents: 24000 }), /50 %/);
+});

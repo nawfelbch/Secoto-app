@@ -206,6 +206,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   }
 
   const guaranteed = order && (order.funding === "subscription" || ["requires_capture", "paid"].includes(payment?.status));
+  // 074 : plateau et moto en paiement direct — carte validée, débit à l'acceptation.
+  const direct = order?.payment_circuit === "direct";
 
   return (
     <div className="panel panel-full">
@@ -381,7 +383,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
-              <p className="muted">{cancellationPolicy()}</p>
+              <p className="muted">{cancellationPolicy(order)}</p>
               {subscriptionActive && (
                 <label className="od-checks"><input type="checkbox" checked={useSubscription} onChange={(e) => setUseSubscription(e.target.checked)} /> Utiliser mon forfait (si ce trajet est couvert)</label>
               )}
@@ -414,14 +416,18 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
-                {busy ? "Validation en cours…" : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
+                {busy ? "Validation en cours…" : direct
+                  ? "Valider ma carte — aucun débit maintenant"
+                  : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
           {guaranteed && (
             <div className="alert success">
-              {order.funding === "subscription" ? "Forfait réservé." : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
+              {order.funding === "subscription" ? "Forfait réservé." : direct
+                ? `Carte validée, rien n’a été débité. Vous serez débité de ${formatCents(order.client_price_cents ?? order.collect_cents)} au nom du transporteur qui accepte la mission.`
+                : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
               Votre demande part à tous nos transporteurs compatibles : ils ont {OFFER_WINDOW_HOURS} h pour l’accepter.
               Vous êtes notifié dès qu’un transporteur confirme.
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>

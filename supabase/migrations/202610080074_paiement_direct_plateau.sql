@@ -266,7 +266,7 @@ select secoto_private.mig074_patch(
 select secoto_private.mig074_patch(
   'secoto_private.order_client_json(public.transport_orders)'::regprocedure,
   '''status'', o.status, ''payment_strategy'', o.payment_strategy,',
-  '''status'', o.status, ''payment_strategy'', o.payment_strategy, ''payment_circuit'', o.payment_circuit,');
+  '''status'', o.status, ''payment_strategy'', o.payment_strategy, ''payment_circuit'', o.payment_circuit, ''payment_action_required'', (p.direct_action_required_at is not null and o.status = ''partner_locked''),');
 
 -- Carte validée (SetupIntent réussi) : la demande part aux transporteurs.
 -- Appelée par le webhook Stripe, jamais par l'application.
@@ -553,6 +553,47 @@ select secoto_private.mig074_patch(
   '  -- 074 : paiement direct, barème 100 / 50 / 0 et partage au prorata.
   if v_order.payment_circuit = ''direct'' then
     return secoto_private.finish_operation(''od_cancel_order'', p_idempotency_key, secoto_private.od_direct_cancel(p_order_id));
+  end if;
+  v_late := v_order.pickup_at - make_interval(hours => v_free_h::int) <= now();');
+
+-- Aperçu affiché AVANT de confirmer l'annulation : mêmes règles, mêmes chiffres.
+create or replace function secoto_private.od_direct_cancel_preview(p_order public.transport_orders)
+returns jsonb language plpgsql stable security definer set search_path = ''
+as $f$
+declare
+  v_free_h numeric := secoto_private.policy_num('free_cancel_hours_before_pickup', 24);
+  v_last_h numeric := secoto_private.policy_num('direct_last_minute_hours', 2);
+  v_late_pct numeric := secoto_private.policy_num('late_cancel_retained_pct', 50);
+  v_charged boolean;
+  v_pct numeric := 0;
+  v_last boolean := false;
+begin
+  select coalesce(p.status, '') = 'paid' into v_charged from public.payments p where p.id = p_order.payment_id;
+  v_charged := coalesce(v_charged, false);
+  if v_charged then
+    if p_order.pickup_at - make_interval(hours => v_last_h::int) <= now() then v_pct := 100; v_last := true;
+    elsif p_order.pickup_at - make_interval(hours => v_free_h::int) <= now() then v_pct := v_late_pct;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'cancellable', p_order.status not in ('delivered', 'cancelled', 'no_partner'),
+    'circuit', 'direct',
+    'charged', v_charged,
+    'late', v_pct > 0,
+    'last_minute', v_last,
+    'free_until', p_order.pickup_at - make_interval(hours => v_free_h::int),
+    'last_minute_from', p_order.pickup_at - make_interval(hours => v_last_h::int),
+    'retained_pct', v_pct,
+    'refund_cents', case when v_charged then p_order.client_price_cents - round(p_order.client_price_cents * v_pct / 100)::int else 0 end);
+end;
+$f$;
+revoke all on function secoto_private.od_direct_cancel_preview(public.transport_orders) from public, anon, authenticated;
+
+select secoto_private.mig074_patch(
+  'public.secoto_od_cancel_quote_preview(uuid)'::regprocedure,
+  '  v_late := v_order.pickup_at - make_interval(hours => v_free_h::int) <= now();',
+  '  if v_order.payment_circuit = ''direct'' then
+    return secoto_private.od_direct_cancel_preview(v_order);
   end if;
   v_late := v_order.pickup_at - make_interval(hours => v_free_h::int) <= now();');
 

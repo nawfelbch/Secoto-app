@@ -282,6 +282,10 @@ test("annulation plus de 24 h avant : remboursement intégral, rien de retenu", 
 
 test("annulation entre 24 h et 2 h : 50 % remboursés, part du transporteur au prorata", async () => {
   const o = await chargedOrder(12);
+  const preview = (await as(ids.client, "select public.secoto_od_cancel_quote_preview($1) as r", [o.id]))[0].r;
+  assert.equal(preview.retained_pct, 50);
+  assert.equal(preview.charged, true);
+  assert.equal(preview.last_minute, false);
   await cancel(o.id);
   const ord = (await sql("select client_price_cents, partner_pay_cents from public.transport_orders where id=$1", [o.id]))[0];
   const p = (await sql("select status, refund_requested_cents from public.payments where id=$1", [o.payment_id]))[0];
@@ -296,6 +300,10 @@ test("annulation entre 24 h et 2 h : 50 % remboursés, part du transporteur au p
 
 test("annulation à moins de 2 h : aucun remboursement, part du transporteur intégralement versée", async () => {
   const o = await chargedOrder(1);
+  const preview = (await as(ids.client, "select public.secoto_od_cancel_quote_preview($1) as r", [o.id]))[0].r;
+  assert.equal(preview.retained_pct, 100);
+  assert.equal(preview.last_minute, true);
+  assert.equal(preview.refund_cents, 0);
   await cancel(o.id);
   const ord = (await sql("select status, partner_pay_cents from public.transport_orders where id=$1", [o.id]))[0];
   assert.equal(ord.status, "cancelled");
@@ -312,6 +320,10 @@ test("annulation sans transporteur : la carte n'a jamais été débitée", async
   await setFlag(true);
   const o = await book(ids.client);
   await cardSaved(o.payment_id);
+  await sql("update public.transport_orders set pickup_at = now() + interval '1 hour' where id=$1", [o.id]);
+  const preview = (await as(ids.client, "select public.secoto_od_cancel_quote_preview($1) as r", [o.id]))[0].r;
+  assert.equal(preview.charged, false);
+  assert.equal(preview.retained_pct, 0, "jamais débité : rien n'est retenu, même à la dernière minute");
   await cancel(o.id);
   const p = (await sql("select status, release_requested_at from public.payments where id=$1", [o.payment_id]))[0];
   assert.equal(p.status, "requires_capture");

@@ -121,6 +121,7 @@ import AdminOnDemand from "./ondemand/AdminOnDemand";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
+import PaiementDirectPanel from "./ondemand/PaiementDirectPanel";
 import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
@@ -4425,6 +4426,7 @@ export default function App() {
         <OfferPopupHost
           accountId={account.id}
           suppressed={Boolean(docModal) || navOpen}
+          onOpenBank={() => setTransporterTab("bank")}
           onOpenMission={(missionId) => {
             if (missionId) setFocusMissionId(missionId);
             if (versementsAConfigurer && !dejaInviteAuxVersements()) {
@@ -5273,6 +5275,8 @@ export default function App() {
             <section className="layout">
               <OffersPanel
                 focusOfferId={focusOfferId}
+                paiementDirect={Boolean(flags.plateau_paiement_direct) && ["vl", "pl"].includes(account?.transporterType || account?.transporter_type)}
+                onOpenBank={() => setTransporterTab("bank")}
                 onOpenMission={(missionId) => {
                   setFocusOfferId(null);
                   if (missionId) setFocusMissionId(missionId);
@@ -5342,6 +5346,8 @@ export default function App() {
           {transporterTab === "bank" && !isAdmin && (
             <section className="layout">
               <ConnectPayoutsPanel />
+              {/* 074 : paiement direct des missions plateau (transporteurs VL/PL). */}
+              {["vl", "pl"].includes(account?.transporterType || account?.transporter_type) && <PaiementDirectPanel />}
               <BankAccountPanel account={account} />
             </section>
           )}

@@ -194,8 +194,14 @@ export async function payNow(paymentId) {
       }
     : {};
 
+  // 074 : plateau en paiement direct — la feuille VALIDE la carte, sans débit.
+  // Le débit aura lieu à l'acceptation, au nom du transporteur.
+  const secret = intent.mode === "setup_sheet"
+    ? { setupIntentClientSecret: intent.setupIntentClientSecret }
+    : { paymentIntentClientSecret: intent.clientSecret };
+
   await StripePlugin.createPaymentSheet({
-    paymentIntentClientSecret: intent.clientSecret,
+    ...secret,
     ...customerOptions,
     merchantDisplayName: "SECOTO",
     countryCode: "FR",
@@ -218,7 +224,9 @@ export async function payNow(paymentId) {
   if (value === "paymentSheetCanceled") {
     return { ok: false, pending: false, cancelled: true };
   }
-  throw new Error("Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
+  throw new Error(intent.mode === "setup_sheet"
+    ? "La carte n'a pas pu être validée. Aucun montant n'a été prélevé."
+    : "Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
 }
 
 function explain(error) {

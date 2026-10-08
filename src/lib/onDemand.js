@@ -224,6 +224,13 @@ export const acceptMission = (missionId) =>
 export const declineMission = (missionId) => rpc("secoto_mission_decline", { p_mission_id: missionId });
 // Compte de versement Stripe Connect : "status", "link" ou "dashboard".
 export const connectOnboarding = (action) => callFunction("connect-onboarding", { action });
+// 074 : paiement direct plateau (mandat de facturation et état du compte).
+export const carrierDirectStatus = () => rpc("secoto_carrier_direct_status", {});
+export const carrierAcceptBillingMandate = ({ version, legalName, siren, address, vatRegime, vatNumber }) =>
+  rpc("secoto_carrier_accept_billing_mandate", {
+    p_version: version, p_legal_name: legalName, p_siren: siren, p_address: address,
+    p_vat_regime: vatRegime, p_vat_number: vatNumber || null,
+  });
 
 // ---- Suivi -----------------------------------------------------------------
 export const liveView = (missionId) => rpc("secoto_live_view", { p_mission_id: missionId });

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import OnDemandBooking from "./OnDemandBooking";
 import LiveTrackingView from "./LiveTrackingView";
 import {
-  MANUAL_REASONS, MILESTONES, NO_PARTNER_REFUND_HOURS, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL,
+  MANUAL_REASONS, MILESTONES, NO_PARTNER_REFUND_HOURS, ORDER_STATUS_LABEL, paymentStateLabel,
   cancelOrder, cancelPreview, cancellationNotice, cancellationPolicy,
   formatCents, formatDateTime, myOrders, myQuotes, orderHeadline, paymentExplanation,
 } from "../lib/onDemand";
@@ -92,7 +92,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               <p>{order.vehicle.model} · {order.mode === "plateau" ? "plateau" : "convoyage"} · {formatDateTime(order.pickup_at)}</p>
               <p><strong>{orderHeadline(order)}</strong></p>
               {order.funding === "card" && order.payment_status && (
-                <p><span className={`od-pill ${["paid", "requires_capture"].includes(order.payment_status) ? "is-ok" : ["failed", "capture_failed"].includes(order.payment_status) ? "is-bad" : "is-warn"}`}>{PAYMENT_STATE_LABEL[order.payment_status] || order.payment_status}</span> {formatCents(order.collect_cents)}</p>
+                <p><span className={`od-pill ${["paid", "requires_capture"].includes(order.payment_status) ? "is-ok" : ["failed", "capture_failed"].includes(order.payment_status) ? "is-bad" : "is-warn"}`}>{paymentStateLabel(order)}</span> {formatCents(order.collect_cents)}</p>
               )}
               {order.funding === "subscription" && <p><span className="od-pill is-ok">Inclus dans votre forfait</span></p>}
               {order.partner_name && <p>Partenaire : <strong>{order.partner_name}</strong></p>}
@@ -103,21 +103,37 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               </ol>
               {order.status === "awaiting_payment" && order.funding === "card" && <p className="muted">{paymentExplanation(order)}</p>}
               {["searching_partner", "partner_confirmed"].includes(order.status) && order.funding === "card" && (
-                <p className="muted">{cancellationPolicy()}</p>
+                <p className="muted">{cancellationPolicy(order)}</p>
               )}
               {order.status === "no_partner" && (
                 <p className="muted">
-                  Aucun transporteur ne s’est rendu disponible. {order.funding === "card"
-                    ? `Vous êtes remboursé intégralement sous ${NO_PARTNER_REFUND_HOURS} h.`
-                    : "Votre droit de forfait est restitué."}
+                  Aucun transporteur ne s’est rendu disponible. {order.funding !== "card"
+                    ? "Votre droit de forfait est restitué."
+                    : order.payment_circuit === "direct"
+                      ? "Votre carte n’a pas été débitée."
+                      : `Vous êtes remboursé intégralement sous ${NO_PARTNER_REFUND_HOURS} h.`}
                 </p>
               )}
+              {order.payment_action_required && (
+                <div className="alert error" role="alert">
+                  Un transporteur a accepté votre mission. Votre banque demande une validation : validez le paiement
+                  pour confirmer le transport. Sans validation, la mission sera proposée à nouveau.
+                </div>
+              )}
               <div className="actions-row">
+                {order.payment_action_required && (
+                  <button className="btn primary small" type="button" disabled={busyId === order.id} onClick={async () => {
+                    setBusyId(order.id);
+                    try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
+                  }}>Valider le paiement</button>
+                )}
                 {order.funding === "card" && (order.status === "awaiting_payment" || order.payment_status === "capture_failed" || order.payment_status === "failed") && order.status !== "cancelled" && (
                   <button className="btn primary small" type="button" disabled={busyId === order.id} onClick={async () => {
                     setBusyId(order.id);
                     try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
-                  }}>{order.payment_status === "capture_failed" ? "Mettre à jour le paiement" : "Valider le paiement"}</button>
+                  }}>{order.payment_status === "capture_failed"
+                    ? (order.payment_circuit === "direct" ? "Mettre à jour ma carte" : "Mettre à jour le paiement")
+                    : order.payment_circuit === "direct" ? "Valider ma carte" : "Valider le paiement"}</button>
                 )}
                 {canTrack && <button className="btn ghost small" type="button" onClick={() => setTracking(order.mission_id)}>Suivre en direct</button>}
                 {cancellable && (
