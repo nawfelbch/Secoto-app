@@ -540,3 +540,17 @@ test("maintenance de test : fermée sans secret, refusée avec une clé Stripe r
   assert.match(src, /timingSafeEqual/);
   assert.match(src, /x\.length >= 24/);
 });
+
+test("validation de carte : Managed Payments désactivé (Stripe refuse le mode setup sinon)", async () => {
+  const { sessionDirecte } = await import("../netlify/lib/devis-direct.js");
+  const stripe = fakeStripe();
+  stripe.checkout = { sessions: { create: async (...args) => { stripe.calls.push({ name: "checkout.create", args }); return { url: "u" }; } } };
+  const admin = fakeAdmin({ tables: { accounts: [{ id: "acc1", email: "c@test.invalid", full_name: "C", stripe_customer_id: "cus_1" }] } });
+  await sessionDirecte({ admin, stripe, data: { payment_id: "p", purpose: "od_plateau", amount_cents: 1, account_id: "acc1" }, token: "t", description: "d" });
+  assert.deepEqual(stripe.calls.find((c) => c.name === "checkout.create").args[0].managed_payments, { enabled: false });
+  const { readFileSync } = await import("node:fs");
+  const cpi = readFileSync(new URL("../netlify/functions/create-payment-intent.js", import.meta.url), "utf8");
+  const setup = cpi.slice(cpi.indexOf('mode: "setup"') - 400, cpi.indexOf('mode: "setup"'));
+  assert.match(setup, /createWithManagedPaymentsFallback\(\(managed\) => stripe\.checkout\.sessions\.create\(/);
+  assert.match(setup, /\.\.\.managed,/);
+});

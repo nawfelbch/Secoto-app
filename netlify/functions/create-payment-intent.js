@@ -368,8 +368,9 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     const lockMs = order.lock_expires_at ? Date.parse(order.lock_expires_at) : 0;
     const expiresAt = Math.floor(Math.max(now + 31 * 60 * 1000, lockMs) / 1000);
     const description = `Transport de véhicule sur plateau — commande ${order.public_ref}`;
-    const session = await stripe.checkout.sessions.create(
+    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {
+        ...managed,
         mode: "payment",
         line_items: [{
           price_data: { currency: ctx.currency || "eur", unit_amount: ctx.amount_cents, product_data: { name: description } },
@@ -385,10 +386,10 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       {
         stripeAccount: ctx.connected_account_id,
         idempotencyKey: idempotencyKey("secoto-direct-checkout", payment.id, {
-          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt,
+          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed,
         }),
       },
-    );
+    ));
     return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: ctx.amount_cents, currency: ctx.currency || "eur", circuit: "direct" });
   }
 
@@ -398,8 +399,11 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
   }
 
   if (platform === "web") {
-    const session = await stripe.checkout.sessions.create(
+    // Stripe « Managed Payments » (actif par défaut sur le compte SECOTO)
+    // refuse le mode « setup » : on le désactive pour cette requête.
+    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {
+        ...managed,
         mode: "setup",
         customer: customerId,
         currency: payment.currency || "eur",
@@ -408,8 +412,8 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         success_url: retourOk,
         cancel_url: retourAnnule,
       },
-      { idempotencyKey: idempotencyKey("secoto-direct-setup-web", payment.id, { customerId, status: payment.status, returnScreen, returnQuery }) },
-    );
+      { idempotencyKey: idempotencyKey("secoto-direct-setup-web", payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed }) },
+    ));
     if (["pending", "failed"].includes(payment.status)) {
       await admin.from("payments").update({ status: "processing", updated_at: new Date(now).toISOString() }).eq("id", payment.id);
     }

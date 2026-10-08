@@ -1,6 +1,6 @@
 // SECOTO 077 — liens de paiement de devis plateau en paiement direct.
 // Utilisé par netlify/functions/devis-pay.js.
-import { idempotencyKey } from "./secoto-server.js";
+import { createWithManagedPaymentsFallback, idempotencyKey } from "./secoto-server.js";
 
 const { SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
@@ -22,8 +22,9 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
   const retour = (code) => `${SECOTO_APP_URL}/.netlify/functions/devis-pay?t=${token}&retour=${code}`;
 
   if (data.connected_account_id) {
-    return stripe.checkout.sessions.create(
+    return createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {
+        ...managed,
         mode: "payment",
         line_items: [{
           price_data: { currency: data.currency || "eur", unit_amount: data.amount_cents, product_data: { name: description } },
@@ -37,10 +38,10 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
       {
         stripeAccount: data.connected_account_id,
         idempotencyKey: idempotencyKey("secoto-devis-direct", data.payment_id, {
-          account: data.connected_account_id, amount: data.amount_cents, fee: data.application_fee_cents, description,
+          account: data.connected_account_id, amount: data.amount_cents, fee: data.application_fee_cents, description, managed,
         }),
       },
-    );
+    ));
   }
 
   // Devis du transport à la demande : la carte est enregistrée chez SECOTO
@@ -57,8 +58,9 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
     customerId = customer.id;
     await admin.from("accounts").update({ stripe_customer_id: customerId }).eq("id", compte.id);
   }
-  const session = await stripe.checkout.sessions.create(
+  const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
     {
+      ...managed,
       mode: "setup",
       customer: customerId,
       currency: data.currency || "eur",
@@ -67,8 +69,8 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
       success_url: retour("carte"),
       cancel_url: retour("annule"),
     },
-    { idempotencyKey: idempotencyKey("secoto-devis-direct-setup", data.payment_id, { customerId }) },
-  );
+    { idempotencyKey: idempotencyKey("secoto-devis-direct-setup", data.payment_id, { customerId, managed }) },
+  ));
   await admin.from("payments").update({ status: "processing", updated_at: new Date().toISOString() })
     .eq("id", data.payment_id).in("status", ["pending", "failed"]);
   return session;
