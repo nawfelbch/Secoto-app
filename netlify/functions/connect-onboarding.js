@@ -8,6 +8,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Le transporteur ne transmet JAMAIS d'identifiant Stripe : le compte est
 // toujours retrouvé depuis son compte SECOTO authentifié, côté serveur.
 import Stripe from "stripe";
+import { urlRetour } from "../lib/retour-app.js";
 import { authenticatedUserId, bearer, json, majCompteStripe, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
 
 const { STRIPE_SECRET_KEY, SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
@@ -70,9 +71,11 @@ export async function createConnectedAccount(stripe, { email, userId, directOn, 
   }
 }
 
-export async function onboardingLink(stripe, acctId, { merchant = false } = {}) {
-  const refresh = `${SECOTO_APP_URL}/?ecran=bank&connect=relancer`;
-  const retour = `${SECOTO_APP_URL}/?ecran=bank&connect=retour`;
+export async function onboardingLink(stripe, acctId, { merchant = false, platform = "web" } = {}) {
+  // Depuis l'iPhone / Android, l'inscription Stripe s'ouvre dans le navigateur :
+  // la fin du parcours renvoie dans l'application (passerelle /retour-app.html).
+  const refresh = urlRetour(SECOTO_APP_URL, "ecran=bank&connect=relancer", platform);
+  const retour = urlRetour(SECOTO_APP_URL, "ecran=bank&connect=retour", platform);
   try {
     return await stripe.accountLinks.create({ account: acctId, type: "account_onboarding", refresh_url: refresh, return_url: retour });
   } catch (erreurV1) {
@@ -145,7 +148,9 @@ const handler = async (event) => {
   if (!admin || !STRIPE_SECRET_KEY) return json(503, { error: "server_not_configured" });
   const userId = await authenticatedUserId(bearer(event));
   if (!userId) return json(401, { error: "unauthorized" });
-  const action = parseBody(event)?.action;
+  const corps = parseBody(event);
+  const action = corps?.action;
+  const platform = ["ios", "android"].includes(corps?.platform) ? corps.platform : "web";
 
   const { data: account } = await admin.from("accounts")
     .select("id,role,email,transporter_type,stripe_connect_account_id,stripe_connect_onboarded_at")
@@ -208,7 +213,7 @@ const handler = async (event) => {
         const { data: relu } = await admin.from("accounts").select("stripe_connect_account_id").eq("id", userId).single();
         acctId = relu?.stripe_connect_account_id || acct.id;
       }
-      const link = await onboardingLink(stripe, acctId, { merchant: plateau });
+      const link = await onboardingLink(stripe, acctId, { merchant: plateau, platform });
       return json(200, { url: link.url });
     }
 
@@ -235,7 +240,7 @@ const handler = async (event) => {
       const acct = await stripe.accounts.retrieve(acctId);
       const etat = await sync(acct);
       if (etat.card_payments_enabled && !acct?.requirements?.currently_due?.length) return json(200, { ...etat, url: null });
-      const link = await onboardingLink(stripe, acctId, { merchant: true });
+      const link = await onboardingLink(stripe, acctId, { merchant: true, platform });
       return json(200, { ...etat, url: link.url });
     }
 

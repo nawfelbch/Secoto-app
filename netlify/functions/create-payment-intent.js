@@ -13,6 +13,7 @@ import { MANAGED_PAYMENTS_ENABLED, createWithManagedPaymentsFallback, withCors }
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { messageDecomposition } from "../lib/devis-direct.js";
+import { urlRetour } from "../lib/retour-app.js";
 import { createClient } from "@supabase/supabase-js";
 
 const {
@@ -361,6 +362,10 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
   };
   const retourOk = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`;
   const retourAnnule = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`;
+  // Depuis l'iPhone / Android, la page Stripe s'ouvre dans le navigateur : la
+  // fin du parcours renvoie dans l'application (passerelle /retour-app.html).
+  const retourOkAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=ok`, platform);
+  const retourAnnuleAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=annule`, platform);
 
   // Validation bancaire demandée au moment du débit.
   if (order.status === "partner_locked" && payment.direct_action_required_at && payment.status === "requires_capture") {
@@ -385,13 +390,13 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         customer_email: account?.email || undefined,
         expires_at: expiresAt,
         metadata,
-        success_url: retourOk,
-        cancel_url: retourAnnule,
+        success_url: retourOkAppli,
+        cancel_url: retourAnnuleAppli,
       },
       {
         stripeAccount: ctx.connected_account_id,
         idempotencyKey: idempotencyKey("secoto-direct-checkout", payment.id, {
-          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed, decompo: 1,
+          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed, decompo: 1, platform,
         }),
       },
     ));

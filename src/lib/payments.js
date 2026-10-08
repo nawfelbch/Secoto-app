@@ -210,7 +210,8 @@ export async function payNow(paymentId) {
     applePayMerchantId: import.meta.env.VITE_APPLE_PAY_MERCHANT_ID || undefined,
     enableApplePay: platform() === "ios" && Boolean(import.meta.env.VITE_APPLE_PAY_MERCHANT_ID),
     enableGooglePay: platform() === "android",
-    googlePayIsTesting: false,
+    // Clé de test Stripe : Google Pay doit être en mode test, sinon il refuse.
+    googlePayIsTesting: String(intent.publishableKey || "").startsWith("pk_test_"),
   });
 
   const outcome = await StripePlugin.presentPaymentSheet();

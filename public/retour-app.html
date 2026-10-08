@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Retour à l'application — SECOTO</title>
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#070B14" />
+<link rel="icon" href="/favicon-32.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=DM+Sans:wght@400;500;600&amp;display=swap" />
+<link rel="stylesheet" href="/legal/legal.css" />
+<style>
+  .retour { position: relative; z-index: 1; min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+    padding: max(24px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px)); }
+  .carte { width: 100%; max-width: 440px; text-align: center; padding: 34px 24px 28px; border: 1px solid rgba(255,255,255,.08); border-radius: 22px;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); }
+  .carte img { width: 64px; height: 64px; border-radius: 14px; }
+  .carte h1 { font-size: clamp(38px, 10vw, 52px); margin: 18px 0 10px; }
+  .carte p { margin: 0 0 22px; }
+  .bouton { display: block; width: 100%; padding: 15px 18px; border: 0; border-radius: 14px; font: 600 17px "DM Sans", -apple-system, sans-serif;
+    color: #fff; background: linear-gradient(90deg, #F5620F, #FF9A3C); box-shadow: 0 10px 30px rgba(245,98,15,.28); }
+  .bouton:hover { color: #fff; }
+  .second { display: inline-block; margin-top: 16px; font-size: 14px; color: var(--discret); border-bottom-color: var(--ligne); }
+</style>
+</head>
+<body>
+<main class="retour">
+  <div class="carte">
+    <img src="/legal/logo-secoto.png" alt="SECOTO" width="64" height="64" />
+    <h1 id="titre">Retour à <em>SECOTO</em></h1>
+    <p id="texte">Vous pouvez revenir dans l'application SECOTO.</p>
+    <a class="bouton" id="ouvrir" href="secoto://app">Revenir dans l'application</a>
+    <a class="second" id="site" href="/">Continuer sur le site</a>
+  </div>
+</main>
+<script>
+(function () {
+  // Liste blanche : seuls ces écrans et ces identifiants passent dans le lien.
+  var ECRANS = ["courses", "paiement", "abonnement", "bank", "available", "profile"];
+  var ID = /^[a-zA-Z0-9_-]{1,100}$/;
+  var p = new URLSearchParams(window.location.search);
+  var q = new URLSearchParams();
+  var ecran = p.get("ecran");
+  if (ECRANS.indexOf(ecran) >= 0) q.set("ecran", ecran);
+  ["commande", "mission"].forEach(function (k) { var v = p.get(k); if (v && ID.test(v)) q.set(k, v); });
+  var paiement = p.get("paiement"), connect = p.get("connect");
+  if (paiement === "ok" || paiement === "annule") q.set("paiement", paiement);
+  if (connect === "retour" || connect === "relancer") q.set("connect", connect);
+  var suite = q.toString();
+  var appli = "secoto://app" + (suite ? "?" + suite : "");
+  document.getElementById("ouvrir").href = appli;
+  document.getElementById("site").href = "/" + (suite ? "?" + suite : "");
+
+  var titre = document.getElementById("titre"), texte = document.getElementById("texte");
+  if (paiement === "ok") { titre.innerHTML = "Paiement <em>validé</em>"; texte.textContent = "La confirmation s'affichera dans l'application dans quelques instants."; }
+  else if (paiement === "annule") { titre.innerHTML = "Paiement <em>interrompu</em>"; texte.textContent = "Aucun montant n'a été prélevé. Vous pouvez réessayer depuis l'application."; }
+  else if (connect === "retour") { titre.innerHTML = "Informations <em>envoyées</em>"; texte.textContent = "Stripe vérifie vos informations. Le statut se met à jour dans l'application."; }
+  else if (connect === "relancer") { titre.innerHTML = "Lien <em>expiré</em>"; texte.textContent = "Revenez dans l'application et appuyez de nouveau sur le bouton pour reprendre."; }
+
+  // Ouverture automatique ; si le téléphone la bloque, le bouton reste là.
+  setTimeout(function () { window.location.href = appli; }, 350);
+})();
+</script>
+</body>
+</html>

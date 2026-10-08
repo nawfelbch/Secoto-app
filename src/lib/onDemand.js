@@ -5,7 +5,7 @@
 // prises côté serveur. Ce module ne fait qu'appeler les RPC et formater.
 // ============================================================================
 import { supabase } from "../supabaseClient";
-import { getServerFunctionUrl } from "../platform/runtime";
+import { getPlatform, getServerFunctionUrl } from "../platform/runtime";
 import { humanizeError } from "./humanError";
 import { randomIdempotencyKey } from "./fileSafety";
 
@@ -225,7 +225,7 @@ export const acceptMission = (missionId) =>
   rpc("secoto_mission_accept", { p_mission_id: missionId, p_idempotency_key: randomIdempotencyKey() });
 export const declineMission = (missionId) => rpc("secoto_mission_decline", { p_mission_id: missionId });
 // Compte de versement Stripe Connect : "status", "link" ou "dashboard".
-export const connectOnboarding = (action) => callFunction("connect-onboarding", { action });
+export const connectOnboarding = (action) => callFunction("connect-onboarding", { action, platform: getPlatform() });
 // 074 : paiement direct plateau (mandat de facturation et état du compte).
 export const carrierDirectStatus = () => rpc("secoto_carrier_direct_status", {});
 export const carrierAcceptBillingMandate = ({ version, legalName, siren, address, vatRegime, vatNumber }) =>
