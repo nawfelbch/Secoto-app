@@ -12,6 +12,11 @@ import { authenticatedUserId, bearer, json, parseBody, serviceClient, withCors }
 
 const { STRIPE_SECRET_KEY, SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
+// 074 : paiement direct plateau.
+const PLATEAU_TYPES = new Set(["vl", "pl"]);
+const DIRECT_PRODUCT_DESCRIPTION = "Transport de véhicules sur camion plateau, réservé via SECOTO";
+export const PAYMENT_DOMAIN = new URL(SECOTO_APP_URL).hostname;
+
 // Traduit l'état Stripe en un statut SECOTO simple, affiché au transporteur.
 export function connectStatusFromAccount(acct) {
   const transfers = acct?.capabilities?.transfers === "active";
@@ -25,6 +30,8 @@ export function connectStatusFromAccount(acct) {
     status,
     transfers_enabled: transfers,
     payouts_enabled: payouts,
+    // 074 : encaisser lui-même les paiements par carte (circuit direct plateau).
+    card_payments_enabled: acct?.capabilities?.card_payments === "active",
     details_submitted: Boolean(acct?.details_submitted),
     currently_due: acct?.requirements?.currently_due?.length || 0,
   };
@@ -39,12 +46,13 @@ const handler = async (event) => {
   const action = parseBody(event)?.action;
 
   const { data: account } = await admin.from("accounts")
-    .select("id,role,email,stripe_connect_account_id,stripe_connect_onboarded_at")
+    .select("id,role,email,transporter_type,stripe_connect_account_id,stripe_connect_onboarded_at,stripe_payouts_manual")
     .eq("id", userId).single();
   if (!account || account.role !== "transporter") return json(403, { error: "forbidden" });
 
   const stripe = new Stripe(STRIPE_SECRET_KEY);
   let acctId = account.stripe_connect_account_id;
+  const plateau = PLATEAU_TYPES.has(String(account.transporter_type || ""));
 
   const sync = async (acct) => {
     const s = connectStatusFromAccount(acct);
@@ -52,6 +60,7 @@ const handler = async (event) => {
       stripe_connect_status: s.status,
       stripe_transfers_enabled: s.transfers_enabled,
       stripe_payouts_enabled: s.payouts_enabled,
+      stripe_card_payments_enabled: s.card_payments_enabled,
       stripe_connect_updated_at: new Date().toISOString(),
       ...(s.status === "active" && !account.stripe_connect_onboarded_at
         ? { stripe_connect_onboarded_at: new Date().toISOString() } : {}),
@@ -67,13 +76,23 @@ const handler = async (event) => {
 
     if (action === "link") {
       if (!acctId) {
+        const { data: flag } = await admin.from("secoto_feature_flags").select("enabled").eq("key", "plateau_paiement_direct").maybeSingle();
+        const directOn = plateau && Boolean(flag?.enabled);
         // Clé par utilisateur : deux appuis simultanés ne créent qu'un compte.
         const acct = await stripe.accounts.create({
           type: "express",
           country: "FR",
           email: account.email || undefined,
-          capabilities: { transfers: { requested: true } },
-          business_profile: { mcc: "4214", product_description: "Transport de véhicules réalisé pour SECOTO" },
+          // 074 : un transporteur plateau encaisse lui-même les paiements de
+          // ses clients (circuit direct) ; un convoyeur reçoit des virements.
+          // Interrupteur éteint : création strictement identique à avant.
+          capabilities: directOn
+            ? { transfers: { requested: true }, card_payments: { requested: true } }
+            : { transfers: { requested: true } },
+          business_profile: {
+            mcc: "4214",
+            product_description: directOn ? DIRECT_PRODUCT_DESCRIPTION : "Transport de véhicules réalisé pour SECOTO",
+          },
           metadata: { secoto_account_id: userId },
           // La cle d'idempotence protege du double-clic, mais Stripe rejoue aussi
           // les ERREURS memorisees pendant 24 h : une panne passagere bloquerait
@@ -92,6 +111,42 @@ const handler = async (event) => {
         return_url: `${SECOTO_APP_URL}/?ecran=bank&connect=retour`,
       });
       return json(200, { url: link.url });
+    }
+
+    // 074 : activation du paiement direct (plateau). Une seule fois :
+    //  1. le compte peut encaisser les cartes (card_payments) ;
+    //  2. les virements vers la banque sont déclenchés par SECOTO après la
+    //     livraison (calendrier « manuel ») ;
+    //  3. Apple Pay et Google Pay sont autorisés sur app.secoto-transport.fr
+    //     pour ce compte.
+    // Si Stripe réclame des informations, le transporteur reçoit le lien
+    // d'inscription hébergé : il n'installe rien et ne revoit plus Stripe.
+    if (action === "direct") {
+      if (!plateau) return json(403, { error: "plateau_only" });
+      if (!acctId) return json(409, { error: "no_account" });
+      await stripe.accounts.update(acctId, {
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        settings: { payouts: { schedule: { interval: "manual" } } },
+        business_profile: { product_description: DIRECT_PRODUCT_DESCRIPTION },
+      }, { idempotencyKey: `secoto-direct-upgrade-${acctId}-${new Date().toISOString().slice(0, 13)}` });
+      await admin.from("accounts").update({ stripe_payouts_manual: true }).eq("id", userId);
+      try {
+        await stripe.paymentMethodDomains.create({ domain_name: PAYMENT_DOMAIN }, { stripeAccount: acctId });
+      } catch (erreur) {
+        // Domaine déjà enregistré : normal. Autre motif : tracé, non bloquant
+        // (la carte reste toujours proposée).
+        if (!/already|exist/i.test(String(erreur?.message || ""))) console.error("[connect-onboarding] domaine", erreur?.message);
+      }
+      const acct = await stripe.accounts.retrieve(acctId);
+      const etat = await sync(acct);
+      if (etat.card_payments_enabled && !acct?.requirements?.currently_due?.length) return json(200, { ...etat, url: null });
+      const link = await stripe.accountLinks.create({
+        account: acctId,
+        type: "account_onboarding",
+        refresh_url: `${SECOTO_APP_URL}/?ecran=bank&connect=relancer`,
+        return_url: `${SECOTO_APP_URL}/?ecran=bank&connect=retour`,
+      });
+      return json(200, { ...etat, url: link.url });
     }
 
     // Diagnostic : identifie le compte Stripe derriere la cle du serveur, sans
