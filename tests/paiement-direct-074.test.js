@@ -216,8 +216,6 @@ function maintenanceAdmin(actions, locks = []) {
     rpc: {
       secoto_od_maintenance_tick: async () => ({ data: { expired_quotes: 0, rebroadcast: 0, no_partner: 0, expired_locks: locks, payment_actions: actions }, error: null }),
       secoto_payouts_claim_due: async () => ({ data: [], error: null }),
-      secoto_direct_payouts_claim_due: async () => ({ data: [{ payout_id: "pp1", amount_cents: 42000, kind: "mission", connected_account_id: "acct_T", order_id: "o1", mission_id: "m1" }], error: null }),
-      secoto_bank_payouts_claim_due: async () => ({ data: [{ bank_payout_id: "b1", amount_cents: 30000, connected_account_id: "acct_M" }], error: null }),
       secoto_direct_charge_context: async () => ({ data: { ...CTX, payment_status: "paid" }, error: null }),
       secoto_od_capture_result: async () => ({ data: { result: "confirmed" }, error: null }),
     },
@@ -241,12 +239,10 @@ test("maintenance : remboursement direct sur le compte du transporteur, commissi
   assert.equal(oldRefund.args[1].stripeAccount, undefined, "ancien circuit : remboursement depuis SECOTO, inchangé");
   assert.equal(oldRefund.args[0].refund_application_fee, undefined);
   assert.equal(oldRefund.args[1].idempotencyKey, "secoto-od-refund-p9-12000", "clé historique inchangée");
-  // Virements bancaires pilotés par SECOTO.
-  const payouts = stripe.calls.filter((c) => c.name === "payouts.create");
-  assert.equal(payouts.find((c) => c.args[0].amount === 42000).args[1].stripeAccount, "acct_T");
-  assert.equal(payouts.find((c) => c.args[0].amount === 30000).args[1].stripeAccount, "acct_M");
+  // Aucun virement déclenché par SECOTO : Stripe verse automatiquement au transporteur.
+  assert.ok(!stripe.calls.some((c) => c.name === "payouts.create"));
   assert.ok(!stripe.calls.some((c) => c.name === "transfers.create"), "aucun Transfer pour le circuit direct");
-  assert.equal(report.direct_payouts[0].outcome, "paid");
+  assert.equal(report.direct_payouts, undefined);
 });
 
 test("maintenance : verrou expiré en circuit direct -> décision prise chez Stripe, jamais un abandon aveugle", async () => {

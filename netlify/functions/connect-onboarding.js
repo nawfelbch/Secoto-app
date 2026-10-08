@@ -46,7 +46,7 @@ const handler = async (event) => {
   const action = parseBody(event)?.action;
 
   const { data: account } = await admin.from("accounts")
-    .select("id,role,email,transporter_type,stripe_connect_account_id,stripe_connect_onboarded_at,stripe_payouts_manual")
+    .select("id,role,email,transporter_type,stripe_connect_account_id,stripe_connect_onboarded_at")
     .eq("id", userId).single();
   if (!account || account.role !== "transporter") return json(403, { error: "forbidden" });
 
@@ -115,10 +115,11 @@ const handler = async (event) => {
 
     // 074 : activation du paiement direct (plateau). Une seule fois :
     //  1. le compte peut encaisser les cartes (card_payments) ;
-    //  2. les virements vers la banque sont déclenchés par SECOTO après la
-    //     livraison (calendrier « manuel ») ;
-    //  3. Apple Pay et Google Pay sont autorisés sur app.secoto-transport.fr
-    //     pour ce compte.
+    //  2. Stripe lui verse automatiquement ce qu'il encaisse (calendrier
+    //     automatique, inchangé) ; un remboursement ultérieur est repris sur
+    //     ses paiements suivants ou, à défaut, sur son compte bancaire ;
+    //  3. Apple Pay et Google Pay sont autorisés sur la version web de l'app
+    //     pour ce compte (l'app iPhone / Android n'a besoin de rien).
     // Si Stripe réclame des informations, le transporteur reçoit le lien
     // d'inscription hébergé : il n'installe rien et ne revoit plus Stripe.
     if (action === "direct") {
@@ -126,10 +127,9 @@ const handler = async (event) => {
       if (!acctId) return json(409, { error: "no_account" });
       await stripe.accounts.update(acctId, {
         capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        settings: { payouts: { schedule: { interval: "manual" } } },
+        settings: { payouts: { debit_negative_balances: true } },
         business_profile: { product_description: DIRECT_PRODUCT_DESCRIPTION },
       }, { idempotencyKey: `secoto-direct-upgrade-${acctId}-${new Date().toISOString().slice(0, 13)}` });
-      await admin.from("accounts").update({ stripe_payouts_manual: true }).eq("id", userId);
       try {
         await stripe.paymentMethodDomains.create({ domain_name: PAYMENT_DOMAIN }, { stripeAccount: acctId });
       } catch (erreur) {

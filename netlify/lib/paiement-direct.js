@@ -5,6 +5,10 @@
 // Les montants viennent toujours de la base (secoto_direct_charge_context),
 // jamais du téléphone ni du transporteur.
 //
+// Versement : Stripe verse automatiquement au transporteur ce qui est encaissé
+// sur son compte ; la commission SECOTO est prélevée au même instant. Aucun
+// Transfer, aucun virement à déclencher par SECOTO.
+//
 // Toutes les opérations Stripe portent une clé d'idempotence stable : une
 // reprise après coupure (maintenance, double appui) retrouve le MÊME paiement
 // au lieu d'en créer un second.
@@ -134,59 +138,4 @@ export async function refundDirect({ stripe, action }) {
     },
     { stripeAccount: action.connected_account_id, idempotencyKey: `secoto-direct-refund-${action.payment_id}-${action.amount_cents}` },
   );
-}
-
-/** Virements bancaires du circuit direct (solde du transporteur -> sa banque). */
-export async function processDirectPayouts({ admin, stripe }) {
-  const report = [];
-  const { data: due, error } = await admin.rpc("secoto_direct_payouts_claim_due", { p_limit: 20 });
-  if (error) return [{ error: error.message }];
-  for (const p of due || []) {
-    try {
-      const payout = await stripe.payouts.create(
-        {
-          amount: p.amount_cents,
-          currency: "eur",
-          description: p.kind === "late_cancel" ? "SECOTO — frais d'annulation" : "SECOTO — mission livrée",
-          metadata: { secoto_payout_id: p.payout_id, secoto_order_id: p.order_id || "", secoto_mission_id: p.mission_id || "" },
-        },
-        { stripeAccount: p.connected_account_id, idempotencyKey: `secoto-direct-payout-${p.payout_id}-${p.amount_cents}` },
-      );
-      await admin.rpc("secoto_payout_transfer_result", {
-        p_payout_id: p.payout_id, p_success: true, p_transfer_id: payout.id, p_charge_id: null, p_error: null,
-      });
-      report.push({ payout: p.payout_id, outcome: "paid", stripe: payout.id });
-    } catch (err) {
-      await admin.rpc("secoto_payout_transfer_result", {
-        p_payout_id: p.payout_id, p_success: false, p_transfer_id: null, p_charge_id: null,
-        p_error: [err?.code, err?.message || "payout_failed"].filter(Boolean).join(" · ").slice(0, 500),
-      });
-      report.push({ payout: p.payout_id, outcome: "error" });
-    }
-  }
-  return report;
-}
-
-/** Virements bancaires des Transfers reçus par un compte en virement manuel. */
-export async function processBankPayouts({ admin, stripe }) {
-  const report = [];
-  const { data: due, error } = await admin.rpc("secoto_bank_payouts_claim_due", { p_limit: 20 });
-  if (error) return [{ error: error.message }];
-  for (const b of due || []) {
-    try {
-      const payout = await stripe.payouts.create(
-        { amount: b.amount_cents, currency: "eur", description: "SECOTO — rémunération de mission", metadata: { secoto_bank_payout_id: b.bank_payout_id } },
-        { stripeAccount: b.connected_account_id, idempotencyKey: `secoto-bank-payout-${b.bank_payout_id}` },
-      );
-      await admin.rpc("secoto_bank_payout_result", { p_id: b.bank_payout_id, p_success: true, p_stripe_payout_id: payout.id, p_error: null });
-      report.push({ bank_payout: b.bank_payout_id, outcome: "paid" });
-    } catch (err) {
-      await admin.rpc("secoto_bank_payout_result", {
-        p_id: b.bank_payout_id, p_success: false, p_stripe_payout_id: null,
-        p_error: [err?.code, err?.message].filter(Boolean).join(" · ").slice(0, 500),
-      });
-      report.push({ bank_payout: b.bank_payout_id, outcome: "error" });
-    }
-  }
-  return report;
 }

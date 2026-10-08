@@ -11,7 +11,7 @@ import Stripe from "stripe";
 import { json, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
-import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
+import { isDirect, refundDirect } from "../lib/paiement-direct.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -102,10 +102,6 @@ export async function runMaintenance({ admin, stripe }) {
     report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
   }
   report.payouts = await processPayouts({ admin, stripe });
-  // 074 : virements bancaires pilotés par SECOTO (circuit direct, et Transfers
-  // reçus par un compte passé en virement manuel).
-  report.direct_payouts = await processDirectPayouts({ admin, stripe });
-  report.bank_payouts = await processBankPayouts({ admin, stripe });
   return report;
 }
 

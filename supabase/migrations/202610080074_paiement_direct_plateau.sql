@@ -9,8 +9,12 @@
 --      TRANSPORTEUR (« direct charge ») ; seule la commission SECOTO
 --      (application_fee_amount = prix client - paie transporteur) arrive chez
 --      SECOTO. Le transporteur n'est confirmé que si ce débit réussit ;
---   3. l'argent reste sur le solde Stripe du transporteur ; SECOTO déclenche
---      son virement bancaire après la livraison (payout, pas de Transfer).
+--   3. l'argent est versé au transporteur par Stripe, automatiquement (comme
+--      tout paiement encaissé sur son compte) ; la commission SECOTO est
+--      prélevée automatiquement au même moment. Aucun Transfer, aucun
+--      versement à déclencher, rien à régler à la main.
+--   Les frais Stripe sont à la charge de SECOTO (plateforme), jamais du
+--   transporteur.
 --
 -- RÈGLES DE SÉCURITÉ
 --   · Migration uniquement additive : colonnes nullables, nouvelles tables,
@@ -78,9 +82,6 @@ alter table public.partner_payouts add column if not exists connected_account_id
 -- Compte de paiement du transporteur : encaissement par carte, mandat de
 -- facturation et informations légales de ses factures.
 alter table public.accounts add column if not exists stripe_card_payments_enabled boolean;
--- Virements bancaires pilotés par SECOTO (calendrier Stripe « manuel ») : posé
--- par le serveur à l'activation du paiement direct, jamais par l'app.
-alter table public.accounts add column if not exists stripe_payouts_manual boolean;
 alter table public.accounts add column if not exists billing_mandate_accepted_at timestamptz;
 alter table public.accounts add column if not exists billing_mandate_version text;
 alter table public.accounts add column if not exists billing_legal_name text;
@@ -117,8 +118,7 @@ returns trigger language plpgsql set search_path = ''
 as $f$
 begin
   if current_user in ('authenticated', 'anon')
-     and (new.stripe_card_payments_enabled is distinct from old.stripe_card_payments_enabled
-       or new.stripe_payouts_manual is distinct from old.stripe_payouts_manual) then
+     and new.stripe_card_payments_enabled is distinct from old.stripe_card_payments_enabled then
     raise exception 'Les informations de paiement Stripe ne se modifient que depuis SECOTO.';
   end if;
   return new;
@@ -177,7 +177,6 @@ as $f$
        and a.stripe_connect_account_id is not null
        and coalesce(a.stripe_card_payments_enabled, false)
        and coalesce(a.stripe_transfers_enabled, false)
-       and coalesce(a.stripe_payouts_manual, false)
        and a.billing_mandate_accepted_at is not null
        and nullif(trim(coalesce(a.billing_legal_name, '')), '') is not null
        and a.billing_siren ~ '^[0-9]{9}$'
@@ -203,7 +202,6 @@ begin
     'card_payments', coalesce(a.stripe_card_payments_enabled, false),
     'transfers', coalesce(a.stripe_transfers_enabled, false),
     'payouts', coalesce(a.stripe_payouts_enabled, false),
-    'payouts_manual', coalesce(a.stripe_payouts_manual, false),
     'mandate_accepted_at', a.billing_mandate_accepted_at,
     'mandate_version', a.billing_mandate_version,
     'billing', jsonb_build_object('legal_name', a.billing_legal_name, 'siren', a.billing_siren,
@@ -505,13 +503,15 @@ begin
   if v_charged and v_pct > 0 and v_order.assigned_partner_id is not null and v_order.mission_id is not null then
     v_partner_part := round(v_order.partner_pay_cents * v_pct / 100)::int;
     if v_partner_part > 0 then
+      -- Trace uniquement : la part retenue est déjà sur le compte du
+      -- transporteur (Stripe ne lui reprend que la part remboursée).
       insert into public.partner_payouts(mission_id, order_id, partner_id, amount_cents, due_at, mode, kind, payment_circuit, connected_account_id)
-      values (v_order.mission_id, v_order.id, v_order.assigned_partner_id, v_partner_part,
-              now() + make_interval(hours => secoto_private.policy_num('payout_delay_hours', 48)::int),
+      values (v_order.mission_id, v_order.id, v_order.assigned_partner_id, v_partner_part, now(),
               v_order.mode, 'late_cancel', 'direct', v_payment.connected_account_id)
       on conflict (mission_id) do update
-         set amount_cents = excluded.amount_cents, status = 'to_pay', kind = 'late_cancel', due_at = excluded.due_at,
-             order_id = excluded.order_id, payment_circuit = 'direct', connected_account_id = excluded.connected_account_id
+         set amount_cents = excluded.amount_cents, status = 'paid', paid_at = now(), paid_via = 'connect', kind = 'late_cancel',
+             due_at = excluded.due_at, order_id = excluded.order_id, payment_circuit = 'direct',
+             connected_account_id = excluded.connected_account_id
        where public.partner_payouts.status = 'cancelled';
     end if;
   end if;
@@ -519,7 +519,7 @@ begin
   if v_order.assigned_partner_id is not null then
     perform secoto_private.notify_event(v_order.assigned_partner_id, 'cancellation', 'Mission annulée',
       case when v_partner_part > 0
-        then format('Commande %s annulée par le client. Frais d''annulation : %s € vous restent acquis, virés sur votre compte bancaire.',
+        then format('Commande %s annulée par le client. Frais d''annulation : %s € vous restent acquis, versés automatiquement par Stripe.',
                v_order.public_ref, replace(to_char(v_partner_part / 100.0, 'FM999990D00'), '.', ','))
         else format('Commande %s annulée par le client.', v_order.public_ref) end,
       v_order.mission_id, 'assigned', 'od-cancel-partner:' || p_order_id::text, p_order_id);
@@ -612,6 +612,14 @@ begin
       from public.transport_orders o join public.payments p on p.id = o.payment_id
      where o.id = new.order_id;
   end if;
+  -- Paiement direct : le client a payé le transporteur lui-même, Stripe lui
+  -- verse automatiquement. La ligne sert de trace ; rien n'est à verser.
+  if new.payment_circuit = 'direct' then
+    new.status := 'paid';
+    new.paid_at := coalesce(new.paid_at, now());
+    new.paid_via := 'connect';
+    new.reference := coalesce(new.reference, 'Paiement direct du client au transporteur (Stripe)');
+  end if;
   return new;
 end;
 $f$;
@@ -627,145 +635,19 @@ select secoto_private.mig074_patch(
        -- 074 : paiement direct -> l''argent est déjà chez le transporteur.
        and coalesce(pp.payment_circuit, '''') <> ''direct''');
 
--- Virements bancaires du circuit direct : depuis le solde Stripe DU
--- TRANSPORTEUR vers sa banque, après la livraison. Même réservation atomique
--- et même suivi des échecs que les versements existants.
-create or replace function public.secoto_direct_payouts_claim_due(p_limit integer default 20)
-returns jsonb language plpgsql volatile security definer set search_path = ''
-as $f$
-declare v_rows jsonb;
-begin
-  if not secoto_private.flag('connect_payouts') then return '[]'::jsonb; end if;
-  with due as (
-    select pp.id
-      from public.partner_payouts pp
-      join public.transport_orders o on o.id = pp.order_id
-      join public.payments p on p.id = o.payment_id
-     where pp.payment_circuit = 'direct'
-       and (
-             (pp.status = 'to_pay' and pp.due_at <= now() and coalesce(pp.next_retry_at, now()) <= now())
-          or (pp.status = 'processing' and pp.processing_at < now() - interval '15 minutes')
-           )
-       and pp.amount_cents > 0
-       and pp.connected_account_id is not null
-       and p.status in ('paid', 'refunded', 'refund_pending')
-       and coalesce(p.dispute_status, '') <> 'open'
-       and (pp.kind = 'late_cancel' or o.status = 'delivered')
-     order by pp.due_at
-     limit greatest(1, least(coalesce(p_limit, 20), 100))
-     for update of pp skip locked
-  ), reserve as (
-    update public.partner_payouts pp
-       set status = 'processing', processing_at = now(), attempt_count = pp.attempt_count + 1
-      from due where pp.id = due.id
-    returning pp.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'payout_id', r.id, 'amount_cents', r.amount_cents, 'kind', r.kind,
-      'connected_account_id', r.connected_account_id,
-      'order_id', r.order_id, 'mission_id', r.mission_id, 'attempt', r.attempt_count)), '[]'::jsonb)
-    into v_rows
-    from reserve r;
-  return v_rows;
-end;
-$f$;
-revoke all on function public.secoto_direct_payouts_claim_due(integer) from public, anon, authenticated;
-grant execute on function public.secoto_direct_payouts_claim_due(integer) to service_role;
-
--- Comptes passés en virement « manuel » : un versement de l'ANCIEN circuit
--- (Transfer, par exemple une course payée avant la mise en ligne, ou après un
--- retour arrière) arrive sur le solde du transporteur, puis SECOTO déclenche
--- aussitôt son virement bancaire. Les comptes non concernés (convoyeurs,
--- transporteurs n'ayant pas activé le paiement direct) restent sur le
--- virement automatique de Stripe : pour eux, rien ne change.
-create table if not exists public.connect_bank_payouts (
-  id                   uuid primary key default gen_random_uuid(),
-  source_payout_id     uuid not null unique references public.partner_payouts(id),
-  partner_id           uuid not null references public.accounts(id),
-  connected_account_id text not null,
-  amount_cents         integer not null check (amount_cents > 0),
-  status               text not null default 'to_pay' check (status in ('to_pay', 'processing', 'paid', 'failed')),
-  attempt_count        integer not null default 0,
-  next_retry_at        timestamptz,
-  processing_at        timestamptz,
-  stripe_payout_id     text,
-  last_error           text,
-  created_at           timestamptz not null default now(),
-  paid_at              timestamptz
-);
-alter table public.connect_bank_payouts enable row level security;
-revoke all on table public.connect_bank_payouts from public, anon, authenticated;
-
+-- Notification de livraison : en paiement direct, le transporteur a déjà été
+-- payé par le client ; on ne lui annonce pas un virement SECOTO.
 select secoto_private.mig074_patch(
-  'public.secoto_payout_transfer_result(uuid, boolean, text, text, text)'::regprocedure,
-  '    perform secoto_private.audit(''payout_paid_connect'', ''partner_payout'', p_payout_id::text,',
-  '    -- 074 : compte en virement manuel -> SECOTO déclenche le virement bancaire du Transfer reçu.
-    if v.payment_circuit is distinct from ''direct'' then
-      insert into public.connect_bank_payouts(source_payout_id, partner_id, connected_account_id, amount_cents)
-      select v.id, a.id, a.stripe_connect_account_id, v.amount_cents
-        from public.accounts a
-       where a.id = v.partner_id and coalesce(a.stripe_payouts_manual, false)
-         and a.stripe_connect_account_id is not null and v.amount_cents > 0
-      on conflict (source_payout_id) do nothing;
-    end if;
-    perform secoto_private.audit(''payout_paid_connect'', ''partner_payout'', p_payout_id::text,');
-
-create or replace function public.secoto_bank_payouts_claim_due(p_limit integer default 20)
-returns jsonb language plpgsql volatile security definer set search_path = ''
-as $f$
-declare v_rows jsonb;
-begin
-  with due as (
-    select b.id from public.connect_bank_payouts b
-     where (b.status = 'to_pay' and coalesce(b.next_retry_at, now()) <= now())
-        or (b.status = 'processing' and b.processing_at < now() - interval '15 minutes')
-     order by b.created_at
-     limit greatest(1, least(coalesce(p_limit, 20), 100))
-     for update skip locked
-  ), reserve as (
-    update public.connect_bank_payouts b
-       set status = 'processing', processing_at = now(), attempt_count = b.attempt_count + 1
-      from due where b.id = due.id
-    returning b.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object('bank_payout_id', r.id, 'amount_cents', r.amount_cents,
-           'connected_account_id', r.connected_account_id, 'attempt', r.attempt_count)), '[]'::jsonb)
-    into v_rows from reserve r;
-  return v_rows;
-end;
-$f$;
-revoke all on function public.secoto_bank_payouts_claim_due(integer) from public, anon, authenticated;
-grant execute on function public.secoto_bank_payouts_claim_due(integer) to service_role;
-
-create or replace function public.secoto_bank_payout_result(p_id uuid, p_success boolean, p_stripe_payout_id text, p_error text)
-returns jsonb language plpgsql volatile security definer set search_path = ''
-as $f$
-declare v public.connect_bank_payouts%rowtype;
-begin
-  select * into v from public.connect_bank_payouts b where b.id = p_id for update;
-  if not found then return jsonb_build_object('result', 'unknown'); end if;
-  if v.status = 'paid' then return jsonb_build_object('result', 'already_paid'); end if;
-  if p_success then
-    update public.connect_bank_payouts set status = 'paid', paid_at = now(), stripe_payout_id = p_stripe_payout_id,
-           processing_at = null, last_error = null where id = p_id;
-    return jsonb_build_object('result', 'paid');
-  end if;
-  -- Fonds pas encore disponibles chez Stripe : on réessaie toutes les heures,
-  -- pendant dix jours, puis on prévient l'administrateur.
-  if v.created_at < now() - interval '10 days' then
-    update public.connect_bank_payouts set status = 'failed', processing_at = null, last_error = left(coalesce(p_error, ''), 500) where id = p_id;
-    perform secoto_private.notify_admins_event('payment', 'Virement bancaire transporteur bloqué',
-      format('%s € attendent sur le compte Stripe %s depuis plus de dix jours.', to_char(v.amount_cents / 100.0, 'FM999990D00'), v.connected_account_id),
-      'paiement', 'bank-payout-failed:' || p_id::text, p_id);
-    return jsonb_build_object('result', 'failed');
-  end if;
-  update public.connect_bank_payouts set status = 'to_pay', processing_at = null, last_error = left(coalesce(p_error, ''), 500),
-         next_retry_at = now() + interval '1 hour' where id = p_id;
-  return jsonb_build_object('result', 'retry');
-end;
-$f$;
-revoke all on function public.secoto_bank_payout_result(uuid, boolean, text, text) from public, anon, authenticated;
-grant execute on function public.secoto_bank_payout_result(uuid, boolean, text, text) to service_role;
+  'secoto_private.trg_od_sync_from_mission()'::regprocedure,
+  '    perform secoto_private.notify_event(v_order.assigned_partner_id, ''payment'', ''Paiement en route'',',
+  '    perform secoto_private.notify_event(v_order.assigned_partner_id, ''payment'',
+      case when v_order.payment_circuit = ''direct'' then ''Mission livrée'' else ''Paiement en route'' end,');
+select secoto_private.mig074_patch(
+  'secoto_private.trg_od_sync_from_mission()'::regprocedure,
+  '      format(''Mission %s livrée : paiement de %s € déclenché sous 48 heures.'', new.public_ref,',
+  '      format(case when v_order.payment_circuit = ''direct''
+               then ''Mission %s livrée. Le client vous a payé %s € directement : Stripe vous les vire automatiquement.''
+               else ''Mission %s livrée : paiement de %s € déclenché sous 48 heures.'' end, new.public_ref,');
 
 -- ----------------------------------------------------------------------------
 -- 10. FACTURES DU CIRCUIT DIRECT
