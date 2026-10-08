@@ -102,7 +102,7 @@ function AdminOrders({ orders, busy, run, transporters, relation = false }) {
   const live = orders.filter((o) => !["delivered", "cancelled"].includes(o.status));
   const archive = orders.filter((o) => ["delivered", "cancelled"].includes(o.status));
   // 084 : une course acceptée appartient au client et à son transporteur.
-  const verrouillee = (o) => relation && ["partner_locked", "partner_confirmed", "picked_up", "delivered"].includes(o.status);
+  const verrouillee = (o) => relation && ["partner_locked", "partner_confirmed", "picked_up"].includes(o.status);
   const render = (o) => (
     <article className="mission-card" key={o.id}>
       <div className="card-top">

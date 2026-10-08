@@ -166,11 +166,13 @@ begin
     return p_price;
   end if;
 
+  -- Un prix par transporteur (une entreprise et ses chauffeurs comptent pour un).
   select array_agg(x.c order by x.c) into v_prices from (
-    select secoto_private.carrier_trip_price_cents(a.id, v_class, p_km, v_rolling) as c
+    select min(secoto_private.carrier_trip_price_cents(a.id, v_class, p_km, v_rolling)) as c
       from public.accounts a
      where a.role::text = 'transporter' and a.deleted_at is null
-       and secoto_private.carrier_eligible_for_trip(a.id, p_vehicle, p_pickup, p_pickup_at)) x
+       and secoto_private.carrier_eligible_for_trip(a.id, p_vehicle, p_pickup, p_pickup_at)
+     group by secoto_private.carrier_rate_owner(a.id)) x
    where x.c is not null;
   v_n := coalesce(array_length(v_prices, 1), 0);
 
@@ -180,8 +182,14 @@ begin
     v_source := 'bareme_depart';
   else
     -- Le prix qui permet à plusieurs transporteurs de prendre la course.
-    v_k := least(greatest(coalesce((v_b ->> 'min_carriers')::int, 3), 1), v_n);
-    v_pay := v_prices[v_k];
+    v_k := greatest(coalesce((v_b ->> 'min_carriers')::int, 3), 1);
+    if v_n >= v_k then
+      v_pay := v_prices[v_k];
+    else
+      -- Trop peu de transporteurs : aucun ne peut à lui seul faire monter le
+      -- prix au-dessus du barème de départ.
+      v_pay := least(v_prices[v_n], secoto_private.carrier_trip_price_cents(null, v_class, p_km, v_rolling));
+    end if;
     v_source := 'prix_transporteurs';
   end if;
   if v_pay is null then return p_price; end if;
@@ -192,9 +200,9 @@ begin
     'partner_cents', v_pay,
     'margin_cents', v_client - v_pay,
     'collect_cents', v_client,
-    'capped', false,
+    'capped', (v_b -> 'client_cap_eur' ->> v_class) is not null and v_client >= ((v_b -> 'client_cap_eur' ->> v_class)::numeric * 100)::int,
     'lines', jsonb_build_array(jsonb_build_object(
-      'label', format('Transport sur plateau · %s km', trim(trailing '.' from to_char(round(p_km, 1), 'FM999990D9'))),
+      'label', format('Transport sur plateau · %s km', replace(trim(trailing '.' from trim(trailing '0' from to_char(round(p_km, 1), 'FM999990.0'))), '.', ',')),
       'eur', round(v_client / 100.0, 2))),
     'detail', jsonb_build_array(jsonb_build_object(
       'pricing', 'bareme_transporteurs', 'source', v_source, 'carriers', v_n, 'partner_cents', v_pay)));
@@ -218,7 +226,10 @@ returns boolean language sql stable security definer set search_path = '' as $$
   select case
     when not secoto_private.flag('bareme_transporteurs') then true
     else coalesce((
+      -- Seules les commandes dont le prix vient des barèmes transporteurs sont
+      -- filtrées : un prix fixé par SECOTO (devis manuel, ancien barème) part à tous.
       select o.mode <> 'plateau'
+          or coalesce(q.breakdown -> 'detail' -> 0 ->> 'pricing', '') <> 'bareme_transporteurs'
           or jsonb_array_length(coalesce(q.vehicles, '[]'::jsonb)) > 1
           or coalesce(q.vehicle ->> 'category', 'standard') <> 'standard'
           or secoto_private.carrier_trip_price_cents(p_partner, q.vehicle ->> 'class',
@@ -229,6 +240,18 @@ returns boolean language sql stable security definer set search_path = '' as $$
        where o.id = p_order), true)
   end;
 $$;
+
+select secoto_private.mig074_patch(
+  'secoto_private.od_broadcast(uuid)'::regprocedure,
+  '  perform secoto_private.audit(''order_broadcast'', ''transport_order'', p_order_id::text,',
+  '  -- 085 : personne au prix (barèmes modifiés depuis le devis) : SECOTO est prévenu.
+  if v_count = 0 and secoto_private.flag(''bareme_transporteurs'') then
+    perform secoto_private.notify_admins_event(''new_request'', ''Aucun transporteur à ce prix'',
+      format(''%s · %s → %s : aucun transporteur dont le barème correspond. Rediffusez ou contactez le client.'',
+        v_order.public_ref, v_quote.pickup ->> ''city'', v_quote.delivery ->> ''city''),
+      ''requests'', ''order-no-carrier-price:'' || v_order.id::text || '':'' || v_order.dispatch_round, v_order.id);
+  end if;
+  perform secoto_private.audit(''order_broadcast'', ''transport_order'', p_order_id::text,');
 
 select secoto_private.mig074_patch(
   'secoto_private.od_broadcast(uuid)'::regprocedure,
@@ -295,8 +318,11 @@ begin
     v_row := p_rates -> v_class;
     if v_row is null then v_row := secoto_private.carrier_rate(v_uid, v_class); end if;
     v_km := round((v_row ->> 'eur_per_km')::numeric, 2);
-    v_min := round(coalesce((v_row ->> 'minimum_eur')::numeric, 0), 2);
-    v_nr := round(coalesce((v_row ->> 'non_rolling_eur')::numeric, 0), 2);
+    v_min := round((v_row ->> 'minimum_eur')::numeric, 2);
+    v_nr := round((v_row ->> 'non_rolling_eur')::numeric, 2);
+    if v_min is null or v_nr is null then
+      raise exception 'Barème incomplet (%) : renseignez le minimum et le supplément non roulant.', v_class;
+    end if;
     if v_km is null or v_km < (v_lim ->> 'eur_per_km_min')::numeric or v_km > (v_lim ->> 'eur_per_km_max')::numeric then
       raise exception 'Prix au km (%) : entre % et % €.', v_class, v_lim ->> 'eur_per_km_min', v_lim ->> 'eur_per_km_max';
     end if;

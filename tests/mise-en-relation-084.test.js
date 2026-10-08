@@ -53,7 +53,8 @@ test("le client n'est plus renvoyé vers SECOTO après sa première course (SAV)
   assert.match(app, /label: savClient \? "SAV SECOTO" : "Contact SECOTO"/);
   assert.match(app, /<CarteTransporteur contact=\{mission\.transporterContact\}/);
   assert.match(app, /titre="Votre client"/);
-  assert.match(app, /verrouillee=\{Boolean\(flags\.mise_en_relation_v2\)/);
+  assert.match(app, /verrouillee=\{missionsVerrouillees\.includes\(mission\.id\)\}/);
+  assert.match(app, /relation && mission\.type === "plateau" && visiblePricing === "transporter"/);
   assert.match(lire("src/ondemand/MyOrdersPanel.jsx"), /<CarteTransporteur contact=\{order\.partner_contact\}/);
   assert.match(lire("src/ondemand/AdminOnDemand.jsx"), /Annuler et rembourser intégralement/);
   assert.match(lire("src/ondemand/OnDemandBooking.jsx"), /<ReassuranceReservation mode=\{quote\.mode\}/);

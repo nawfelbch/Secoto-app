@@ -140,10 +140,18 @@ test("084 : attribution manuelle désactivée, mission plateau verrouillée, con
   const o = await book(ids.client);
   await cardSaved(o.payment_id);
   await assert.rejects(adminCall("select public.secoto_admin_od_lock_for_partner($1,$2)", [o.id, ids.ready]), /Attribution manuelle désactivée/);
+  // Mission issue d'une course acceptée dans l'application : verrouillée.
+  const acceptee = await confirmedOrder();
+  await assert.rejects(adminCall("select public.secoto_admin_set_mission_stage($1,'completed',null,$2)", [acceptee.mission_id, randomUUID()]), /validées par le transporteur/);
+  await assert.rejects(adminCall("select public.secoto_admin_set_mission_pricing($1,true,300,50,$2)", [acceptee.mission_id, randomUUID()]), /tarif ne peut plus/);
+  await assert.rejects(adminCall("select public.secoto_admin_devis_link($1,99900,30)", [acceptee.mission_id]), /prix ne peut plus/);
+  const verrou = (await adminCall("select public.secoto_admin_locked_mission_ids() as ids"))[0].ids;
+  assert.ok(verrou.includes(acceptee.mission_id));
+  // Mission saisie par SECOTO (téléphone) : reste pilotable, mais le client voit son transporteur.
   const plateau = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, client_account_id, assigned_transporter_id)
       values ('MIS-TEST-' || substr(md5(random()::text),1,6), 'plateau', 'assigned', 'Massy', 'Lyon', $1, $2) returning id`, [ids.client, ids.ready]))[0].id;
-  await assert.rejects(adminCall("select public.secoto_admin_set_mission_stage($1,'completed',null,$2)", [plateau, randomUUID()]), /validées par le transporteur/);
-  await assert.rejects(adminCall("select public.secoto_admin_set_mission_pricing($1,true,300,50,$2)", [plateau, randomUUID()]), /tarif ne peut plus/);
+  await adminCall("select public.secoto_admin_set_mission_pricing($1,true,300,50,$2)", [plateau, randomUUID()]);
+  assert.ok(!verrou.includes(plateau));
   const v = (await as(ids.client, "select transporter_contact from public.secoto_missions_client_v2 where id=$1", [plateau]))[0];
   assert.equal(v.transporter_contact.siren, "123456789");
   const conv = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, client_account_id, assigned_transporter_id)
@@ -239,6 +247,23 @@ test("085 : prix client = prix des transporteurs disponibles + commission ; diff
   // Premier qui accepte = attribué directement.
   const r = await accept(ids.t2, await offerFor(o.id, ids.t2));
   assert.equal(r.result, "pending_capture");
+});
+
+test("085 : un devis non calculé par les barèmes part à tous ; personne au prix -> SECOTO prévenu", async () => {
+  await setFlag(true);
+  await setFlag085(false);
+  const ancien = await book(ids.client);
+  await setFlag085(true);
+  await cardSaved(ancien.payment_id);
+  assert.ok(await offerFor(ancien.id, ids.t3), "prix SECOTO : diffusé à tous, sans filtre de barème");
+  // Tous les transporteurs remontent leur prix après le devis.
+  const o = await book(ids.client);
+  for (const k of ["ready", "t2", "t3", "notReady"]) {
+    await as(ids[k], "select public.secoto_carrier_rates_save($1)", [JSON.stringify({ voiture: { eur_per_km: 3, minimum_eur: 90, non_rolling_eur: 60 } })]);
+  }
+  await cardSaved(o.payment_id);
+  assert.equal((await sql("select count(*)::int n from public.transport_offers where order_id=$1", [o.id]))[0].n, 0);
+  assert.ok((await sql("select count(*)::int n from public.notifications where account_id=$1 and title='Aucun transporteur à ce prix'", [ids.admin]))[0].n >= 1);
 });
 
 test("085 : un chauffeur salarié ne fixe pas le barème", async () => {

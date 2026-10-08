@@ -35,12 +35,30 @@ $$;
 
 create or replace function secoto_private.mission_course_verrouillee(m public.missions)
 returns boolean language sql stable security definer set search_path = '' as $$
-  -- Plateau uniquement : le convoyage reste piloté par SECOTO (prestataire).
+  -- Plateau uniquement (le convoyage reste piloté par SECOTO, prestataire), et
+  -- seulement les courses réservées et acceptées dans l'application : les
+  -- missions saisies par SECOTO (téléphone) restent pilotables.
   select secoto_private.flag('mise_en_relation_v2')
      and m.type = 'plateau'
      and m.assigned_transporter_id is not null
-     and m.status in ('assigned', 'completed');
+     and m.status in ('assigned', 'completed')
+     and (m.groupage_order_id is not null
+          or exists (select 1 from public.transport_orders o where o.mission_id = m.id));
 $$;
+
+-- Missions verrouillées (pour masquer les commandes inutiles côté admin).
+create or replace function public.secoto_admin_locked_mission_ids()
+returns uuid[] language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform secoto_private.assert_admin();
+  if not secoto_private.flag('mise_en_relation_v2') then return '{}'::uuid[]; end if;
+  return coalesce((select array_agg(m.id) from public.missions m
+                    where m.type = 'plateau' and m.status in ('assigned', 'completed')
+                      and secoto_private.mission_course_verrouillee(m)), '{}'::uuid[]);
+end;
+$$;
+revoke all on function public.secoto_admin_locked_mission_ids() from public, anon;
+grant execute on function public.secoto_admin_locked_mission_ids() to authenticated;
 
 revoke all on function secoto_private.od_course_verrouillee(text) from public, anon, authenticated;
 revoke all on function secoto_private.mission_course_verrouillee(public.missions) from public, anon, authenticated;
@@ -115,6 +133,15 @@ select secoto_private.mig074_patch(
     raise exception ''Course acceptée par le transporteur : ses étapes sont validées par le transporteur dans l''''application.'';
   end if;');
 
+-- Lien de paiement d'une course acceptée : montant non modifiable.
+select secoto_private.mig074_patch(
+  'public.secoto_admin_devis_link(uuid, integer, integer)'::regprocedure,
+  '  v_link := secoto_private.devis_link(p_mission, p_amount_cents, p_validity_days, auth.uid());',
+  '  if p_amount_cents is not null and exists (select 1 from public.missions m where m.id = p_mission and secoto_private.mission_course_verrouillee(m)) then
+    raise exception ''Course acceptée par le transporteur : son prix ne peut plus être modifié par SECOTO.'';
+  end if;
+  v_link := secoto_private.devis_link(p_mission, p_amount_cents, p_validity_days, auth.uid());');
+
 -- 3. MISE EN RELATION -----------------------------------------------------------
 create or replace function secoto_private.carrier_contact_json(p_partner uuid)
 returns jsonb language sql stable security definer set search_path = '' as $$
@@ -134,7 +161,9 @@ select secoto_private.mig074_patch(
   '    ''partner_name'', case when o.assigned_partner_id is not null then (select coalesce(a.company_name, a.full_name) from public.accounts a where a.id = o.assigned_partner_id) end,',
   '    ''partner_name'', case when o.assigned_partner_id is not null then (select coalesce(a.company_name, a.full_name) from public.accounts a where a.id = o.assigned_partner_id) end,
     ''partner_contact'', case when secoto_private.flag(''mise_en_relation_v2'') and o.assigned_partner_id is not null
-        and (o.status in (''partner_confirmed'', ''picked_up'') or (o.status = ''delivered'' and o.updated_at > now() - interval ''48 hours''))
+        and (o.status in (''partner_confirmed'', ''picked_up'') or (o.status = ''delivered'' and coalesce(
+              (select max(e.created_at) from public.mission_tracking_events e where e.mission_id = o.mission_id and e.event_type::text = ''delivery_inspection''),
+              o.updated_at) > now() - interval ''48 hours''))
       then secoto_private.carrier_contact_json(o.assigned_partner_id) end,');
 
 -- Missions (plateau) vues par le client : même règle. La fonction vérifie
@@ -144,7 +173,9 @@ returns jsonb language sql stable security definer set search_path = '' as $$
   select case when secoto_private.flag('mise_en_relation_v2') and m.type = 'plateau'
           and m.assigned_transporter_id is not null
           and m.client_account_id = auth.uid()
-          and (m.status = 'assigned' or (m.status = 'completed' and m.updated_at > now() - interval '48 hours'))
+          and (m.status = 'assigned' or (m.status = 'completed' and coalesce(
+                (select max(e.created_at) from public.mission_tracking_events e where e.mission_id = m.id and e.event_type::text = 'delivery_inspection'),
+                m.updated_at) > now() - interval '48 hours'))
       then secoto_private.carrier_contact_json(m.assigned_transporter_id) end
   from public.missions m where m.id = p_mission_id;
 $$;
@@ -331,7 +362,9 @@ grant execute on function public.secoto_admin_sav_update(uuid, text, text) to au
 select secoto_private.mig074_patch(
   'public.secoto_od_cancel_order(uuid, uuid)'::regprocedure,
   'raise exception ''Le véhicule est déjà pris en charge : contactez SECOTO.'';',
-  'raise exception ''Le véhicule est déjà pris en charge : l''''annulation n''''est plus possible. Contactez votre transporteur ou écrivez au SAV SECOTO.'';');
+  'raise exception ''%'', case when secoto_private.flag(''mise_en_relation_v2'')
+      then ''Le véhicule est déjà pris en charge : l''''annulation n''''est plus possible. Contactez votre transporteur ou écrivez au SAV SECOTO.''
+      else ''Le véhicule est déjà pris en charge : contactez SECOTO.'' end;');
 
 -- E-mail de demande d'avis : signé sans numéro de téléphone.
 select secoto_private.mig074_patch(

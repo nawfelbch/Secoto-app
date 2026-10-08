@@ -29,7 +29,7 @@ export default function ReassuranceReservation({ mode = "plateau", circuit = nul
   const direct = circuit === "direct";
   const plateau = mode === "plateau";
   const garanties = [
-    { icone: BOUCLIER, titre: plateau ? "Transporteurs vérifiés" : "Convoyeurs vérifiés", texte: "Registre des transporteurs et assurance contrôlés" },
+    { icone: BOUCLIER, titre: plateau ? "Transporteurs vérifiés" : "Convoyeurs vérifiés", texte: plateau ? "Registre des transporteurs et assurance contrôlés" : "Identité, permis et assurance contrôlés" },
     { icone: CADENAS, titre: "Paiement sécurisé", texte: "Par Stripe, votre carte n’est jamais vue par SECOTO" },
     direct
       ? { icone: CARTE, titre: "Aucun débit avant acceptation", texte: "Rien n’est prélevé tant qu’aucun transporteur n’accepte" }

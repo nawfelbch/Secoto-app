@@ -924,7 +924,7 @@ function PublicMissionInfo({ mission }) {
   );
 }
 
-function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none" }) {
+function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none", relation = false }) {
   const visiblePricing = showPricing ? "admin" : pricingView;
   const clientAmount = mission.clientPrice ?? computeClientPrice(mission);
   const carrierAmount = mission.carrierPay ?? computeCarrierPay(mission);
@@ -957,7 +957,7 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
       )}
       {visiblePricing === "transporter" && <p><strong>Votre rémunération :</strong> {formatAmount(carrierAmount)}</p>}
       {/* 084 : le transporteur échange directement avec son client. */}
-      {visiblePricing === "transporter" && mission.clientPhone && mission.status !== "completed" && (
+      {relation && mission.type === "plateau" && visiblePricing === "transporter" && mission.clientPhone && mission.status !== "completed" && (
         <CarteContact
           titre="Votre client"
           nom={mission.clientName}
@@ -1647,6 +1647,14 @@ export default function App() {
     termsStatus().then((s) => { if (vivant) setConditionsStatut({ ...s, accountId: accountIdPourConditions }); });
     return () => { vivant = false; };
   }, [accountIdPourConditions, accountRolePourConditions]);
+  // 084 : missions acceptées dans l'application, plus modifiables par SECOTO.
+  const [missionsVerrouillees, setMissionsVerrouillees] = useState([]);
+  useEffect(() => {
+    if (accountRolePourConditions !== "admin" || !flags.mise_en_relation_v2) return undefined;
+    let vivant = true;
+    supabase.rpc("secoto_admin_locked_mission_ids").then(({ data }) => { if (vivant) setMissionsVerrouillees(Array.isArray(data) ? data : []); });
+    return () => { vivant = false; };
+  }, [accountRolePourConditions, flags.mise_en_relation_v2, missions]);
   // 085 : barème du transporteur (il fixe librement son prix).
   const [bareme, setBareme] = useState(null);
   useEffect(() => {
@@ -4072,7 +4080,7 @@ export default function App() {
               onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
-              verrouillee={Boolean(flags.mise_en_relation_v2) && mission.type === "plateau" && Boolean(mission.assignedTransporterId) && ["assigned", "completed"].includes(mission.status)}
+              verrouillee={missionsVerrouillees.includes(mission.id)}
               onNotice={setNotice}
               onError={setError}
             />
@@ -4140,7 +4148,7 @@ export default function App() {
         </summary>
         <div style={{ marginTop: 14 }}>
           <PublicMissionInfo mission={mission} />
-          <PrivateMissionInfo mission={mission} pricingView="transporter" />
+          <PrivateMissionInfo mission={mission} pricingView="transporter" relation={Boolean(flags.mise_en_relation_v2)} />
           {renderTrackingTimeline(mission)}
         </div>
       </details>
@@ -4218,7 +4226,7 @@ export default function App() {
               onReopenStep={(step) => reopenFieldStep(mission.id, step)}
               onUploadSignedDevis={(file) => uploadSignedDevis(mission, file)}
               onSettleCommission={settleCommissionOffline}
-              verrouillee={Boolean(flags.mise_en_relation_v2) && mission.type === "plateau" && Boolean(mission.assignedTransporterId) && ["assigned", "completed"].includes(mission.status)}
+              verrouillee={missionsVerrouillees.includes(mission.id)}
               onNotice={setNotice}
               onError={setError}
             />
@@ -5359,7 +5367,7 @@ export default function App() {
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />
-                            <PrivateMissionInfo mission={mission} pricingView="transporter" />
+                            <PrivateMissionInfo mission={mission} pricingView="transporter" relation={Boolean(flags.mise_en_relation_v2)} />
                             <div className="actions-row">
                               <button
                                 className="btn ghost small"
