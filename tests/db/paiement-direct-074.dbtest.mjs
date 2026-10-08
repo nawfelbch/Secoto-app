@@ -687,3 +687,32 @@ test("082 : débit refusé puis carte mise à jour -> la mission repart vers les
   assert.equal(maj.effect, "dispatch_reopened");
   assert.ok(await offerFor(o.id, ids.ready), "le transporteur la revoit et peut l'accepter");
 });
+
+test("083 : validation bancaire demandée -> l'annulation de la tentative par Stripe n'annule pas la commande", async () => {
+  await setFlag(true);
+  const o = await book(ids.client);
+  await cardSaved(o.payment_id);
+  const r = await accept(ids.ready, await offerFor(o.id, ids.ready));
+  assert.equal(r.result, "pending_capture");
+  await service("select public.secoto_direct_charge_needs_action($1,null)", [o.id]);
+  // Stripe annonce l'annulation de la tentative hors session.
+  await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.canceled','pi_tentative',0,null,null)",
+    [o.payment_id, `evt_${randomUUID()}`]);
+  const ord = (await sql("select status from public.transport_orders where id=$1", [o.id]))[0];
+  const pay = (await sql("select status from public.payments where id=$1", [o.payment_id]))[0];
+  assert.equal(ord.status, "partner_locked", "la mission reste réservée au transporteur");
+  assert.equal(pay.status, "requires_capture", "la carte reste validée");
+  // Le client valide : la commande est confirmée.
+  const ok = (await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded','pi_client',0,null,null) as r",
+    [o.payment_id, `evt_${randomUUID()}`]))[0].r;
+  assert.equal(ok.effect, "confirmed");
+});
+
+test("083 : ancien circuit inchangé -> payment_intent.canceled annule toujours", async () => {
+  await setFlag(false);
+  const o = await book(ids.client);
+  await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.canceled','pi_old_c',0,null,null)",
+    [o.payment_id, `evt_${randomUUID()}`]);
+  assert.equal((await sql("select status from public.payments where id=$1", [o.payment_id]))[0].status, "cancelled");
+  await setFlag(true);
+});
