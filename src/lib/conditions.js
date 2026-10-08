@@ -10,6 +10,15 @@ export const DOCUMENT_LABELS = Object.freeze({
   conditions_transporteur: "les conditions transporteur",
 });
 
+/** Titres complets, pour les boutons « Lire ». */
+export const DOCUMENT_TITLES = Object.freeze({
+  cgu: "Conditions générales d’utilisation",
+  confidentialite: "Politique de confidentialité",
+  conditions_transporteur: "Conditions transporteur",
+});
+
+export const PRIVACY_PATH = "/politique-confidentialite.html";
+
 const PROD_ORIGIN = "https://app.secoto-transport.fr";
 
 /** Adresse complète d'une page de conditions (chemin relatif en base). */
@@ -30,7 +39,7 @@ export function conditionsUrl(path, version) {
 export function conditionsLinks(documents, urls, version) {
   return (documents || [])
     .filter((key) => DOCUMENT_LABELS[key] && urls?.[key])
-    .map((key) => ({ key, label: DOCUMENT_LABELS[key], url: conditionsUrl(urls[key], version) }));
+    .map((key) => ({ key, label: DOCUMENT_LABELS[key], title: DOCUMENT_TITLES[key], url: conditionsUrl(urls[key], version) }));
 }
 
 // En cas d'erreur (fonction absente, réseau), on ne bloque personne : la

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { humanizeError } from "./lib/humanError";
 import { acceptTerms, conditionsLinks, termsStatus } from "./lib/conditions";
 import { openExternal } from "./platform/runtime";
+import { DocumentsLegaux } from "./DocumentsLegaux";
 
 // ============================================================================
 // SECOTO 075 — Fenêtre d'acceptation des conditions.
@@ -19,6 +20,7 @@ export function ConditionsSentence({ links, onOpen }) {
         <span key={l.key}>
           {i > 0 && (i === links.length - 1 ? " et " : ", ")}
           <a
+            className="lien-conditions"
             href={l.url}
             target="_blank"
             rel="noopener noreferrer"
@@ -71,6 +73,7 @@ export default function ConditionsGate({ status, onAccepted, onRefresh, onSignOu
           Pour continuer à utiliser SECOTO, merci de prendre connaissance de nos conditions et de les accepter.
         </p>
         {error && <div className="alert error" role="alert">{error}</div>}
+        <DocumentsLegaux links={links} onOpen={ouvrir} titre="Documents à lire" />
         <label className="payment-waiver-row">
           <input type="checkbox" checked={coche} onChange={(e) => setCoche(e.target.checked)} />
           <ConditionsSentence links={links} onOpen={ouvrir} />

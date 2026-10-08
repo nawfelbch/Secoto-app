@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { currentLegalCopy } from "./lib/legalCopy";
+import LiensLegaux from "./DocumentsLegaux";
 
 // ============================================================================
 // SECOTO — Mentions légales accessibles DANS l'application.
@@ -11,7 +12,7 @@ import { currentLegalCopy } from "./lib/legalCopy";
 // modifiables sans redéployer ni resoumettre l'application.
 // ============================================================================
 
-export default function LegalNoticesPanel() {
+export default function LegalNoticesPanel({ role }) {
   const [legal, setLegal] = useState(null);
   const [policy, setPolicy] = useState(null);
 
@@ -44,6 +45,10 @@ export default function LegalNoticesPanel() {
   return (
     <div className="panel panel-full">
       <h2>Informations légales</h2>
+
+      <div className="card-section">
+        <LiensLegaux role={role} titre="Documents à consulter" />
+      </div>
 
       <div className="card-section">
         <h3>Deux activités distinctes</h3>
