@@ -646,12 +646,21 @@ select secoto_private.mig074_patch(
   '    perform secoto_private.notify_event(v_order.assigned_partner_id, ''payment'', ''Paiement en route'',',
   '    perform secoto_private.notify_event(v_order.assigned_partner_id, ''payment'',
       case when v_order.payment_circuit = ''direct'' then ''Mission livrée'' else ''Paiement en route'' end,');
-select secoto_private.mig074_patch(
+-- Déjà remplacé par 076 (texte « virés … sous 4 h ») sur une base où 076 est
+-- passée : rien à faire, la migration doit pouvoir être rejouée.
+do $p074$
+begin
+  if position('virés automatiquement sur votre compte bancaire' in
+       pg_get_functiondef('secoto_private.trg_od_sync_from_mission()'::regprocedure)) = 0 then
+    perform secoto_private.mig074_patch(
   'secoto_private.trg_od_sync_from_mission()'::regprocedure,
   '      format(''Mission %s livrée : paiement de %s € déclenché sous 48 heures.'', new.public_ref,',
   '      format(case when v_order.payment_circuit = ''direct''
                then ''Mission %s livrée. Le client vous a payé %s € directement : Stripe vous les vire automatiquement.''
                else ''Mission %s livrée : paiement de %s € déclenché sous 48 heures.'' end, new.public_ref,');
+  end if;
+end
+$p074$;
 
 -- ----------------------------------------------------------------------------
 -- 10. FACTURES DU CIRCUIT DIRECT
