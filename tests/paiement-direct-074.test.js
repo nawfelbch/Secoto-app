@@ -592,3 +592,10 @@ test("081 : les écrans du paiement direct n'annoncent plus « remboursé » ni 
   const sql = readFileSync(new URL("../supabase/migrations/202610090081_decomposition_prix_client.sql", import.meta.url), "utf8");
   assert.match(sql, /q\.mode = 'plateau' and secoto_private\.flag\('plateau_paiement_direct'\)/, "jamais pour le convoyage ni interrupteur éteint");
 });
+
+test("081 : page de validation bancaire -> décomposition affichée au-dessus du bouton", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../netlify/functions/create-payment-intent.js", import.meta.url), "utf8");
+  const bloc = src.slice(src.indexOf('payment_intent_data: { application_fee_amount: ctx.application_fee_cents'), src.indexOf("customer_email: account?.email"));
+  assert.match(bloc, /custom_text: \{ submit: \{ message: messageDecomposition/);
+});
