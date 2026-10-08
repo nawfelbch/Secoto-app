@@ -635,3 +635,15 @@ test("commande de plusieurs véhicules : virement seulement quand TOUS les véhi
   due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
   assert.ok(due.some((x) => x.payout_id === pp.id), "tous livrés : virement");
 });
+
+test("080 : le transporteur attribué peut envoyer ses photos d'état des lieux", async () => {
+  // Droits Supabase réels sur le stockage (le socle de test ne les pose pas).
+  await sql("grant insert, select on storage.objects to authenticated");
+  const o = await chargedOrder(48);
+  const nom = `${ids.ready}/${o.mission_id}/evt-test/photo.jpg`;
+  const r = await as(ids.ready, "insert into storage.objects(bucket_id, name, owner) values ('mission-photos', $1, $2) returning name", [nom, ids.ready]);
+  assert.equal(r[0].name, nom);
+  // Un autre compte ne peut pas déposer dans le dossier de cette mission.
+  await assert.rejects(as(ids.client, "insert into storage.objects(bucket_id, name) values ('mission-photos', $1)", [`${ids.client}/${o.mission_id}/x/p.jpg`]),
+    /row-level security/);
+});
