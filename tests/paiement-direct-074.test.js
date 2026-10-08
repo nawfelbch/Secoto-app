@@ -375,7 +375,7 @@ test("écrans client : textes du paiement direct, l'ancien circuit inchangé", a
   const directOrder = { payment_circuit: "direct", funding: "card", client_price_cents: 48000, payment_status: "requires_capture" };
   const oldOrder = { funding: "card", client_price_cents: 48000, payment_status: "requires_capture" };
   assert.match(copy.paymentExplanation(directOrder), /sans aucun débit/);
-  assert.match(copy.paymentExplanation(directOrder), /au nom de ce transporteur/);
+  assert.match(copy.paymentExplanation(directOrder), /directement sur son compte/);
   assert.match(copy.paymentExplanation(oldOrder), /encaissés dès la validation/, "ancien texte conservé");
   assert.equal(copy.paymentStateLabel(directOrder), "Carte validée (non débitée)");
   assert.equal(copy.paymentStateLabel(oldOrder), "Paiement autorisé (non débité)");
@@ -553,4 +553,42 @@ test("validation de carte : Managed Payments désactivé (Stripe refuse le mode 
   const setup = cpi.slice(cpi.indexOf('mode: "setup"') - 400, cpi.indexOf('mode: "setup"'));
   assert.match(setup, /createWithManagedPaymentsFallback\(\(managed\) => stripe\.checkout\.sessions\.create\(/);
   assert.match(setup, /\.\.\.managed,/);
+});
+
+// ---------------------------------------------------------------------------
+// 081 — décomposition du prix visible avant la validation
+// ---------------------------------------------------------------------------
+test("081 : décomposition = prix transporteur + commission, au centime près", async () => {
+  const { decompositionPrix } = await import("../src/lib/orderCopy.js");
+  assert.deepEqual(decompositionPrix(46500, 6500), { transport: 40000, commission: 6500 });
+  assert.equal(decompositionPrix(46500, null), null, "convoyage / ancien circuit : rien d'affiché");
+  assert.equal(decompositionPrix(46500, 50000), null, "commission incohérente : rien d'affiché");
+  const { messageDecomposition } = await import("../netlify/lib/devis-direct.js");
+  assert.equal(messageDecomposition({ amount_cents: 46500, commission_cents: 6500 }),
+    "Dont prix réservé au transporteur : 400,00 €. Commission de mise en relation SECOTO : 65,00 €. SECOTO agit en tant qu'intermédiaire ; le transport est assuré par un transporteur indépendant.");
+  assert.equal(messageDecomposition({ amount_cents: 46500 }), null);
+});
+
+test("081 : lien de devis direct -> décomposition affichée sur la page Stripe avant le bouton", async () => {
+  const { sessionDirecte } = await import("../netlify/lib/devis-direct.js");
+  const stripe = fakeStripe();
+  stripe.checkout = { sessions: { create: async (...args) => { stripe.calls.push({ name: "checkout.create", args }); return { url: "u" }; } } };
+  await sessionDirecte({ admin: fakeAdmin(), stripe, token: "t", description: "d",
+    data: { payment_id: "p", purpose: "devis_course", amount_cents: 46500, application_fee_cents: 6500, commission_cents: 6500, connected_account_id: "acct_T" } });
+  const msg = stripe.calls.find((c) => c.name === "checkout.create").args[0].custom_text.submit.message;
+  assert.match(msg, /Dont prix réservé au transporteur : 400,00 €/);
+  assert.match(msg, /Commission de mise en relation SECOTO : 65,00 €/);
+});
+
+test("081 : les écrans du paiement direct n'annoncent plus « remboursé » ni « organise »", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { paymentExplanation } = await import("../src/lib/orderCopy.js");
+  const txt = paymentExplanation({ payment_circuit: "direct", funding: "card", client_price_cents: 46500 });
+  assert.doesNotMatch(txt, /organise|rembours/i);
+  assert.match(txt, /transporteur indépendant/);
+  const banniere = readFileSync(new URL("../src/ondemand/PaiementAFinaliser.jsx", import.meta.url), "utf8");
+  assert.match(banniere, /Valider ma carte — aucun débit maintenant/);
+  assert.match(banniere, /<DecompositionPrix/);
+  const sql = readFileSync(new URL("../supabase/migrations/202610090081_decomposition_prix_client.sql", import.meta.url), "utf8");
+  assert.match(sql, /q\.mode = 'plateau' and secoto_private\.flag\('plateau_paiement_direct'\)/, "jamais pour le convoyage ni interrupteur éteint");
 });
