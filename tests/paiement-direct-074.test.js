@@ -532,3 +532,11 @@ test("relecture : webhook transporteur -> virement rejeté et litige enregistré
   assert.equal(d.args.p_payment_id, "p1");
   assert.equal(d.args.p_open, true);
 });
+
+test("maintenance de test : fermée sans secret, refusée avec une clé Stripe réelle", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../netlify/functions/od-maintenance-test.js", import.meta.url), "utf8");
+  assert.match(src, /if \(!secret \|\| !cle\.startsWith\("sk_test_"\)\) return json\(404/);
+  assert.match(src, /timingSafeEqual/);
+  assert.match(src, /x\.length >= 24/);
+});

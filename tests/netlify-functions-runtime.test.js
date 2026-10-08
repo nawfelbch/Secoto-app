@@ -18,6 +18,7 @@ const FUNCTIONS = [
   "live-eta.js",
   "subscription-checkout.js",
   "stripe-connect-webhook.js",
+  "od-maintenance-test.js",
 ];
 
 test("les fonctions Netlify utilisent le runtime moderne avec le wrapper Lambda", () => {
