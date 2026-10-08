@@ -12,6 +12,7 @@ import { MANAGED_PAYMENTS_ENABLED, createWithManagedPaymentsFallback, withCors }
 // Google. Implémenter StoreKit ou Play Billing serait un motif de rejet.
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
+import { messageDecomposition } from "../lib/devis-direct.js";
 import { createClient } from "@supabase/supabase-js";
 
 const {
@@ -377,6 +378,10 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
           quantity: 1,
         }],
         payment_intent_data: { application_fee_amount: ctx.application_fee_cents, description, metadata },
+        // 081 : décomposition affichée au-dessus du bouton, avant validation.
+        ...(messageDecomposition({ amount_cents: ctx.amount_cents, commission_cents: ctx.application_fee_cents })
+          ? { custom_text: { submit: { message: messageDecomposition({ amount_cents: ctx.amount_cents, commission_cents: ctx.application_fee_cents }) } } }
+          : {}),
         customer_email: account?.email || undefined,
         expires_at: expiresAt,
         metadata,
@@ -386,7 +391,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       {
         stripeAccount: ctx.connected_account_id,
         idempotencyKey: idempotencyKey("secoto-direct-checkout", payment.id, {
-          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed,
+          account: ctx.connected_account_id, amount: ctx.amount_cents, fee: ctx.application_fee_cents, expiresAt, managed, decompo: 1,
         }),
       },
     ));
