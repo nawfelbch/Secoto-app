@@ -1,5 +1,6 @@
 import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useState } from "react";
+import DecompositionPrix from "./DecompositionPrix";
 import OnDemandBooking from "./OnDemandBooking";
 import LiveTrackingView from "./LiveTrackingView";
 import {
@@ -93,6 +94,9 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               <p><strong>{orderHeadline(order)}</strong></p>
               {order.funding === "card" && order.payment_status && (
                 <p><span className={`od-pill ${["paid", "requires_capture"].includes(order.payment_status) ? "is-ok" : ["failed", "capture_failed"].includes(order.payment_status) ? "is-bad" : "is-warn"}`}>{paymentStateLabel(order)}</span> {formatCents(order.collect_cents)}</p>
+              )}
+              {order.funding === "card" && order.payment_circuit === "direct" && (
+                <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />
               )}
               {order.funding === "subscription" && <p><span className="od-pill is-ok">Inclus dans votre forfait</span></p>}
               {order.partner_name && <p>Partenaire : <strong>{order.partner_name}</strong></p>}

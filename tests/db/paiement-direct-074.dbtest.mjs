@@ -635,3 +635,39 @@ test("commande de plusieurs véhicules : virement seulement quand TOUS les véhi
   due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
   assert.ok(due.some((x) => x.payout_id === pp.id), "tous livrés : virement");
 });
+
+test("080 : le transporteur attribué peut envoyer ses photos d'état des lieux", async () => {
+  // Droits Supabase réels sur le stockage (le socle de test ne les pose pas).
+  await sql("grant insert, select on storage.objects to authenticated");
+  const o = await chargedOrder(48);
+  const nom = `${ids.ready}/${o.mission_id}/evt-test/photo.jpg`;
+  const r = await as(ids.ready, "insert into storage.objects(bucket_id, name, owner) values ('mission-photos', $1, $2) returning name", [nom, ids.ready]);
+  assert.equal(r[0].name, nom);
+  // Un autre compte ne peut pas déposer dans le dossier de cette mission.
+  await assert.rejects(as(ids.client, "insert into storage.objects(bucket_id, name) values ('mission-photos', $1)", [`${ids.client}/${o.mission_id}/x/p.jpg`]),
+    /row-level security/);
+});
+
+test("081 : le client voit prix transporteur + commission (plateau direct seulement), le transporteur non", async () => {
+  await setFlag(true);
+  const q = await createQuote(ids.client);
+  const json = (await sql("select secoto_private.quote_client_json(q) as j from public.transport_quotes q where q.id=$1", [q.id]))[0].j;
+  assert.equal(json.payment_circuit, "direct");
+  assert.equal(json.transport_price_cents + json.commission_cents, json.client_price_cents, "au centime près");
+  const conv = await createQuote(ids.client, { mode: "convoyage" }, 200);
+  const jc = (await sql("select secoto_private.quote_client_json(q) as j from public.transport_quotes q where q.id=$1", [conv.id]))[0].j;
+  assert.equal(jc.commission_cents, null, "convoyage : rien d'affiché");
+  await setFlag(false);
+  const off = (await sql("select secoto_private.quote_client_json(q) as j from public.transport_quotes q where q.id=$1", [q.id]))[0].j;
+  assert.equal(off.commission_cents, null, "interrupteur éteint : rien d'affiché");
+  await setFlag(true);
+  const o = await chargedOrder(48);
+  const oj = (await sql("select secoto_private.order_client_json(o) as j from public.transport_orders o where o.id=$1", [o.id]))[0].j;
+  assert.equal(oj.transport_price_cents + oj.commission_cents, oj.client_price_cents);
+  // Côté transporteur : la proposition ne porte ni le prix client ni la commission.
+  const offre = (await sql("select secoto_private.offer_partner_json(x) as j from public.transport_offers x where x.order_id=$1 limit 1", [o.id]))[0]?.j;
+  if (offre) {
+    assert.equal(offre.commission_cents, undefined);
+    assert.equal(offre.client_price_cents, undefined);
+  }
+});

@@ -1,5 +1,6 @@
 import { humanizeError } from "../lib/humanError";
 import { useEffect, useMemo, useRef, useState } from "react";
+import DecompositionPrix from "./DecompositionPrix";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
@@ -208,11 +209,17 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const guaranteed = order && (order.funding === "subscription" || ["requires_capture", "paid"].includes(payment?.status));
   // 074 : plateau et moto en paiement direct — carte validée, débit à l'acceptation.
   const direct = order?.payment_circuit === "direct";
+  // 081 : le devis plateau annonce déjà le circuit direct (interrupteur allumé).
+  const devisDirect = quote?.payment_circuit === "direct";
 
   return (
     <div className="panel panel-full">
       <h2>Transport à la demande</h2>
-      <p className="muted">Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.</p>
+      <p className="muted">
+        {direct || devisDirect
+          ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
+          : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
+      </p>
       <ol className="od-steps" aria-label="Étapes">
         {STEPS.map((label, i) => (
           <li key={label} className={i === step ? "is-current" : i < step ? "is-done" : ""} aria-current={i === step ? "step" : undefined}>{i + 1}. {label}</li>
@@ -364,11 +371,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
               <p className="muted">
-                {(quote.vehicles?.length || 1) > 1
-                  ? `${quote.vehicles.length} véhicules sur le même trajet. Tout compris, réglé en une seule fois à SECOTO. `
+                {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
+                {devisDirect
+                  ? "Tout compris, réglé en une seule fois, directement au transporteur qui accepte votre transport. "
                   : "Tout compris, réglé en une seule fois à SECOTO. "}
                 {TVA_MENTION}
               </p>
+              {devisDirect && <DecompositionPrix totalCents={quote.client_price_cents} commissionCents={quote.commission_cents} />}
               {quote.group_discount_cents > 0 && quote.vehicles?.length > 1 && (
                 <p className="od-remise">
                   <strong>Groupage : vous économisez {formatCents(quote.group_discount_cents)}</strong>
@@ -420,6 +429,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   ? "Valider ma carte — aucun débit maintenant"
                   : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
+              {direct && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
@@ -428,7 +438,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               {order.funding === "subscription" ? "Forfait réservé." : direct
                 ? `Carte validée, rien n’a été débité. Vous serez débité de ${formatCents(order.client_price_cents ?? order.collect_cents)} au nom du transporteur qui accepte la mission.`
                 : "Paiement encaissé et gardé en réserve 48 heures."}{" "}
-              Votre demande part à tous nos transporteurs compatibles : ils ont {OFFER_WINDOW_HOURS} h pour l’accepter.
+              {direct
+                ? `Votre demande est proposée aux transporteurs indépendants vérifiés : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter. Sans acceptation, elle est annulée, sans aucun débit.`
+                : `Votre demande part à tous nos transporteurs compatibles : ils ont ${OFFER_WINDOW_HOURS} h pour l’accepter.`}
               Vous êtes notifié dès qu’un transporteur confirme.
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
             </div>

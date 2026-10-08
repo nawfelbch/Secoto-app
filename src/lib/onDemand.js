@@ -58,7 +58,9 @@ export function orderHeadline(order) {
   if (order.status === "searching_partner" || order.status === "partner_locked") {
     return order.payment_status === "capture_failed"
       ? "L’encaissement a échoué : mettez à jour votre moyen de paiement"
-      : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
+      : order.payment_circuit === "direct"
+        ? `Votre demande est proposée aux transporteurs indépendants vérifiés (${OFFER_WINDOW_HOURS} h)`
+        : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
   }
   return ORDER_STATUS_LABEL[order.status] || order.status;
 }

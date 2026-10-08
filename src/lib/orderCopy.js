@@ -54,6 +54,16 @@ export function isDirectOrder(order) {
   return order?.payment_circuit === "direct";
 }
 
+// 081 : décomposition affichée au client (plateau en paiement direct) :
+// prix réservé au transporteur + commission de mise en relation SECOTO.
+export function decompositionPrix(totalCents, commissionCents) {
+  const total = Number(totalCents);
+  const commission = Number(commissionCents);
+  if (commissionCents === null || commissionCents === undefined || totalCents === null || totalCents === undefined) return null;
+  if (!Number.isFinite(total) || !Number.isFinite(commission) || commission < 0 || commission > total) return null;
+  return { transport: total - commission, commission };
+}
+
 export function paymentStateLabel(order) {
   const labels = isDirectOrder(order) ? DIRECT_PAYMENT_STATE_LABEL : PAYMENT_STATE_LABEL;
   return labels[order?.payment_status] || order?.payment_status || "";
@@ -92,9 +102,9 @@ export function paymentExplanation(order) {
   }
   const amount = formatCents(order.client_price_cents ?? order.collect_cents);
   if (isDirectOrder(order)) {
-    return `Vous validez votre carte maintenant, sans aucun débit. Vous êtes débité de ${amount} `
-      + `uniquement quand un transporteur accepte la mission, directement au nom de ce transporteur : `
-      + `SECOTO organise la mise en relation. Si aucun transporteur ne se rend disponible, vous n’êtes jamais débité.`;
+    return `Vous validez votre carte maintenant, sans aucun débit. Vous n’êtes débité de ${amount} `
+      + `que lorsqu’un transporteur indépendant accepte votre transport, directement sur son compte. `
+      + `Sans acceptation sous ${OFFER_WINDOW_HOURS} h, la demande est annulée, sans aucun débit.`;
   }
   return `${amount} sont encaissés dès la validation et gardés en réserve ${OFFER_WINDOW_HOURS} h, `
     + `le temps qu’un transporteur accepte la mission. Si aucun transporteur ne se rend disponible, `

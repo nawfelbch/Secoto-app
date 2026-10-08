@@ -12,7 +12,24 @@ const { SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
  *    attribué, commission SECOTO prélevée par Stripe.
  * Les montants viennent de la base (secoto_devis_link_open), jamais de l'URL.
  */
+const eur = (cents) => `${(Number(cents) / 100).toFixed(2).replace(".", ",")} €`;
+
+/**
+ * 081 — Décomposition affichée sur la page Stripe, juste au-dessus du bouton
+ * (avant toute validation) : prix réservé au transporteur + commission SECOTO.
+ */
+export function messageDecomposition(data) {
+  const total = Number(data?.amount_cents);
+  const commission = Number(data?.commission_cents);
+  if (!Number.isFinite(total) || !Number.isFinite(commission) || commission < 0 || commission > total) return null;
+  return `Dont prix réservé au transporteur : ${eur(total - commission)}. `
+    + `Commission de mise en relation SECOTO : ${eur(commission)}. `
+    + "SECOTO agit en tant qu'intermédiaire ; le transport est assuré par un transporteur indépendant.";
+}
+
 export async function sessionDirecte({ admin, stripe, data, token, description }) {
+  const decompo = messageDecomposition(data);
+  const texte = (suite) => ({ custom_text: { submit: { message: [decompo, suite].filter(Boolean).join(" ").slice(0, 1200) } } });
   const metadata = {
     secoto_payment_id: data.payment_id,
     secoto_purpose: data.purpose || "",
@@ -31,6 +48,7 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
           quantity: 1,
         }],
         payment_intent_data: { application_fee_amount: data.application_fee_cents, description, metadata },
+        ...texte("Le paiement est encaissé directement sur le compte du transporteur."),
         metadata,
         success_url: retour("ok"),
         cancel_url: retour("annule"),
@@ -38,7 +56,7 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
       {
         stripeAccount: data.connected_account_id,
         idempotencyKey: idempotencyKey("secoto-devis-direct", data.payment_id, {
-          account: data.connected_account_id, amount: data.amount_cents, fee: data.application_fee_cents, description, managed,
+          account: data.connected_account_id, amount: data.amount_cents, fee: data.application_fee_cents, description, managed, decompo,
         }),
       },
     ));
@@ -65,11 +83,12 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
       customer: customerId,
       currency: data.currency || "eur",
       setup_intent_data: { metadata, description: `Validation de carte — ${description}`.slice(0, 250) },
+      ...texte(`Aucun débit maintenant : vous n'êtes débité de ${eur(data.amount_cents)} que lorsqu'un transporteur indépendant accepte votre transport, directement sur son compte.`),
       metadata,
       success_url: retour("carte"),
       cancel_url: retour("annule"),
     },
-    { idempotencyKey: idempotencyKey("secoto-devis-direct-setup", data.payment_id, { customerId, managed }) },
+    { idempotencyKey: idempotencyKey("secoto-devis-direct-setup", data.payment_id, { customerId, managed, decompo }) },
   ));
   await admin.from("payments").update({ status: "processing", updated_at: new Date().toISOString() })
     .eq("id", data.payment_id).in("status", ["pending", "failed"]);
