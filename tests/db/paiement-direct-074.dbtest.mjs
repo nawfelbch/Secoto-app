@@ -671,3 +671,19 @@ test("081 : le client voit prix transporteur + commission (plateau direct seulem
     assert.equal(offre.client_price_cents, undefined);
   }
 });
+
+test("082 : débit refusé puis carte mise à jour -> la mission repart vers les transporteurs", async () => {
+  await setFlag(true);
+  const o = await book(ids.client);
+  await cardSaved(o.payment_id);
+  const r = await accept(ids.ready, await offerFor(o.id, ids.ready));
+  assert.equal(r.result, "pending_capture");
+  const echec = (await service("select public.secoto_od_capture_result($1,false,'card_declined') as r", [o.id]))[0].r;
+  assert.notEqual(echec.result, "confirmed");
+  assert.equal((await sql("select status from public.transport_orders where id=$1", [o.id]))[0].status, "searching_partner");
+  // Plus aucune proposition en cours : personne ne voit la mission.
+  await sql("update public.transport_offers set status='expired' where order_id=$1 and status='sent'", [o.id]);
+  const maj = await cardSaved(o.payment_id, `evt_${randomUUID()}`);
+  assert.equal(maj.effect, "dispatch_reopened");
+  assert.ok(await offerFor(o.id, ids.ready), "le transporteur la revoit et peut l'accepter");
+});
