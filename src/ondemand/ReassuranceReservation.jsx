@@ -23,7 +23,8 @@ function Icone({ d }) {
 const BOUCLIER = "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3zM9 12l2 2 4-4";
 const CADENAS = "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z";
 const CARTE = "M3 7h18v10H3zM3 11h18";
-const CAMION = "M3 7h11v8H3zM14 10h4l3 3v2h-7zM7 18a1.5 1.5 0 1 0 0-.1M17 18a1.5 1.5 0 1 0 0-.1";
+// Appareil photo : boîtier, viseur et objectif.
+const APPAREIL_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z";
 
 export default function ReassuranceReservation({ mode = "plateau", circuit = null, relation = false, compact = false }) {
   const direct = circuit === "direct";
@@ -34,7 +35,7 @@ export default function ReassuranceReservation({ mode = "plateau", circuit = nul
     direct
       ? { icone: CARTE, titre: "Aucun débit avant acceptation", texte: "Rien n’est prélevé tant qu’aucun transporteur n’accepte" }
       : { icone: CARTE, titre: "Remboursé si personne n’accepte", texte: `Intégralement, sous ${NO_PARTNER_REFUND_HOURS} h` },
-    { icone: CAMION, titre: "État des lieux photo", texte: "Au départ et à l’arrivée, preuve en cas de litige" },
+    { icone: APPAREIL_PHOTO, titre: "État des lieux photo", texte: "Au départ et à l’arrivée, preuve en cas de litige" },
   ];
   const etapes = plateau
     ? [
