@@ -108,6 +108,7 @@ import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
 import EspaceEntreprise, { memoriserCreationEntreprise, ouvertureEntrepriseDemandee } from "./ondemand/EspaceEntreprise";
 import MotDePasseProvisoire from "./MotDePasseProvisoire";
 import ConditionsGate, { ConditionsSentence } from "./ConditionsGate";
+import LiensLegaux, { DocumentsLegaux } from "./DocumentsLegaux";
 import { conditionsLinks, termsPublic, termsStatus } from "./lib/conditions";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
@@ -433,16 +434,10 @@ function ThemeToggle() {
   );
 }
 
-function AccountDangerZone({ onDelete }) {
+function AccountDangerZone({ role, onDelete }) {
   return (
     <div className="danger-zone">
-      <button
-        className="privacy-link"
-        type="button"
-        onClick={() => openExternal("https://app.secoto-transport.fr/politique-confidentialite.html")}
-      >
-        Politique de confidentialité
-      </button>
+      <LiensLegaux role={role} titre="Documents légaux" />
       <button className="btn danger small" type="button" onClick={onDelete}>
         Supprimer mon compte
       </button>
@@ -1362,6 +1357,17 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
                 <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
                 <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
                 <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} required />
+                {conditions && (
+                  <div className="field-full">
+                    <DocumentsLegaux
+                      titre="À lire avant de créer votre compte"
+                      links={conditionsLinks(
+                        effectiveRole === "transporter" ? ["cgu", "confidentialite", "conditions_transporteur"] : ["cgu", "confidentialite"],
+                        conditions.documents, conditions.version)}
+                      onOpen={(url) => openExternal(url).catch(() => {})}
+                    />
+                  </div>
+                )}
                 {conditions && (
                   <label className="payment-waiver-row field-full">
                     <input type="checkbox" checked={conditionsCochees} onChange={(e) => setConditionsCochees(e.target.checked)} />
@@ -4766,7 +4772,7 @@ export default function App() {
 
           {activeClientTab === "legal" && (
             <section className="layout">
-              <LegalNoticesPanel />
+              <LegalNoticesPanel role="client" />
             </section>
           )}
 
@@ -4790,7 +4796,7 @@ export default function App() {
                     <p><strong>Ville :</strong> {account.city || "Non renseignée"}</p>
                   </div>
                 </div>
-                <AccountDangerZone onDelete={deleteAccount} />
+                <AccountDangerZone role="client" onDelete={deleteAccount} />
               </div>
             </section>
           )}
@@ -5097,7 +5103,7 @@ export default function App() {
 
           {adminTab === "legal" && (
             <section className="layout">
-              <LegalNoticesPanel />
+              <LegalNoticesPanel role="admin" />
             </section>
           )}
         </>
@@ -5438,7 +5444,7 @@ export default function App() {
 
           {transporterTab === "legal" && (
             <section className="layout">
-              <LegalNoticesPanel />
+              <LegalNoticesPanel role="transporter" />
             </section>
           )}
 
@@ -5538,7 +5544,7 @@ export default function App() {
                         ))}
                       </div>
                     </div>
-                    <AccountDangerZone onDelete={deleteAccount} />
+                    <AccountDangerZone role="transporter" onDelete={deleteAccount} />
                   </>
                 )}
               </div>

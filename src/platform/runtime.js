@@ -50,8 +50,25 @@ function isAllowedExternalUrl(rawUrl) {
 export async function openExternal(rawUrl) {
   if (!isAllowedExternalUrl(rawUrl)) throw new Error("Lien externe non autorisé.");
   if (typeof window === "undefined") return;
-  const opened = window.open(rawUrl, isNativePlatform() ? "_system" : "_blank", "noopener,noreferrer");
-  if (!opened && !isNativePlatform()) window.location.assign(rawUrl);
+  if (isNativePlatform()) {
+    window.open(rawUrl, "_system");
+    return;
+  }
+  // Web, téléphone / e-mail / SMS / WhatsApp : l'application associée s'ouvre
+  // sans quitter la page.
+  if (!/^https:/i.test(String(rawUrl))) {
+    window.location.assign(rawUrl);
+    return;
+  }
+  // Web : avec « noopener », window.open renvoie toujours null, ce qui
+  // déclenchait en plus la redirection de l'onglet de l'application. On ouvre
+  // un nouvel onglet, puis on coupe le lien avec l'application.
+  const opened = window.open(rawUrl, "_blank");
+  if (opened) {
+    try { opened.opener = null; } catch { /* navigateur restrictif : sans effet */ }
+  } else {
+    window.location.assign(rawUrl);
+  }
 }
 
 export async function openRoute({ latitude, longitude, address } = {}) {

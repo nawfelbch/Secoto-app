@@ -53,3 +53,23 @@ test("le lien secoto:// de la passerelle est compris par l'application", async (
   assert.equal(lien.orderId, "abc-123");
   assert.equal(parseSecotoDeepLink("secoto://app?ecran=bank&connect=retour").kind, "navigation");
 });
+
+test("documents légaux : boutons clairs dans la fenêtre, l'inscription, le profil et les informations légales", () => {
+  assert.match(lire("src/ConditionsGate.jsx"), /<DocumentsLegaux links=\{links\}/);
+  assert.match(lire("src/ConditionsGate.jsx"), /className="lien-conditions"/);
+  const app = lire("src/App.jsx");
+  assert.match(app, /<DocumentsLegaux\s+titre="À lire avant de créer votre compte"/);
+  assert.match(app, /<LiensLegaux role=\{role\} titre="Documents légaux" \/>/);
+  assert.doesNotMatch(app, /openExternal\("https:\/\/app\.secoto-transport\.fr\/politique-confidentialite\.html"\)/);
+  assert.match(lire("src/LegalNoticesPanel.jsx"), /<LiensLegaux role=\{role\}/);
+  const css = lire("src/index.css");
+  assert.match(css, /\.doc-legal \{/);
+  assert.match(css, /min-height: 48px/);
+});
+
+test("ouverture d'un lien sur le web : un seul onglet, l'application reste affichée", () => {
+  const src = lire("src/platform/runtime.js");
+  assert.match(src, /window\.open\(rawUrl, "_blank"\);/);
+  assert.match(src, /opened\.opener = null/);
+  assert.doesNotMatch(src, /"noopener,noreferrer"\);\s*\r?\n\s*if \(!opened && !isNativePlatform\(\)\)/);
+});
