@@ -68,7 +68,7 @@ const accept = (partnerId, offerId) =>
   as(partnerId, "select public.secoto_offer_accept($1,$2) as r", [offerId, randomUUID()]).then((r) => r[0].r);
 async function makeReady(partnerId, acct) {
   await sql(`update public.accounts set stripe_connect_account_id=$2, stripe_connect_status='active',
-             stripe_transfers_enabled=true, stripe_payouts_enabled=true, stripe_card_payments_enabled=true where id=$1`, [partnerId, acct]);
+             stripe_transfers_enabled=true, stripe_payouts_enabled=true, stripe_card_payments_enabled=true, stripe_payouts_manual=true where id=$1`, [partnerId, acct]);
   await as(partnerId, "select public.secoto_carrier_accept_billing_mandate($1,$2,$3,$4,$5,$6)",
     ["2026-10-08", "TEST Transports SARL", "123 456 789", "1 rue du Test 92000 Nanterre", "franchise", null]);
 }
@@ -190,19 +190,36 @@ test("webhook du compte transporteur : facture au nom du transporteur + facture 
   assert.equal(seenByPartner.length, 2);
 });
 
-test("livraison : le transporteur est déjà payé par le client, JAMAIS de Transfer depuis SECOTO", async () => {
+test("livraison : argent retenu chez le transporteur, viré vers SA banque 4 h après, JAMAIS de Transfer", async () => {
   await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [direct.mission_id]);
-  const pp = (await sql("select * from public.partner_payouts where mission_id=$1", [direct.mission_id]))[0];
+  const pp = (await sql("select *, due_at > now() + interval '3 hours' as plus_tard from public.partner_payouts where mission_id=$1", [direct.mission_id]))[0];
   assert.equal(pp.payment_circuit, "direct");
   assert.equal(pp.connected_account_id, "acct_test_ready");
-  assert.equal(pp.status, "paid", "trace seulement : Stripe verse automatiquement au transporteur");
-  assert.equal(pp.paid_via, "connect");
+  assert.equal(pp.status, "to_pay", "076 : virement bancaire à déclencher par SECOTO");
+  assert.equal(pp.paid_via, null);
+  assert.equal(pp.plus_tard, true, "échéance = livraison + 4 h");
+  const avant = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!avant.some((x) => x.payout_id === pp.id), "rien avant l'échéance");
+  await sql("update public.partner_payouts set due_at = now() - interval '1 minute' where id=$1", [pp.id]);
+  const du = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r.find((x) => x.payout_id === pp.id);
+  assert.ok(du, "virement réclamé à l'échéance");
+  assert.equal(du.connected_account_id, "acct_test_ready");
+  assert.equal(du.amount_cents, pp.amount_cents);
+  // Fonds pas encore disponibles chez Stripe : nouvel essai, rien de perdu.
+  const attente = (await service("select public.secoto_payout_transfer_result($1,false,null,null,'balance_insufficient') as r", [pp.id]))[0].r;
+  assert.equal(attente.result, "attente_de_fonds");
+  await sql("update public.partner_payouts set next_retry_at = now() - interval '1 minute' where id=$1", [pp.id]);
+  assert.ok((await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r.some((x) => x.payout_id === pp.id));
+  const ok = (await service("select public.secoto_payout_transfer_result($1,true,'po_test',null,null) as r", [pp.id]))[0].r;
+  assert.equal(ok.result, "paid");
+  assert.equal((await sql("select count(*)::int n from public.connect_bank_payouts where source_payout_id=$1", [pp.id]))[0].n, 0,
+    "un virement direct ne crée pas de second virement");
   const transfers = (await service("select public.secoto_payouts_claim_due(50) as r"))[0].r;
   assert.ok(!transfers.some((x) => x.payout_id === pp.id), "aucun Transfer pour une course encaissée en direct");
   const tick = (await service("select public.secoto_od_maintenance_tick() as r"))[0].r;
   assert.ok(tick, "aucun rappel « versement à effectuer » pour une course payée en direct");
   const n = await sql("select title, body from public.notifications where account_id=$1 and title='Mission livrée' order by created_at desc limit 1", [ids.ready]);
-  assert.match(n[0].body, /directement/);
+  assert.match(n[0].body, /compte bancaire sous 4 h/);
 });
 
 test("ancien circuit (courses déjà payées) : versement par Transfer inchangé, ignoré par le circuit direct", async () => {
@@ -259,7 +276,7 @@ test("annulation entre 24 h et 2 h : 50 % remboursés, part du transporteur au p
   const pp = (await sql("select kind, amount_cents, payment_circuit, status from public.partner_payouts where mission_id=$1", [o.mission_id]))[0];
   assert.equal(pp.kind, "late_cancel");
   assert.equal(pp.payment_circuit, "direct");
-  assert.equal(pp.status, "paid", "part retenue déjà acquise sur le compte du transporteur");
+  assert.equal(pp.status, "to_pay", "part retenue virée vers la banque du transporteur");
   assert.equal(pp.amount_cents, Math.round(ord.partner_pay_cents * 0.5));
 });
 
@@ -277,7 +294,9 @@ test("annulation à moins de 2 h : aucun remboursement, part du transporteur int
   assert.equal(p.refund_requested_cents, null);
   const pp = (await sql("select amount_cents, payment_circuit, status from public.partner_payouts where mission_id=$1", [o.mission_id]))[0];
   assert.equal(pp.amount_cents, ord.partner_pay_cents);
-  assert.equal(pp.status, "paid", "la part du transporteur reste sur son compte, rien à verser");
+  assert.equal(pp.status, "to_pay", "la part du transporteur est virée vers sa banque");
+  assert.ok((await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r.some((x) => x.kind === "late_cancel"),
+    "annulation tardive : virement immédiat, sans attendre une livraison");
   const n = await sql("select body from public.notifications where account_id=$1 and title='Commande annulée' order by created_at desc limit 1", [ids.client]);
   assert.match(n[0].body, /dernière minute/);
 });
@@ -328,4 +347,59 @@ test("sécurité : fonctions serveur interdites à l'application, mandat contrô
   await assert.rejects(as(ids.notReady, "select public.secoto_carrier_accept_billing_mandate('v','A','1234','adr','franchise',null)"), /9 chiffres/);
   await assert.rejects(as(ids.notReady, "select public.secoto_carrier_accept_billing_mandate('v','A','123456789','adr','assujetti','XX')"), /TVA/);
   await assert.rejects(as(ids.client, "select * from public.partner_invoice_counters"), /permission denied/);
+});
+
+// ---------------------------------------------------------------------------
+// 076 — argent retenu jusqu'à la livraison
+// ---------------------------------------------------------------------------
+test("076 : sans virement manuel chez Stripe, le transporteur n'est pas prêt", async () => {
+  await sql("update public.accounts set stripe_payouts_manual=false where id=$1", [ids.ready]);
+  try {
+    const st = (await as(ids.ready, "select public.secoto_carrier_direct_status() as r"))[0].r;
+    assert.equal(st.ready, false);
+    assert.equal(st.payouts_manual, false);
+    await assert.rejects(as(ids.ready, "update public.accounts set stripe_payouts_manual=true where id=$1", [ids.ready]), /ne se modifient que depuis SECOTO|permission denied/);
+  } finally {
+    await sql("update public.accounts set stripe_payouts_manual=true where id=$1", [ids.ready]);
+  }
+  assert.equal((await as(ids.ready, "select public.secoto_carrier_direct_status() as r"))[0].r.ready, true);
+});
+
+test("076 : pas de virement tant que la course n'est pas livrée, ni pendant un litige", async () => {
+  const o = await chargedOrder(48);
+  await sql(`insert into public.partner_payouts(mission_id, order_id, partner_id, amount_cents, due_at, mode, kind)
+             values ($1,$2,$3,1000, now() - interval '1 minute','plateau','mission')`, [o.mission_id, o.id, ids.ready]);
+  const pp = (await sql("select id, status from public.partner_payouts where mission_id=$1", [o.mission_id]))[0];
+  assert.equal(pp.status, "to_pay");
+  let due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "course non livrée : l'argent reste retenu");
+  await sql("update public.transport_orders set status='delivered' where id=$1", [o.id]);
+  await sql("update public.payments set dispute_status='open' where id=$1", [o.payment_id]);
+  due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "litige ouvert : rien ne part");
+  await sql("update public.payments set dispute_status='closed' where id=$1", [o.payment_id]);
+  due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(due.some((x) => x.payout_id === pp.id), "livrée et sans litige : virement");
+});
+
+test("076 : un Transfer de l'ancien circuit reçu par un compte en virement manuel part vers sa banque", async () => {
+  await setFlag(false);
+  const old = await book(ids.client);
+  await paidOld(old.payment_id);
+  await setFlag(true);
+  const r = await accept(ids.ready, await offerFor(old.id, ids.ready));
+  assert.equal(r.result, "confirmed");
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [r.mission_id]);
+  const pp = (await sql("select id, payment_circuit, status from public.partner_payouts where mission_id=$1", [r.mission_id]))[0];
+  assert.equal(pp.payment_circuit, null, "ancien circuit inchangé");
+  assert.equal(pp.status, "to_pay");
+  await sql("update public.partner_payouts set status='processing', processing_at=now() where id=$1", [pp.id]);
+  const res = (await service("select public.secoto_payout_transfer_result($1,true,'tr_test',null,null) as r", [pp.id]))[0].r;
+  assert.equal(res.result, "paid");
+  const due = (await service("select public.secoto_bank_payouts_claim_due(50) as r"))[0].r;
+  const b = due.find((x) => x.connected_account_id === "acct_test_ready");
+  assert.ok(b, "virement bancaire du Transfer reçu");
+  const fin = (await service("select public.secoto_bank_payout_result($1,true,'po_bank',null) as r", [b.bank_payout_id]))[0].r;
+  assert.equal(fin.result, "paid");
+  await assert.rejects(as(ids.ready, "select * from public.connect_bank_payouts"), /permission denied/);
 });

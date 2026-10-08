@@ -11,7 +11,7 @@ import Stripe from "stripe";
 import { json, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
-import { isDirect, refundDirect } from "../lib/paiement-direct.js";
+import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -102,6 +102,11 @@ export async function runMaintenance({ admin, stripe }) {
     report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
   }
   report.payouts = await processPayouts({ admin, stripe });
+  // 076 : virements bancaires déclenchés par SECOTO depuis le solde du
+  // transporteur (circuit direct, et Transfers reçus par un compte en
+  // virement manuel).
+  report.direct_payouts = await processDirectPayouts({ admin, stripe });
+  report.bank_payouts = await processBankPayouts({ admin, stripe });
   return report;
 }
 
@@ -146,6 +151,7 @@ export async function resyncConnectAccounts({ admin, stripe, maintenant = Date.n
         stripe_transfers_enabled: s.transfers_enabled,
         stripe_payouts_enabled: s.payouts_enabled,
         stripe_card_payments_enabled: s.card_payments_enabled,
+        stripe_payouts_manual: s.payouts_manual,
         stripe_connect_updated_at: horodatage,
       };
       if (s.status === "active" && !c.stripe_connect_onboarded_at) maj.stripe_connect_onboarded_at = horodatage;

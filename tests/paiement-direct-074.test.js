@@ -239,10 +239,48 @@ test("maintenance : remboursement direct sur le compte du transporteur, commissi
   assert.equal(oldRefund.args[1].stripeAccount, undefined, "ancien circuit : remboursement depuis SECOTO, inchangé");
   assert.equal(oldRefund.args[0].refund_application_fee, undefined);
   assert.equal(oldRefund.args[1].idempotencyKey, "secoto-od-refund-p9-12000", "clé historique inchangée");
-  // Aucun virement déclenché par SECOTO : Stripe verse automatiquement au transporteur.
+  // Aucun virement dû dans ce scénario, et jamais de Transfer pour le circuit direct.
   assert.ok(!stripe.calls.some((c) => c.name === "payouts.create"));
   assert.ok(!stripe.calls.some((c) => c.name === "transfers.create"), "aucun Transfer pour le circuit direct");
-  assert.equal(report.direct_payouts, undefined);
+  assert.deepEqual(report.direct_payouts, []);
+});
+
+test("076 : à l'échéance, virement du solde du transporteur vers SA banque, jamais de Transfer", async () => {
+  const admin = maintenanceAdmin([]);
+  admin.rpc = ((orig) => async (name, args) => {
+    if (name === "secoto_direct_payouts_claim_due") {
+      admin.calls.push({ name, args });
+      return { data: [{ payout_id: "pp1", amount_cents: 40000, kind: "mission", connected_account_id: "acct_T", order_id: "o1", mission_id: "m1" }], error: null };
+    }
+    return orig(name, args);
+  })(admin.rpc);
+  const stripe = fakeStripe();
+  const report = await runMaintenance({ admin, stripe });
+  const po = stripe.calls.find((c) => c.name === "payouts.create");
+  assert.equal(po.args[0].amount, 40000);
+  assert.equal(po.args[1].stripeAccount, "acct_T", "virement depuis le compte du transporteur");
+  assert.equal(po.args[1].idempotencyKey, "secoto-direct-payout-pp1-40000");
+  assert.ok(!stripe.calls.some((c) => c.name === "transfers.create"));
+  const res = admin.calls.find((c) => c.name === "secoto_payout_transfer_result");
+  assert.equal(res.args.p_success, true);
+  assert.equal(res.args.p_transfer_id, "po_1");
+  assert.equal(report.direct_payouts[0].outcome, "paid");
+});
+
+test("076 : fonds pas encore disponibles chez Stripe -> erreur transmise pour un nouvel essai", async () => {
+  const admin = maintenanceAdmin([]);
+  admin.rpc = ((orig) => async (name, args) => {
+    if (name === "secoto_direct_payouts_claim_due") {
+      admin.calls.push({ name, args });
+      return { data: [{ payout_id: "pp2", amount_cents: 1000, kind: "mission", connected_account_id: "acct_T" }], error: null };
+    }
+    return orig(name, args);
+  })(admin.rpc);
+  const stripe = fakeStripe({ payoutCreate: async () => { const e = new Error("Insufficient funds"); e.code = "balance_insufficient"; throw e; } });
+  await runMaintenance({ admin, stripe });
+  const res = admin.calls.find((c) => c.name === "secoto_payout_transfer_result");
+  assert.equal(res.args.p_success, false);
+  assert.match(res.args.p_error, /balance_insufficient/);
 });
 
 test("maintenance : verrou expiré en circuit direct -> décision prise chez Stripe, jamais un abandon aveugle", async () => {
@@ -388,4 +426,17 @@ test("lien d'inscription : v1 d'abord, v2 si le compte a été créé en v2", as
   assert.deepEqual(v2[0].use_case.account_onboarding.configurations, ["recipient", "merchant"]);
   const v1 = await co.onboardingLink({ accountLinks: { create: async () => ({ url: "https://connect.stripe.test/v1" }) } }, "acct_v1");
   assert.equal(v1.url, "https://connect.stripe.test/v1");
+});
+
+test("076 : le réglage « virement manuel » est relu de Stripe et posé à l'activation", async () => {
+  assert.equal(connectStatusFromAccount({ settings: { payouts: { schedule: { interval: "manual" } } } }).payouts_manual, true);
+  assert.equal(connectStatusFromAccount({ settings: { payouts: { schedule: { interval: "daily" } } } }).payouts_manual, false);
+  assert.equal(connectStatusFromAccount({}).payouts_manual, false);
+  const { upgradeForDirect } = await import("../netlify/functions/connect-onboarding.js");
+  const calls = [];
+  const stripe = { accounts: { update: async (...args) => { calls.push(args); return {}; } } };
+  await upgradeForDirect(stripe, "acct_X");
+  const payouts = calls.find((c) => c[1]?.settings?.payouts);
+  assert.equal(payouts[1].settings.payouts.schedule.interval, "manual");
+  assert.equal(payouts[1].settings.payouts.debit_negative_balances, true);
 });

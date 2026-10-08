@@ -10,7 +10,7 @@ import { carrierAcceptBillingMandate, carrierDirectStatus, connectOnboarding } f
 //   1. informations légales + mandat de facturation (case jamais pré-cochée) ;
 //   2. activation chez Stripe (lien hébergé par Stripe, ouvert une fois).
 // Ensuite le transporteur ne revoit plus Stripe : il accepte des missions et
-// Stripe lui verse automatiquement ce qu'il encaisse.
+// l'argent encaissé lui est viré automatiquement 4 h après chaque livraison.
 // ============================================================================
 
 const MANDAT_VERSION = "2026-10-08";
@@ -95,7 +95,8 @@ export default function PaiementDirectPanel() {
       <p className="muted">
         Pour les missions plateau, le client vous paie directement : l’argent arrive sur votre compte Stripe,
         jamais chez SECOTO. SECOTO ne garde que ses frais de mise en relation, prélevés automatiquement.
-        Stripe vous verse automatiquement ce que vous encaissez.
+        L’argent reste sur votre compte Stripe jusqu’à la livraison, puis il est viré automatiquement
+        sur votre compte bancaire 4 h après.
       </p>
       {error && <div className="alert error" role="alert">{error}</div>}
       {notice && <div className="alert success" role="status">{notice}</div>}
@@ -105,7 +106,7 @@ export default function PaiementDirectPanel() {
       ) : (
         <ol className="od-milestones">
           <li className={mandatOk ? "is-done" : ""}>Informations de facturation et mandat</li>
-          <li className={etat.card_payments ? "is-done" : ""}>Activation chez Stripe</li>
+          <li className={etat.card_payments && etat.payouts_manual ? "is-done" : ""}>Activation chez Stripe</li>
         </ol>
       )}
 

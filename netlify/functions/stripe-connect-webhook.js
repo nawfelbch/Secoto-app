@@ -38,6 +38,7 @@ export async function syncConnectedAccount(admin, acct) {
     stripe_transfers_enabled: s.transfers_enabled,
     stripe_payouts_enabled: s.payouts_enabled,
     stripe_card_payments_enabled: s.card_payments_enabled,
+    stripe_payouts_manual: s.payouts_manual,
     stripe_connect_updated_at: new Date().toISOString(),
   }).eq("stripe_connect_account_id", acct.id);
   return error ? null : s;

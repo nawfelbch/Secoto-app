@@ -108,11 +108,13 @@ export async function upgradeForDirect(stripe, acctId) {
     if (!isAccountsV1Refused(error) && !/v2/i.test(String(error?.message || ""))) throw error;
     await stripe.v2.core.accounts.update(acctId, V2_MERCHANT_CONFIGURATION, { idempotencyKey: `secoto-direct-upgrade-v2-${acctId}-${heure}` });
   }
-  try {
-    await stripe.accounts.update(acctId, { settings: { payouts: { debit_negative_balances: true } } });
-  } catch (error) {
-    console.error("[connect-onboarding] debit_negative_balances", error?.message);
-  }
+  // 076 (décision D3) : l'argent encaissé reste sur le solde du transporteur
+  // jusqu'à la livraison ; SECOTO déclenche le virement vers sa banque 4 h
+  // après. Sans ce réglage, le transporteur n'est pas « prêt » (la base
+  // l'exige) : on le signale au lieu de l'ignorer.
+  await stripe.accounts.update(acctId, {
+    settings: { payouts: { schedule: { interval: "manual" }, debit_negative_balances: true } },
+  }, { idempotencyKey: `secoto-direct-payouts-${acctId}-${heure}` });
 }
 
 // Traduit l'état Stripe en un statut SECOTO simple, affiché au transporteur.
@@ -130,6 +132,8 @@ export function connectStatusFromAccount(acct) {
     payouts_enabled: payouts,
     // 074 : encaisser lui-même les paiements par carte (circuit direct plateau).
     card_payments_enabled: acct?.capabilities?.card_payments === "active",
+    // 076 : virements vers la banque déclenchés par SECOTO après la livraison.
+    payouts_manual: acct?.settings?.payouts?.schedule?.interval === "manual",
     details_submitted: Boolean(acct?.details_submitted),
     currently_due: acct?.requirements?.currently_due?.length || 0,
   };
@@ -159,6 +163,7 @@ const handler = async (event) => {
       stripe_transfers_enabled: s.transfers_enabled,
       stripe_payouts_enabled: s.payouts_enabled,
       stripe_card_payments_enabled: s.card_payments_enabled,
+      stripe_payouts_manual: s.payouts_manual,
       stripe_connect_updated_at: new Date().toISOString(),
       ...(s.status === "active" && !account.stripe_connect_onboarded_at
         ? { stripe_connect_onboarded_at: new Date().toISOString() } : {}),
