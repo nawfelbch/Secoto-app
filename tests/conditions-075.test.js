@@ -82,10 +82,17 @@ test("lien de paiement : particulier = conditions + renonciation ; interrupteur 
   assert.doesNotMatch(avant, /name="conditions"/);
 });
 
-test("les pages de conditions sont des projets non indexés", () => {
-  for (const f of ["public/cgu.html", "public/conditions-transporteur.html"]) {
+test("les pages légales suivent la charte SECOTO, sans mention de brouillon", () => {
+  for (const f of ["public/cgu.html", "public/conditions-transporteur.html", "public/politique-confidentialite.html"]) {
     const html = lire(f);
-    assert.match(html, /PROJET – à valider/);
-    assert.match(html, /noindex/);
+    assert.match(html, /\/legal\/legal\.css/, `${f}: feuille de style SECOTO absente`);
+    assert.match(html, /SIREN 951 857 531/, `${f}: identification de l'éditeur absente`);
+    assert.match(html, /APE 8299Z/, `${f}: code APE absent`);
+    assert.doesNotMatch(html, /PROJET|à valider|\[À/i, `${f}: mention de brouillon visible`);
   }
+  // Tant que l'avocat n'a pas validé, CGU et conditions transporteur restent hors des moteurs.
+  for (const f of ["public/cgu.html", "public/conditions-transporteur.html"]) {
+    assert.match(lire(f), /noindex/);
+  }
+  assert.match(lire("public/politique-confidentialite.html"), /id="suppression-compte"/);
 });
