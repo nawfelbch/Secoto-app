@@ -1,3 +1,4 @@
+import EtatsDesLieuxCommande from "./EtatsDesLieuxCommande";
 import { CarteTransporteur } from "../CarteContact";
 import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useState } from "react";
@@ -103,6 +104,9 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               {order.partner_contact
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
                 : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
+              {order.mission_id && ["partner_confirmed", "picked_up", "delivered"].includes(order.status) && (
+                <EtatsDesLieuxCommande missionId={order.mission_id} refreshKey={`${order.status}:${order.updated_at}`} />
+              )}
               <ol className="od-milestones">
                 {MILESTONES.filter((m) => order.funding === "card" || !m.key.startsWith("paiement")).map((m) => (
                   <li key={m.key} className={order.milestones?.[m.key] ? "is-done" : ""}>{m.label}{order.milestones?.[m.key] && <time>{formatDateTime(order.milestones[m.key])}</time>}</li>
