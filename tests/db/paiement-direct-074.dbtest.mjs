@@ -618,3 +618,20 @@ test("garde-fou : litige sur un paiement direct de mission manuelle -> virement 
   due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
   assert.ok(due.some((x) => x.payout_id === pp.id));
 });
+
+test("commande de plusieurs véhicules : virement seulement quand TOUS les véhicules sont livrés", async () => {
+  const o = await chargedOrder(48);
+  // Véhicule n°2 de la même commande, pas encore livré.
+  const soeur = (await sql(`insert into public.missions(public_ref, type, status, from_city, to_city, manual_pricing, manual_carrier_pay,
+                              manual_margin, client_account_id, assigned_transporter_id, payment_method, groupage_order_id, groupage_rank)
+                            values ('MIS-TEST-SOEUR-' || substr(md5(random()::text),1,4), 'plateau', 'assigned', 'Paris', 'Lille', true, 200, 20,
+                                    $1, $2, 'carte', $3, 1) returning id`, [ids.client, ids.ready, o.id]))[0];
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [o.mission_id]);
+  const pp = (await sql("select id from public.partner_payouts where order_id=$1", [o.id]))[0];
+  await sql("update public.partner_payouts set due_at = now() - interval '1 minute' where id=$1", [pp.id]);
+  let due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "véhicule 2 pas encore livré : l'argent reste retenu");
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [soeur.id]);
+  due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(due.some((x) => x.payout_id === pp.id), "tous livrés : virement");
+});
