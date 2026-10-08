@@ -1617,7 +1617,9 @@ export default function App() {
   useEffect(() => {
     if (!accountIdPourConditions || !["client", "transporter"].includes(accountRolePourConditions)) return undefined;
     let vivant = true;
-    termsStatus().then((s) => { if (vivant) setConditionsStatut(s); });
+    // Le statut est rattaché au compte : après un changement de compte, celui
+    // du compte précédent n'est jamais réutilisé.
+    termsStatus().then((s) => { if (vivant) setConditionsStatut({ ...s, accountId: accountIdPourConditions }); });
     return () => { vivant = false; };
   }, [accountIdPourConditions, accountRolePourConditions]);
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
@@ -4439,11 +4441,13 @@ export default function App() {
 
   // Conditions mises à jour : rien d'autre n'est accessible tant qu'elles ne
   // sont pas acceptées. Jamais pour l'administrateur (la base le garantit).
-  if (conditionsStatut?.required && conditionsStatut?.version && account.role !== "admin") {
+  if (conditionsStatut?.accountId === account.id && conditionsStatut?.required && conditionsStatut?.version
+      && account.role !== "admin") {
     return (
       <ConditionsGate
         status={conditionsStatut}
-        onAccepted={(s) => setConditionsStatut(s || { required: false })}
+        onAccepted={(s) => setConditionsStatut({ ...(s || { required: false }), accountId: account.id })}
+        onRefresh={(s) => setConditionsStatut({ ...s, accountId: account.id })}
         onSignOut={signOut}
       />
     );

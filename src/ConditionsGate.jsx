@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { humanizeError } from "./lib/humanError";
-import { acceptTerms, conditionsLinks } from "./lib/conditions";
+import { acceptTerms, conditionsLinks, termsStatus } from "./lib/conditions";
 import { openExternal } from "./platform/runtime";
 
 // ============================================================================
@@ -33,7 +33,7 @@ export function ConditionsSentence({ links, onOpen }) {
   );
 }
 
-export default function ConditionsGate({ status, onAccepted, onSignOut }) {
+export default function ConditionsGate({ status, onAccepted, onRefresh, onSignOut }) {
   const [coche, setCoche] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +52,13 @@ export default function ConditionsGate({ status, onAccepted, onSignOut }) {
     } catch (e) {
       setError(humanizeError(e));
       setBusy(false);
+      // Conditions mises à jour pendant que l'écran était ouvert : on recharge
+      // la version en vigueur, l'utilisateur coche de nouveau.
+      const frais = await termsStatus();
+      if (frais?.version && frais.version !== status?.version) {
+        setCoche(false);
+        onRefresh?.(frais);
+      }
     }
   }
 

@@ -176,10 +176,13 @@ const handler = async (event) => {
     const consent = champs.get("consent") === "oui";
     const conditionsCochees = champs.get("conditions") === "oui";
     const ouverture = await admin.rpc("secoto_devis_link_open", { p_token: token });
-    const conditions = await etatConditions();
+    // Lien inutilisable (déjà payé, transporteur pas prêt…) : on n'enregistre
+    // rien et on laisse la suite afficher le motif exact.
+    const lienUtilisable = !ouverture.error && !ouverture.data?.error;
+    const conditions = lienUtilisable ? await etatConditions() : null;
     const conditionsAttendues = Boolean(conditions && !conditions.accepted);
-    const renonciationAttendue = Boolean(ouverture.data?.waiver_required);
-    if ((conditionsAttendues && !conditionsCochees) || (renonciationAttendue && !consent)) {
+    const renonciationAttendue = Boolean(lienUtilisable && ouverture.data?.waiver_required);
+    if (lienUtilisable && (conditionsAttendues && !conditionsCochees) || (renonciationAttendue && !consent)) {
       return html(200, page("Confirmation requise", "Cochez la case pour continuer vers le paiement."));
     }
     if (conditionsAttendues) {
@@ -191,7 +194,7 @@ const handler = async (event) => {
           : page("Paiement indisponible", MOTIFS.compte_introuvable));
       }
     }
-    if (consent) {
+    if (lienUtilisable && consent) {
       const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
       if (accord.error || accord.data?.error) {
         return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));

@@ -8,7 +8,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // Le transporteur ne transmet JAMAIS d'identifiant Stripe : le compte est
 // toujours retrouvé depuis son compte SECOTO authentifié, côté serveur.
 import Stripe from "stripe";
-import { authenticatedUserId, bearer, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { authenticatedUserId, bearer, json, majCompteStripe, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
 
 const { STRIPE_SECRET_KEY, SECOTO_APP_URL = "https://app.secoto-transport.fr" } = process.env;
 
@@ -158,7 +158,7 @@ const handler = async (event) => {
 
   const sync = async (acct) => {
     const s = connectStatusFromAccount(acct);
-    await admin.from("accounts").update({
+    await majCompteStripe((patch) => admin.from("accounts").update(patch).eq("id", userId), {
       stripe_connect_status: s.status,
       stripe_transfers_enabled: s.transfers_enabled,
       stripe_payouts_enabled: s.payouts_enabled,
@@ -167,7 +167,7 @@ const handler = async (event) => {
       stripe_connect_updated_at: new Date().toISOString(),
       ...(s.status === "active" && !account.stripe_connect_onboarded_at
         ? { stripe_connect_onboarded_at: new Date().toISOString() } : {}),
-    }).eq("id", userId);
+    });
     return s;
   };
 

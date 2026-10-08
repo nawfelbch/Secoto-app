@@ -550,3 +550,71 @@ test("078 : interrupteur éteint -> schéma 074 inchangé (commission facturée 
   const kinds = (await sql("select kind from public.partner_invoices where order_id=$1 order by kind", [o.id])).map((r) => r.kind);
   assert.deepEqual(kinds, ["client_on_behalf", "commission"]);
 });
+
+// ---------------------------------------------------------------------------
+// Relecture : garde-fous contre le double paiement
+// ---------------------------------------------------------------------------
+test("garde-fou : course remboursée -> rien n'est viré ; virement bloqué 24 h -> arrêt et alerte", async () => {
+  const o = await chargedOrder(48);
+  await sql("update public.transport_orders set status='delivered' where id=$1", [o.id]);
+  await sql(`insert into public.partner_payouts(mission_id, order_id, partner_id, amount_cents, due_at, mode, kind)
+             values ($1,$2,$3,1000, now() - interval '1 minute','plateau','mission')`, [o.mission_id, o.id, ids.ready]);
+  const pp = (await sql("select id from public.partner_payouts where mission_id=$1", [o.mission_id]))[0];
+  await sql("update public.payments set status='refunded' where id=$1", [o.payment_id]);
+  let due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "course remboursée : plus rien à verser");
+  await sql("update public.payments set status='paid' where id=$1", [o.payment_id]);
+  await sql("update public.partner_payouts set status='processing', processing_at = now() - interval '25 hours' where id=$1", [pp.id]);
+  due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "jamais de nouvel essai après 24 h");
+  assert.equal((await sql("select status from public.partner_payouts where id=$1", [pp.id]))[0].status, "failed");
+});
+
+test("garde-fou : virement rejeté par la banque -> ligne en échec, administrateur prévenu", async () => {
+  const o = await chargedOrder(48);
+  await sql(`insert into public.partner_payouts(mission_id, order_id, partner_id, amount_cents, due_at, mode, kind)
+             values ($1,$2,$3,1000, now(),'plateau','mission')`, [o.mission_id, o.id, ids.ready]);
+  const pp = (await sql("select id from public.partner_payouts where mission_id=$1", [o.mission_id]))[0];
+  await sql("update public.partner_payouts set status='processing', processing_at=now() where id=$1", [pp.id]);
+  await service("select public.secoto_payout_transfer_result($1,true,'po_rejet',null,null)", [pp.id]);
+  const r = (await service("select public.secoto_payout_failed_event('po_rejet','account_closed') as r"))[0].r;
+  assert.equal(r.payouts, 1);
+  assert.equal((await sql("select status from public.partner_payouts where id=$1", [pp.id]))[0].status, "failed");
+});
+
+test("garde-fou : mission manuelle livrée avant paiement -> le versement SECOTO bascule en direct, jamais deux fois", async () => {
+  await setFlag(true);
+  const m = await manualMission({ partner: ids.ready });
+  // Livrée avant que le client paie : ligne de l'ancien circuit, à payer.
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [m.id]);
+  const avant = (await sql("select payment_circuit, status from public.partner_payouts where mission_id=$1", [m.id]))[0];
+  assert.equal(avant.payment_circuit, null);
+  const r = await openLink(m.t);
+  assert.equal(r.circuit, "direct");
+  const apres = (await sql("select id, payment_circuit, connected_account_id from public.partner_payouts where mission_id=$1", [m.id]))[0];
+  assert.equal(apres.payment_circuit, "direct", "aucun Transfer ne partira");
+  await sql("update public.partner_payouts set due_at = now() - interval '1 minute' where id=$1", [apres.id]);
+  const transfers = (await service("select public.secoto_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!transfers.some((x) => x.payout_id === apres.id));
+  // Déjà réglé par SECOTO : le lien direct est refusé.
+  const m2 = await manualMission({ partner: ids.ready });
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [m2.id]);
+  await sql("update public.partner_payouts set status='paid', paid_at=now() where mission_id=$1", [m2.id]);
+  assert.equal((await openLink(m2.t)).error, "compte_introuvable");
+});
+
+test("garde-fou : litige sur un paiement direct de mission manuelle -> virement suspendu", async () => {
+  await setFlag(true);
+  const m = await manualMission({ partner: ids.ready });
+  const r = await openLink(m.t);
+  await service("select public.secoto_settle_payment($1,'pi_lit',$2,$3,null)", [r.payment_id, "paid", `evt_${randomUUID()}`]);
+  await service("select public.secoto_direct_dispute_event($1,true)", [r.payment_id]);
+  await sql("update public.missions set progress_status='delivery_completed', status='completed' where id=$1", [m.id]);
+  const pp = (await sql("select id from public.partner_payouts where mission_id=$1", [m.id]))[0];
+  await sql("update public.partner_payouts set due_at = now() - interval '1 minute' where id=$1", [pp.id]);
+  let due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(!due.some((x) => x.payout_id === pp.id), "litige ouvert : rien ne part");
+  await service("select public.secoto_direct_dispute_event($1,false)", [r.payment_id]);
+  due = (await service("select public.secoto_direct_payouts_claim_due(50) as r"))[0].r;
+  assert.ok(due.some((x) => x.payout_id === pp.id));
+});

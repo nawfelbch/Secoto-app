@@ -13,6 +13,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { handleNewFlows, mapStripeEvent } from "./stripe-webhook.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
+import { majCompteStripe } from "../lib/secoto-server.js";
 
 const { STRIPE_SECRET_KEY, STRIPE_CONNECT_WEBHOOK_SECRET, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } = process.env;
 
@@ -33,14 +34,14 @@ function rawBody(event) {
 export async function syncConnectedAccount(admin, acct) {
   if (!acct?.id) return null;
   const s = connectStatusFromAccount(acct);
-  const { error } = await admin.from("accounts").update({
+  const { error } = await majCompteStripe((patch) => admin.from("accounts").update(patch).eq("stripe_connect_account_id", acct.id), {
     stripe_connect_status: s.status,
     stripe_transfers_enabled: s.transfers_enabled,
     stripe_payouts_enabled: s.payouts_enabled,
     stripe_card_payments_enabled: s.card_payments_enabled,
     stripe_payouts_manual: s.payouts_manual,
     stripe_connect_updated_at: new Date().toISOString(),
-  }).eq("stripe_connect_account_id", acct.id);
+  });
   return error ? null : s;
 }
 
@@ -57,6 +58,34 @@ export async function handleConnectEvent(admin, stripeEvent) {
   // paiement connu en base) sont traités ; le reste est acquitté sans effet.
   const handled = await handleNewFlows(admin, stripeEvent);
   if (handled) return handled;
+
+  // 076 : virement créé par SECOTO puis rejeté par la banque du transporteur.
+  if (stripeEvent.type === "payout.failed") {
+    const po = stripeEvent.data?.object || {};
+    const { data, error } = await admin.rpc("secoto_payout_failed_event", {
+      p_stripe_payout_id: po.id || null,
+      p_error: [po.failure_code, po.failure_message].filter(Boolean).join(" · ").slice(0, 500) || null,
+    });
+    if (error) return response(500, { error: "payout_failed_not_recorded" });
+    return response(200, { ok: true, result: data });
+  }
+
+  // 077 : litige sur un paiement direct de mission manuelle -> virement suspendu.
+  if (stripeEvent.type === "charge.dispute.created" || stripeEvent.type === "charge.dispute.closed") {
+    const d = stripeEvent.data?.object || {};
+    const intentId = typeof d.payment_intent === "string" ? d.payment_intent : d.payment_intent?.id || null;
+    if (intentId) {
+      const { data: p } = await admin.from("payments")
+        .select("id,purpose,payment_circuit,connected_account_id").eq("provider_intent_id", intentId).maybeSingle();
+      if (p && p.payment_circuit === "direct" && p.connected_account_id === stripeEvent.account) {
+        const { error } = await admin.rpc("secoto_direct_dispute_event", {
+          p_payment_id: p.id, p_open: stripeEvent.type === "charge.dispute.created",
+        });
+        if (error) return response(500, { error: "dispute_not_recorded" });
+        return response(200, { ok: true });
+      }
+    }
+  }
 
   // 077 : lien de devis d'une mission manuelle payé directement chez le
   // transporteur. Même traitement que l'ancien encaissement (bon de mission

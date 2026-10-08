@@ -8,7 +8,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 //  • versements transporteurs dus : Stripe Transfer vers le compte Connect
 //    (migration 036, interrupteur connect_payouts).
 import Stripe from "stripe";
-import { json, serviceClient } from "../lib/secoto-server.js";
+import { json, majCompteStripe, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
 import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
@@ -155,7 +155,7 @@ export async function resyncConnectAccounts({ admin, stripe, maintenant = Date.n
         stripe_connect_updated_at: horodatage,
       };
       if (s.status === "active" && !c.stripe_connect_onboarded_at) maj.stripe_connect_onboarded_at = horodatage;
-      await admin.from("accounts").update(maj).eq("id", c.id);
+      await majCompteStripe((patch) => admin.from("accounts").update(patch).eq("id", c.id), maj);
       if (s.status !== c.stripe_connect_status) rapport.push({ compte: c.id, avant: c.stripe_connect_status, apres: s.status });
     } catch (erreur) {
       // Compte introuvable ou Stripe indisponible : on repousse simplement la

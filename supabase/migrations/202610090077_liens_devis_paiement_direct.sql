@@ -130,6 +130,22 @@ begin
       return jsonb_build_object('error', 'transporteur_non_pret');
     end if;
     select a.stripe_connect_account_id into v_acct from public.accounts a where a.id = v_partner;
+    -- Mission déjà livrée et réglée au transporteur par SECOTO (ancien
+    -- circuit) : le client ne doit pas le payer une seconde fois.
+    if exists (select 1 from public.partner_payouts pp
+                where pp.mission_id = v_mission.id and pp.payment_circuit is distinct from 'direct'
+                  and pp.status in ('paid', 'processing', 'failed')) then
+      perform secoto_private.notify_admins_event('payment', 'Lien de paiement : transporteur déjà réglé',
+        format('%s : le transporteur a déjà été réglé par SECOTO. Le paiement direct est bloqué ; encaissez le client autrement.',
+          coalesce(v_mission.public_ref, v_mission.id::text)),
+        'paiement', 'devis-direct-deja-regle:' || v_mission.id::text, v_mission.id);
+      return jsonb_build_object('error', 'compte_introuvable');
+    end if;
+    -- Versement de l'ancien circuit encore à faire (mission livrée avant le
+    -- paiement) : il bascule dans le circuit direct, aucun Transfer ne partira.
+    update public.partner_payouts
+       set payment_circuit = 'direct', connected_account_id = v_acct, partner_id = v_partner
+     where mission_id = v_mission.id and payment_circuit is null and status = 'to_pay';
     v_fee := v_link.amount_cents - round(coalesce(v_mission.carrier_pay, 0) * 100)::int;
     if coalesce(v_mission.carrier_pay, 0) <= 0 or v_fee < 0 then
       perform secoto_private.notify_admins_event('payment', 'Lien de paiement : montants à vérifier',
@@ -188,95 +204,34 @@ grant execute on function public.secoto_devis_link_open(text) to service_role;
 
 -- 3. VERSEMENT DES MISSIONS MANUELLES PAYÉES EN DIRECT -------------------------------
 -- La ligne de versement d'une mission manuelle payée directement chez le
--- transporteur rejoint le circuit direct : jamais de Transfer depuis SECOTO,
--- virement de SON solde vers SA banque à l'échéance (076).
-create or replace function secoto_private.trg_payout_circuit()
-returns trigger language plpgsql security definer set search_path = ''
-as $f$
-declare v_manuel boolean;
-begin
-  if new.payment_circuit is null and new.order_id is not null then
-    select o.payment_circuit into new.payment_circuit from public.transport_orders o where o.id = new.order_id;
-  end if;
-  if new.payment_circuit = 'direct' and new.connected_account_id is null and new.order_id is not null then
-    select p.connected_account_id into new.connected_account_id
-      from public.transport_orders o join public.payments p on p.id = o.payment_id
-     where o.id = new.order_id;
-  end if;
-  -- 077 : mission manuelle réglée par lien en paiement direct.
-  if new.payment_circuit is null and new.order_id is null and new.mission_id is not null then
-    select p.payment_circuit, p.connected_account_id into new.payment_circuit, new.connected_account_id
-      from public.payments p
-     where p.mission_id = new.mission_id and p.purpose = 'devis_course'
-       and p.status = 'paid' and p.payment_circuit = 'direct'
-     order by p.paid_at desc nulls last limit 1;
-  end if;
-  if new.payment_circuit = 'direct' then
-    select coalesce(a.stripe_payouts_manual, false) into v_manuel
-      from public.accounts a where a.id = new.partner_id;
-    if coalesce(v_manuel, false) then
-      new.status := 'to_pay';
-      new.paid_at := null;
-      new.paid_via := null;
-      new.reference := coalesce(new.reference, 'Virement du solde Stripe du transporteur vers sa banque');
-    else
-      new.status := 'paid';
-      new.paid_at := coalesce(new.paid_at, now());
-      new.paid_via := 'connect';
-      new.reference := coalesce(new.reference, 'Paiement direct du client au transporteur (Stripe)');
-    end if;
-  end if;
-  return new;
-end;
-$f$;
+-- transporteur rejoint le circuit direct (secoto_private.trg_payout_circuit et
+-- secoto_direct_payouts_claim_due, définis en 076) : jamais de Transfer depuis
+-- SECOTO, virement de SON solde vers SA banque à l'échéance.
 
-create or replace function public.secoto_direct_payouts_claim_due(p_limit integer default 20)
+-- 4. LITIGES SUR UN PAIEMENT DIRECT DE MISSION MANUELLE ----------------------------------
+-- Appelée par le webhook des comptes transporteurs : tant qu'un litige est
+-- ouvert, rien n'est viré au transporteur.
+create or replace function public.secoto_direct_dispute_event(p_payment_id uuid, p_open boolean)
 returns jsonb language plpgsql volatile security definer set search_path = ''
 as $f$
-declare v_rows jsonb;
+declare v public.payments%rowtype;
 begin
-  with due as (
-    select pp.id
-      from public.partner_payouts pp
-      left join public.transport_orders o on o.id = pp.order_id
-      join public.payments p on p.id = coalesce(o.payment_id, (
-             select p2.id from public.payments p2
-              where pp.order_id is null and p2.mission_id = pp.mission_id
-                and p2.purpose = 'devis_course' and p2.payment_circuit = 'direct'
-              order by p2.paid_at desc nulls last limit 1))
-     where pp.payment_circuit = 'direct'
-       and (
-             (pp.status = 'to_pay' and pp.due_at <= now() and coalesce(pp.next_retry_at, now()) <= now())
-          or (pp.status = 'processing' and pp.processing_at < now() - interval '15 minutes')
-           )
-       and pp.amount_cents > 0
-       and pp.connected_account_id is not null
-       and p.status in ('paid', 'refunded', 'refund_pending')
-       and coalesce(p.dispute_status, '') <> 'open'
-       -- Mission manuelle : la ligne n'existe qu'une fois la mission livrée.
-       and (pp.kind = 'late_cancel' or o.status = 'delivered' or pp.order_id is null)
-     order by pp.due_at
-     limit greatest(1, least(coalesce(p_limit, 20), 100))
-     for update of pp skip locked
-  ), reserve as (
-    update public.partner_payouts pp
-       set status = 'processing', processing_at = now(), attempt_count = pp.attempt_count + 1
-      from due where pp.id = due.id
-    returning pp.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object(
-      'payout_id', r.id, 'amount_cents', r.amount_cents, 'kind', r.kind,
-      'connected_account_id', r.connected_account_id,
-      'order_id', r.order_id, 'mission_id', r.mission_id, 'attempt', r.attempt_count)), '[]'::jsonb)
-    into v_rows
-    from reserve r;
-  return v_rows;
+  update public.payments set dispute_status = case when p_open then 'open' else 'closed' end, updated_at = now()
+   where id = p_payment_id and payment_circuit = 'direct'
+  returning * into v;
+  if not found then return jsonb_build_object('skipped', true); end if;
+  if p_open then
+    perform secoto_private.notify_admins_event('payment', 'Litige client ouvert',
+      format('Paiement %s : le client conteste chez sa banque. Le virement au transporteur est suspendu.', p_payment_id),
+      'paiement', 'direct-dispute:' || p_payment_id::text, p_payment_id);
+  end if;
+  return jsonb_build_object('ok', true, 'dispute_status', v.dispute_status);
 end;
 $f$;
-revoke all on function public.secoto_direct_payouts_claim_due(integer) from public, anon, authenticated;
-grant execute on function public.secoto_direct_payouts_claim_due(integer) to service_role;
+revoke all on function public.secoto_direct_dispute_event(uuid, boolean) from public, anon, authenticated;
+grant execute on function public.secoto_direct_dispute_event(uuid, boolean) to service_role;
 
--- 4. CONTRÔLES BLOQUANTS --------------------------------------------------------------------
+-- 5. CONTRÔLES BLOQUANTS --------------------------------------------------------------------
 do $controles$
 begin
   if position('plateau_paiement_direct' in pg_get_functiondef('secoto_private.od_book_for_link(uuid)'::regprocedure)) = 0 then

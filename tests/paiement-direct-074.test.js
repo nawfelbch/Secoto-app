@@ -503,3 +503,32 @@ test("076-078 : migrations additives, interrupteurs éteints, Transfers toujours
   const m78 = readFileSync(new URL("../supabase/migrations/202610090078_commission_due_par_le_client.sql", import.meta.url), "utf8");
   assert.match(m78, /\(partner_id = auth\.uid\(\) and kind <> 'commission_client'\)/, "le transporteur ne lit pas la facture de commission du client");
 });
+
+test("relecture : code en ligne avant la migration -> la synchro Stripe continue sans les nouvelles colonnes", async () => {
+  const { majCompteStripe } = await import("../netlify/lib/secoto-server.js");
+  const essais = [];
+  const r = await majCompteStripe(async (patch) => {
+    essais.push(patch);
+    return "stripe_payouts_manual" in patch ? { error: { message: "Could not find the 'stripe_payouts_manual' column" } } : { error: null };
+  }, { stripe_connect_status: "active", stripe_card_payments_enabled: true, stripe_payouts_manual: true });
+  assert.equal(r.error, null);
+  assert.equal(essais.length, 2);
+  assert.deepEqual(essais[1], { stripe_connect_status: "active" });
+});
+
+test("relecture : webhook transporteur -> virement rejeté et litige enregistrés", async () => {
+  const { handleConnectEvent } = await import("../netlify/functions/stripe-connect-webhook.js");
+  const admin = fakeAdmin({
+    rpc: {
+      secoto_payout_failed_event: async () => ({ data: { payouts: 1 }, error: null }),
+      secoto_direct_dispute_event: async () => ({ data: { ok: true }, error: null }),
+    },
+    tables: { payments: [{ id: "p1", purpose: "devis_course", payment_circuit: "direct", connected_account_id: "acct_T", provider_intent_id: "pi_9" }] },
+  });
+  await handleConnectEvent(admin, { id: "e1", type: "payout.failed", account: "acct_T", data: { object: { id: "po_9", failure_code: "account_closed" } } });
+  assert.equal(admin.calls.find((c) => c.name === "secoto_payout_failed_event").args.p_stripe_payout_id, "po_9");
+  await handleConnectEvent(admin, { id: "e2", type: "charge.dispute.created", account: "acct_T", data: { object: { payment_intent: "pi_9" } } });
+  const d = admin.calls.find((c) => c.name === "secoto_direct_dispute_event");
+  assert.equal(d.args.p_payment_id, "p1");
+  assert.equal(d.args.p_open, true);
+});

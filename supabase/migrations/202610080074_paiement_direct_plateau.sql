@@ -55,7 +55,9 @@ revoke all on function secoto_private.mig074_patch(regprocedure, text, text) fro
 alter table public.secoto_feature_flags drop constraint if exists secoto_feature_flags_key_check;
 alter table public.secoto_feature_flags add constraint secoto_feature_flags_key_check
   check (key in ('auto_pricing', 'od_payments', 'subscriptions', 'dispatch_notifications', 'live_tracking',
-                 'direct_accept', 'connect_payouts', 'plateau_paiement_direct'));
+                 'direct_accept', 'connect_payouts', 'plateau_paiement_direct',
+                 -- clés ajoutées par 075 (gardées ici pour qu'un nouveau passage de 074 ne les rejette pas)
+                 'conditions_v2', 'commission_client'));
 insert into public.secoto_feature_flags(key) values ('plateau_paiement_direct') on conflict (key) do nothing;
 
 update public.app_settings

@@ -83,10 +83,18 @@ begin
   if new.payment_circuit is null and new.order_id is not null then
     select o.payment_circuit into new.payment_circuit from public.transport_orders o where o.id = new.order_id;
   end if;
-  if new.payment_circuit = 'direct' and new.connected_account_id is null then
+  if new.payment_circuit = 'direct' and new.connected_account_id is null and new.order_id is not null then
     select p.connected_account_id into new.connected_account_id
       from public.transport_orders o join public.payments p on p.id = o.payment_id
      where o.id = new.order_id;
+  end if;
+  -- 077 : mission manuelle réglée par lien en paiement direct.
+  if new.payment_circuit is null and new.order_id is null and new.mission_id is not null then
+    select p.payment_circuit, p.connected_account_id into new.payment_circuit, new.connected_account_id
+      from public.payments p
+     where p.mission_id = new.mission_id and p.purpose = 'devis_course'
+       and p.status in ('paid', 'refunded', 'refund_pending') and p.payment_circuit = 'direct'
+     order by p.paid_at desc nulls last limit 1;
   end if;
   if new.payment_circuit = 'direct' then
     select coalesce(a.stripe_payouts_manual, false) into v_manuel
@@ -134,13 +142,33 @@ select secoto_private.mig074_patch(
 create or replace function public.secoto_direct_payouts_claim_due(p_limit integer default 20)
 returns jsonb language plpgsql volatile security definer set search_path = ''
 as $f$
-declare v_rows jsonb;
+declare v_rows jsonb; v_bloque record;
 begin
+  -- Virement resté « en cours » plus de 24 h : Stripe a oublié sa clé
+  -- d'idempotence, un nouvel essai pourrait payer deux fois. On s'arrête et
+  -- l'administrateur vérifie dans Stripe.
+  for v_bloque in
+    update public.partner_payouts
+       set status = 'failed', processing_at = null,
+           last_error = left(coalesce(last_error || ' | ', '') || 'Virement interrompu depuis plus de 24 h : vérifier dans Stripe avant tout nouveau virement.', 500)
+     where payment_circuit = 'direct' and status = 'processing' and processing_at < now() - interval '24 hours'
+    returning id, amount_cents, connected_account_id
+  loop
+    perform secoto_private.notify_admins_event('payment', 'Virement transporteur à vérifier',
+      format('%s € (compte %s) : virement resté en cours plus de 24 h. Vérifiez dans Stripe avant toute nouvelle tentative.',
+        to_char(v_bloque.amount_cents / 100.0, 'FM999990D00'), v_bloque.connected_account_id),
+      'paiement', 'direct-payout-stuck:' || v_bloque.id::text, v_bloque.id);
+  end loop;
+
   with due as (
     select pp.id
       from public.partner_payouts pp
-      join public.transport_orders o on o.id = pp.order_id
-      join public.payments p on p.id = o.payment_id
+      left join public.transport_orders o on o.id = pp.order_id
+      join public.payments p on p.id = coalesce(o.payment_id, (
+             select p2.id from public.payments p2
+              where pp.order_id is null and p2.mission_id = pp.mission_id
+                and p2.purpose = 'devis_course' and p2.payment_circuit = 'direct'
+              order by p2.paid_at desc nulls last limit 1))
      where pp.payment_circuit = 'direct'
        and (
              (pp.status = 'to_pay' and pp.due_at <= now() and coalesce(pp.next_retry_at, now()) <= now())
@@ -148,9 +176,12 @@ begin
            )
        and pp.amount_cents > 0
        and pp.connected_account_id is not null
-       and p.status in ('paid', 'refunded', 'refund_pending')
+       -- Course remboursée : plus rien à verser. Seule la part retenue d'une
+       -- annulation tardive part malgré le remboursement partiel.
+       and (p.status = 'paid' or (pp.kind = 'late_cancel' and p.status in ('paid', 'refunded', 'refund_pending')))
        and coalesce(p.dispute_status, '') <> 'open'
-       and (pp.kind = 'late_cancel' or o.status = 'delivered')
+       -- Mission manuelle : la ligne n'existe qu'une fois la mission livrée.
+       and (pp.kind = 'late_cancel' or o.status = 'delivered' or pp.order_id is null)
      order by pp.due_at
      limit greatest(1, least(coalesce(p_limit, 20), 100))
      for update of pp skip locked
@@ -210,6 +241,11 @@ returns jsonb language plpgsql volatile security definer set search_path = ''
 as $f$
 declare v_rows jsonb;
 begin
+  -- Même garde que pour les virements du circuit direct.
+  update public.connect_bank_payouts
+     set status = 'failed', processing_at = null,
+         last_error = left(coalesce(last_error || ' | ', '') || 'Virement interrompu depuis plus de 24 h : vérifier dans Stripe.', 500)
+   where status = 'processing' and processing_at < now() - interval '24 hours';
   with due as (
     select b.id from public.connect_bank_payouts b
      where (b.status = 'to_pay' and coalesce(b.next_retry_at, now()) <= now())
@@ -262,7 +298,45 @@ $f$;
 revoke all on function public.secoto_bank_payout_result(uuid, boolean, text, text) from public, anon, authenticated;
 grant execute on function public.secoto_bank_payout_result(uuid, boolean, text, text) to service_role;
 
--- 6. CONTRÔLES BLOQUANTS ------------------------------------------------------------------
+-- 6. TEXTE DU VIREMENT ET VIREMENT REJETÉ PAR LA BANQUE --------------------------------
+select secoto_private.mig074_patch(
+  'public.secoto_payout_transfer_result(uuid, boolean, text, text, text)'::regprocedure,
+  '      format(''%s : %s € envoyés sur votre compte de versement. Le virement vers votre banque suit le calendrier de votre compte Stripe.'',',
+  '      format(case when v.payment_circuit = ''direct''
+               then ''%s : %s € virés sur votre compte bancaire.''
+               else ''%s : %s € envoyés sur votre compte de versement. Le virement vers votre banque suit le calendrier de votre compte Stripe.'' end,');
+
+-- Stripe annonce qu'un virement créé par SECOTO a été rejeté (payout.failed) :
+-- l'argent revient sur le solde du transporteur. La ligne repasse en échec et
+-- l'administrateur est prévenu (pas de nouvel essai automatique).
+create or replace function public.secoto_payout_failed_event(p_stripe_payout_id text, p_error text)
+returns jsonb language plpgsql volatile security definer set search_path = ''
+as $f$
+declare v_n integer := 0; v_m integer := 0; r record;
+begin
+  for r in
+    update public.partner_payouts
+       set status = 'failed', paid_at = null, last_error = left(coalesce(p_error, 'virement rejeté par la banque'), 500)
+     where stripe_transfer_id = p_stripe_payout_id and payment_circuit = 'direct' and status = 'paid'
+    returning id, amount_cents, mission_id
+  loop
+    v_n := v_n + 1;
+    perform secoto_private.notify_admins_event('payment', 'Virement transporteur rejeté par la banque',
+      format('%s € : virement rejeté (%s). L''argent est revenu sur le compte Stripe du transporteur.',
+        to_char(r.amount_cents / 100.0, 'FM999990D00'), coalesce(p_error, 'motif non précisé')),
+      'paiement', 'payout-failed:' || r.id::text, r.id);
+  end loop;
+  update public.connect_bank_payouts
+     set status = 'failed', paid_at = null, last_error = left(coalesce(p_error, 'virement rejeté par la banque'), 500)
+   where stripe_payout_id = p_stripe_payout_id and status = 'paid';
+  get diagnostics v_m = row_count;
+  return jsonb_build_object('payouts', v_n, 'bank_payouts', v_m);
+end;
+$f$;
+revoke all on function public.secoto_payout_failed_event(text, text) from public, anon, authenticated;
+grant execute on function public.secoto_payout_failed_event(text, text) to service_role;
+
+-- 7. CONTRÔLES BLOQUANTS ------------------------------------------------------------------
 do $controles$
 declare v_src text;
 begin
