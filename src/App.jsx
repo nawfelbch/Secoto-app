@@ -50,6 +50,7 @@ import {
   getAuthRedirectUrl,
   getServerFunctionUrl,
   getOneTimeLocation,
+  getPlatform,
   initializePlatform,
   openExternal,
   openRoute,
@@ -106,6 +107,8 @@ import BankAccountPanel from "./BankAccountPanel";
 import ConnectPayoutsPanel from "./ondemand/ConnectPayoutsPanel";
 import EspaceEntreprise, { memoriserCreationEntreprise, ouvertureEntrepriseDemandee } from "./ondemand/EspaceEntreprise";
 import MotDePasseProvisoire from "./MotDePasseProvisoire";
+import ConditionsGate, { ConditionsSentence } from "./ConditionsGate";
+import { conditionsLinks, termsPublic, termsStatus } from "./lib/conditions";
 import PhotoPrivee from "./PhotoPrivee";
 import AdminMissionPilot, {
   AssignmentPanel,
@@ -1020,6 +1023,14 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
   const [receivesStandardPlateau, setReceivesStandardPlateau] = useState(true);
   const [luxuryClosedTransportRequested, setLuxuryClosedTransportRequested] = useState(false);
   const [clientType, setClientType] = useState("particulier");
+  // 075 : la case d'acceptation n'apparaît que si l'interrupteur est allumé.
+  const [conditions, setConditions] = useState(null);
+  const [conditionsCochees, setConditionsCochees] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    termsPublic().then((c) => { if (vivant) setConditions(c?.active && c?.version ? c : null); });
+    return () => { vivant = false; };
+  }, []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1091,6 +1102,12 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       return;
     }
 
+    if (conditions && !conditionsCochees) {
+      setError("Cochez la case pour accepter les conditions.");
+      setLoading(false);
+      return;
+    }
+
     const cleanEmail = email.trim().toLowerCase();
     const metadata = normalizePublicSignupMetadata({
       role: effectiveRole,
@@ -1102,6 +1119,8 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       client_type: clientType,
       receives_standard_plateau: receivesStandardPlateau,
       luxury_closed_transport_requested: luxuryClosedTransportRequested,
+      terms_version: conditions && conditionsCochees ? conditions.version : null,
+      terms_platform: getPlatform(),
     });
     if (effectiveRole === "transporter" && emploieDesConvoyeurs
         && ["vl", "pl"].includes(transporterType)) {
@@ -1343,7 +1362,18 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
                 <Field label="Mot de passe" name="password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
                 <Field label="Téléphone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
                 <Field label="Ville" name="city" value={city} onChange={(e) => setCity(e.target.value)} required />
-                <button className="btn primary field-full" type="submit" disabled={loading}>
+                {conditions && (
+                  <label className="payment-waiver-row field-full">
+                    <input type="checkbox" checked={conditionsCochees} onChange={(e) => setConditionsCochees(e.target.checked)} />
+                    <ConditionsSentence
+                      links={conditionsLinks(
+                        effectiveRole === "transporter" ? ["cgu", "confidentialite", "conditions_transporteur"] : ["cgu", "confidentialite"],
+                        conditions.documents, conditions.version)}
+                      onOpen={(url) => openExternal(url).catch(() => {})}
+                    />
+                  </label>
+                )}
+                <button className="btn primary field-full" type="submit" disabled={loading || Boolean(conditions && !conditionsCochees)}>
                   {loading ? "Création…" : effectiveRole === "client" ? "Créer mon compte client" : "Demander mon accès transporteur"}
                 </button>
               </form>
@@ -1580,6 +1610,16 @@ export default function App() {
   // Migration 030 : fonctionnalités activées par l'administrateur (toutes
   // désactivées par défaut : aucun écran n'apparaît tant qu'elles sont fermées).
   const [flags, setFlags] = useState({});
+  // 075 : fenêtre d'acceptation des conditions (clients et transporteurs).
+  const [conditionsStatut, setConditionsStatut] = useState(null);
+  const accountIdPourConditions = account?.id;
+  const accountRolePourConditions = account?.role;
+  useEffect(() => {
+    if (!accountIdPourConditions || !["client", "transporter"].includes(accountRolePourConditions)) return undefined;
+    let vivant = true;
+    termsStatus().then((s) => { if (vivant) setConditionsStatut(s); });
+    return () => { vivant = false; };
+  }, [accountIdPourConditions, accountRolePourConditions]);
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
   // livree ne peut pas etre payee automatiquement.
   const [versements, setVersements] = useState(null);
@@ -4393,6 +4433,18 @@ export default function App() {
       <MotDePasseProvisoire
         account={account}
         onChanged={() => loadAccount(session.user.id)}
+      />
+    );
+  }
+
+  // Conditions mises à jour : rien d'autre n'est accessible tant qu'elles ne
+  // sont pas acceptées. Jamais pour l'administrateur (la base le garantit).
+  if (conditionsStatut?.required && conditionsStatut?.version && account.role !== "admin") {
+    return (
+      <ConditionsGate
+        status={conditionsStatut}
+        onAccepted={(s) => setConditionsStatut(s || { required: false })}
+        onSignOut={signOut}
       />
     );
   }

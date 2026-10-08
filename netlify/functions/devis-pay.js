@@ -46,10 +46,37 @@ export function page(titre, message, ton = "info") {
 </div></body></html>`;
 }
 
+const LIBELLES_CONDITIONS = {
+  cgu: "les conditions générales",
+  confidentialite: "la politique de confidentialité",
+};
+
+function echapper(texte) {
+  return String(texte || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 075 : liens des conditions affichés à côté de la case, ouverts dans un
+// nouvel onglet (le client reste libre de les lire ou non).
+export function liensConditions(conditions, base = SECOTO_APP_URL) {
+  const urls = conditions?.urls || {};
+  return (conditions?.documents || [])
+    .filter((cle) => LIBELLES_CONDITIONS[cle] && urls[cle])
+    .map((cle) => {
+      const url = new URL(urls[cle], base);
+      url.searchParams.set("v", conditions.version);
+      return `<a href="${echapper(url.toString())}" target="_blank" rel="noopener noreferrer" style="color:#e8622a">${LIBELLES_CONDITIONS[cle]}</a>`;
+    })
+    .join(" et ");
+}
+
 // Le particulier qui paie en ligne doit demander expressement l'execution
 // immediate : sans cette trace, il garde 14 jours pour annuler, meme une fois
 // le vehicule livre. La case n'est jamais pre-cochee.
-export function pageRenonciation(token, montantCents, trajet) {
+// 075 : la meme page porte, si l'interrupteur est allume, la case
+// d'acceptation des conditions (jamais pre-cochee non plus).
+export function pageRenonciation(token, montantCents, trajet, options = {}) {
+  const avecRenonciation = options.renonciation !== false;
+  const conditions = options.conditions || null;
   const montant = (Number(montantCents || 0) / 100).toFixed(2).replace(".", ",");
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -60,11 +87,16 @@ export function pageRenonciation(token, montantCents, trajet) {
 <h1 style="font-size:20px;margin:0 0 6px">Transport de véhicule${trajet ? ` — ${trajet}` : ""}</h1>
 <p style="font-size:26px;font-weight:700;margin:0 0 20px">${montant} €</p>
 <form method="post" action="?t=${token}">
-<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:22px">
+${conditions ? `<input type="hidden" name="version" value="${echapper(conditions.version)}">
+<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:18px">
+<input type="checkbox" name="conditions" value="oui" required style="margin-top:4px;width:20px;height:20px">
+<span>J'accepte ${liensConditions(conditions)}.</span>
+</label>` : ""}
+${avecRenonciation ? `<label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:22px">
 <input type="checkbox" name="consent" value="oui" required style="margin-top:4px;width:20px;height:20px">
 <span>Je demande l'exécution de la prestation avant la fin du délai de rétractation de 14 jours,
 et je reconnais perdre ce droit une fois le transport intégralement exécuté.</span>
-</label>
+</label>` : ""}
 <button type="submit" style="width:100%;padding:16px;border:0;border-radius:10px;background:#e8622a;color:#fff;font-size:16px;font-weight:700">
 Continuer vers le paiement
 </button>
@@ -117,19 +149,42 @@ const handler = async (event) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // Consentement envoye par la page de renonciation.
+  // 075 : état des conditions pour ce lien (interrupteur éteint = rien à accepter).
+  // Une fonction absente (base pas encore migrée) ne bloque pas le paiement.
+  const etatConditions = async () => {
+    const r = await admin.rpc("secoto_devis_link_terms", { p_token: token });
+    return !r.error && r.data?.active ? r.data : null;
+  };
+
+  // Consentements envoyés par la page de confirmation.
   if (event.httpMethod === "POST") {
     const corps = event.isBase64Encoded
       ? Buffer.from(event.body || "", "base64").toString("utf8")
       : String(event.body || "");
-    const consent = new URLSearchParams(corps).get("consent") === "oui";
-    if (!consent) {
+    const champs = new URLSearchParams(corps);
+    const consent = champs.get("consent") === "oui";
+    const conditionsCochees = champs.get("conditions") === "oui";
+    const ouverture = await admin.rpc("secoto_devis_link_open", { p_token: token });
+    const conditions = await etatConditions();
+    const conditionsAttendues = Boolean(conditions && !conditions.accepted);
+    const renonciationAttendue = Boolean(ouverture.data?.waiver_required);
+    if ((conditionsAttendues && !conditionsCochees) || (renonciationAttendue && !consent)) {
       return html(200, page("Confirmation requise", "Cochez la case pour continuer vers le paiement."));
     }
-    await admin.rpc("secoto_devis_link_open", { p_token: token });
-    const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
-    if (accord.error || accord.data?.error) {
-      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    if (conditionsAttendues) {
+      const preuve = await admin.rpc("secoto_devis_link_accept_terms", { p_token: token, p_version: champs.get("version") || "" });
+      if (preuve.error || preuve.data?.error) {
+        const perimee = preuve.data?.error === "version_perimee";
+        return html(perimee ? 409 : 503, perimee
+          ? page("Conditions mises à jour", "Nos conditions viennent d'être mises à jour. Rouvrez le lien pour les lire avant de payer.")
+          : page("Paiement indisponible", MOTIFS.compte_introuvable));
+      }
+    }
+    if (consent) {
+      const accord = await admin.rpc("secoto_devis_link_waiver", { p_token: token, p_accepted: true });
+      if (accord.error || accord.data?.error) {
+        return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      }
     }
   }
 
@@ -143,9 +198,15 @@ const handler = async (event) => {
 
   const trajet = String(data.trajet || "").replace(/^ - $/, "").trim();
 
-  // Particulier : la renonciation d'abord, le paiement ensuite.
-  if (data.waiver_required) {
-    return html(200, pageRenonciation(token, data.amount_cents, trajet));
+  // Particulier : la renonciation d'abord, le paiement ensuite. Conditions
+  // (075) : acceptées une fois, sur la même page, avant Stripe.
+  const conditions = await etatConditions();
+  const conditionsAFaire = conditions && !conditions.accepted ? conditions : null;
+  if (data.waiver_required || conditionsAFaire) {
+    return html(200, pageRenonciation(token, data.amount_cents, trajet, {
+      renonciation: Boolean(data.waiver_required),
+      conditions: conditionsAFaire,
+    }));
   }
   const description = ["SECOTO — transport de véhicule", trajet, data.vehicule]
     .filter((part) => part && String(part).trim())
