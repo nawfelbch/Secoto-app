@@ -510,3 +510,43 @@ test("077 B : convoyage ou interrupteur éteint -> lien de devis inchangé (enca
   assert.equal(off.circuit, null);
   await setFlag(true);
 });
+
+// ---------------------------------------------------------------------------
+// 078 — commission due par le client (interrupteur commission_client)
+// ---------------------------------------------------------------------------
+test("078 : interrupteur allumé -> facture transport au nom du transporteur + facture de commission au client", async () => {
+  await sql("update public.secoto_feature_flags set enabled = true where key = 'commission_client'");
+  try {
+    const o = await chargedOrder(72);
+    const ord = (await sql("select commission_payer, client_price_cents, partner_pay_cents from public.transport_orders where id=$1", [o.id]))[0];
+    assert.equal(ord.commission_payer, "client", "choix figé à la réservation");
+    await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded',$3,0,null,null)",
+      [o.payment_id, `evt_${randomUUID()}`, `pi_direct_${o.id}`]);
+    const inv = await sql("select kind, amount_cents, body from public.partner_invoices where order_id=$1 order by kind", [o.id]);
+    const tr = inv.find((i) => i.kind === "client_on_behalf");
+    const fac = inv.find((i) => i.kind === "commission_client");
+    assert.ok(tr && fac, JSON.stringify(inv.map((i) => i.kind)));
+    assert.equal(inv.find((i) => i.kind === "commission"), undefined, "aucune facture de commission au transporteur");
+    assert.equal(tr.amount_cents, ord.partner_pay_cents, "le transporteur ne facture que le prix du transport");
+    assert.equal(fac.amount_cents, ord.client_price_cents - ord.partner_pay_cents);
+    assert.equal(tr.amount_cents + fac.amount_cents, ord.client_price_cents, "au centime près");
+    assert.match(tr.body, /facture distincte de SECOTO/);
+    assert.match(fac.body, /commission de mise en relation/);
+    // Cloisonnement : le client voit ses deux factures, le transporteur jamais celle de commission.
+    const client = await as(ids.client, "select kind from public.partner_invoices where order_id=$1 order by kind", [o.id]);
+    assert.deepEqual(client.map((r) => r.kind), ["client_on_behalf", "commission_client"]);
+    const partenaire = await as(ids.ready, "select kind from public.partner_invoices where order_id=$1", [o.id]);
+    assert.deepEqual(partenaire.map((r) => r.kind), ["client_on_behalf"]);
+  } finally {
+    await sql("update public.secoto_feature_flags set enabled = false where key = 'commission_client'");
+  }
+});
+
+test("078 : interrupteur éteint -> schéma 074 inchangé (commission facturée au transporteur)", async () => {
+  const o = await chargedOrder(72);
+  assert.equal((await sql("select commission_payer from public.transport_orders where id=$1", [o.id]))[0].commission_payer, null);
+  await service("select public.secoto_od_apply_payment_event($1,$2,'payment_intent.succeeded',$3,0,null,null)",
+    [o.payment_id, `evt_${randomUUID()}`, `pi_direct_${o.id}`]);
+  const kinds = (await sql("select kind from public.partner_invoices where order_id=$1 order by kind", [o.id])).map((r) => r.kind);
+  assert.deepEqual(kinds, ["client_on_behalf", "commission"]);
+});

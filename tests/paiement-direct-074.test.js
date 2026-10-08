@@ -492,3 +492,14 @@ test("077 : webhook transporteur -> encaissement d'un lien de mission manuelle, 
   await handleConnectEvent(ancien, ev);
   assert.ok(!ancien.calls.some((c) => c.name === "secoto_settle_payment"), "ancien circuit : rien via le webhook transporteur");
 });
+
+test("076-078 : migrations additives, interrupteurs éteints, Transfers toujours exclus du circuit direct", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["202610090076_versement_a_la_livraison", "202610090077_liens_devis_paiement_direct", "202610090078_commission_due_par_le_client"]) {
+    const sql = readFileSync(new URL(`../supabase/migrations/${f}.sql`, import.meta.url), "utf8");
+    assert.doesNotMatch(sql, /\bdrop table\b|\bdrop column\b|\btruncate\b|\bdelete from\b|alter column/i, f);
+    assert.doesNotMatch(sql, /set enabled = true/i, `${f} n'allume aucun interrupteur`);
+  }
+  const m78 = readFileSync(new URL("../supabase/migrations/202610090078_commission_due_par_le_client.sql", import.meta.url), "utf8");
+  assert.match(m78, /\(partner_id = auth\.uid\(\) and kind <> 'commission_client'\)/, "le transporteur ne lit pas la facture de commission du client");
+});
