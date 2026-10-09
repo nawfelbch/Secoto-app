@@ -227,3 +227,16 @@ test("088 : réseau sans les comptes internes ; couverture départements + moto"
   assert.equal((await as(ids.client, "select public.secoto_carrier_coverage_status() as r"))[0].r.required, false);
   await assert.rejects(as(ids.client, "select public.secoto_carrier_coverage_save($1,true)", [["92"]]), /Réservé aux transporteurs/);
 });
+
+test("088 : répondre à la fenêtre ne coupe jamais les missions d'un transporteur sans préférences", async () => {
+  await account("neuf", "transporter", { type: "vl" });
+  await makeReady(ids.neuf, `acct_test_${randomUUID().slice(0, 8)}`);
+  assert.equal((await sql("select count(*)::int n from public.partner_dispatch_preferences where account_id=$1", [ids.neuf]))[0].n, 0);
+  const o = await book(ids.client);
+  assert.equal((await sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.neuf, o.id]))[0].e, true, "éligible avant");
+  await as(ids.neuf, "select public.secoto_carrier_coverage_save($1,false)", [["06"]]);
+  const p = (await sql("select available, zones from public.partner_dispatch_preferences where account_id=$1", [ids.neuf]))[0];
+  assert.equal(p.available, true, "toujours disponible");
+  assert.deepEqual(p.zones, []);
+  assert.equal((await sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.neuf, o.id]))[0].e, true, "toujours éligible, même hors de son département");
+});

@@ -707,8 +707,11 @@ begin
                     else array['voiture', 'utilitaire', 'autre'] end;
   -- Les départements sont une information : la diffusion reste ouverte à
   -- toute la France (zones vides), décision de Nawfal du 09/10/2026.
-  insert into public.partner_dispatch_preferences as p(account_id, zones, departements_base, vehicle_classes, coverage_confirmed_at, updated_at)
-  values (v_uid, '{}', v_zones, v_classes, now(), now())
+  -- Sans ligne de préférences, un transporteur est considéré disponible
+  -- (od_partner_eligible : coalesce(available, true)). La ligne créée ici le
+  -- reste donc : répondre à la fenêtre ne doit JAMAIS couper ses missions.
+  insert into public.partner_dispatch_preferences as p(account_id, available, zones, departements_base, vehicle_classes, coverage_confirmed_at, updated_at)
+  values (v_uid, true, '{}', v_zones, v_classes, now(), now())
   on conflict (account_id) do update
      set zones = '{}',
          departements_base = excluded.departements_base,
