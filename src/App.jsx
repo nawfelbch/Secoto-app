@@ -1720,6 +1720,10 @@ export default function App() {
   // partagé entre plusieurs comptes SECOTO, chacun doit pouvoir les activer.
   const [pushState, setPushState] = useState("loading"); // loading | idle | enabled | dismissed
   const [pushDecisionBusy, setPushDecisionBusy] = useState(false);
+  // 088 : la fenêtre « Activer les notifications » ne s'affiche qu'une seule
+  // fois par compte et par appareil, à la première connexion. Ensuite, le
+  // bouton du menu suffit : plus jamais d'étape imposée à la connexion.
+  const [pushGateVue, setPushGateVue] = useState(true);
 
   // Relecture du choix à chaque changement de compte (clé propre au compte).
   useEffect(() => {
@@ -1727,7 +1731,9 @@ export default function App() {
 
     const key = `secoto-push-consent-v2-${account.id}`;
     const legacyKey = `secoto-push-${account.id}`;
+    const cleVue = `secoto-push-fenetre-vue-${account.id}`;
     let v = "idle";
+    let vue = false;
 
     try {
       const stored = localStorage.getItem(key);
@@ -1740,11 +1746,16 @@ export default function App() {
       }
       // L'ancien état "dismissed" signifiait seulement "Plus tard".
       // Il ne doit donc pas empêcher le nouveau choix explicite.
+      vue = localStorage.getItem(cleVue) === "1";
+      // Déjà décidé dans le navigateur (autorisé ou bloqué) : rien à redemander.
+      if (typeof window !== "undefined" && window.Notification && window.Notification.permission !== "default") vue = true;
+      // Première fois : on la montre maintenant, et plus jamais ensuite.
+      if (!vue) localStorage.setItem(cleVue, "1");
     } catch {
-      /* ignore */
+      vue = true; // stockage indisponible : on n'impose pas la fenêtre à chaque connexion
     }
 
-    queueMicrotask(() => setPushState(v));
+    queueMicrotask(() => { setPushState(v); setPushGateVue(vue); });
   }, [account?.id]);
 
   useEffect(() => {
@@ -2519,6 +2530,7 @@ export default function App() {
         setError("Notifications non autorisées. Sur iPhone, ouvrez Réglages > Notifications > SECOTO pour les activer si la demande avait déjà été refusée.");
       } else if (res.reason === "save_failed") {
         setPushState("idle");
+        setPushGateVue(true); // on ne bloque pas l'écran : le bouton du menu permet de réessayer
         setError("L’appareil n’a pas pu être rattaché au compte. Réessayez avec une connexion stable.");
       } else {
         setPushState("dismissed");
@@ -2529,6 +2541,7 @@ export default function App() {
   }
 
   function handleDeclinePush() {
+    setPushGateVue(true);
     setPushState("dismissed");
     setNotice("Notifications non activées. Les nouvelles courses restent consultables dans l’application.");
   }
@@ -4593,7 +4606,7 @@ export default function App() {
         ))}
       </div>
 
-      {pushSupported() && pushState === "idle" && (
+      {pushSupported() && pushState === "idle" && !pushGateVue && (
         <NotificationConsentGate
           busy={pushDecisionBusy}
           onEnable={handleEnablePush}
