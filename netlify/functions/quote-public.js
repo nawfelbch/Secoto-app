@@ -10,6 +10,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // validations que le parcours identifie : un seul chemin de prix, pas deux qui
 // finiraient par diverger. Le visiteur ne transmet aucun montant.
 import { computeRoute, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { enregistrerAttribution } from "../lib/attribution-serveur.js";
 
 const { SECOTO_IP_SALT = "" } = process.env;
 
@@ -56,6 +57,8 @@ const handler = async (event) => {
     p_ip_hash: empreinte,
   });
   if (error) return json(422, { error: "quote_rejected", message: error.message });
+  // 088 : provenance du visiteur (utm, gclid, fbclid) et son choix de cookies.
+  await enregistrerAttribution(admin, data?.quote?.id, body);
 
   return json(200, { token: data?.token, quote: data?.quote, routing: route ? "ok" : "unavailable" });
 };

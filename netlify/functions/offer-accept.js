@@ -10,6 +10,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, userClient, withCors } from "../lib/secoto-server.js";
 import { chargeDirect, isDirect } from "../lib/paiement-direct.js";
+import { envoyerConversionsMeta } from "../lib/conversions.js";
 
 const DECLINE_CODES = new Set(["card_declined", "expired_card", "insufficient_funds", "payment_intent_unexpected_state", "authentication_required"]);
 
@@ -69,6 +70,8 @@ const handler = async (event) => {
   if (result?.result === "pending_capture") {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     result = await captureForOrder({ admin, stripe, orderId: result.order_id, paymentId: result.payment_id });
+    // 088 : débit réussi à l'acceptation -> conversion (si consentement).
+    if (result?.result === "confirmed") await envoyerConversionsMeta(admin);
   }
   // Le partenaire ne reçoit jamais l'identifiant de paiement.
   const safe = { result: result?.result || "unavailable", mission_id: result?.mission_id || null };

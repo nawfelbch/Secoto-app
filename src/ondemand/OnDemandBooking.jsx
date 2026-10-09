@@ -10,6 +10,7 @@ import {
   rememberAnonQuote, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
+import { evenement } from "../lib/consentement";
 
 const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
 
@@ -154,6 +155,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       const result = anonyme ? await publicQuote(payload) : await requestQuote(payload);
       if (anonyme) rememberAnonQuote(result.token);
       setQuote(result.quote);
+      // 088 : prix vu par le visiteur (mesure, avec son accord seulement).
+      if (result.quote?.client_price_cents != null) evenement("prix_affiche", { service: payload.mode || "" }, { eventId: `prix-${result.quote.id}` });
       setStep(4);
     } catch (e) {
       setError(humanizeError(e));

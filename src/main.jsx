@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App.jsx'
+import BanniereCookies from './BanniereCookies.jsx'
+import { capterAttribution } from './lib/attribution.js'
+import { initialiserConsentement } from './lib/consentement.js'
 import { registerServiceWorker } from './push.js'
 
 // Appliqué avant le premier rendu pour éviter un saut visuel : l'enveloppe
@@ -12,9 +15,14 @@ if (typeof document !== 'undefined' && Capacitor.isNativePlatform()) {
   document.documentElement.dataset.nativePlatform = Capacitor.getPlatform()
 }
 
+// 088 : provenance publicitaire (30 jours) et consentement, avant le rendu.
+capterAttribution()
+initialiserConsentement()
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
+    <BanniereCookies />
   </StrictMode>,
 )
 

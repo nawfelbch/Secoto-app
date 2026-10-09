@@ -5,6 +5,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // la rémunération partenaire et la marge sont calculés PAR LA BASE
 // (secoto_quote_create, réservée au service). Le client ne transmet aucun montant.
 import { authenticatedUserId, bearer, computeRoute, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { enregistrerAttribution } from "../lib/attribution-serveur.js";
 
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
@@ -30,6 +31,7 @@ const handler = async (event) => {
     p_route: route,
   });
   if (error) return json(422, { error: "quote_rejected", message: error.message });
+  await enregistrerAttribution(admin, data?.id, body);
   return json(200, { quote: data, routing: route ? "ok" : "unavailable" });
 };
 

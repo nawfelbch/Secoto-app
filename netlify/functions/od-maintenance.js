@@ -12,6 +12,7 @@ import { json, majCompteStripe, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
 import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
+import { envoyerConversionsMeta } from "../lib/conversions.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -107,6 +108,8 @@ export async function runMaintenance({ admin, stripe }) {
   // virement manuel).
   report.direct_payouts = await processDirectPayouts({ admin, stripe });
   report.bank_payouts = await processBankPayouts({ admin, stripe });
+  // 088 : conversions publicitaires en attente (rattrapage, chaque minute).
+  report.conversions = await envoyerConversionsMeta(admin);
   return report;
 }
 

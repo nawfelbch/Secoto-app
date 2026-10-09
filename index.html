@@ -103,25 +103,8 @@
       }
     </script>
 
-    <!-- Mesure de conversion (pixel OpenAI). Web uniquement : le pixel n'est pas
-         charge dans l'application iOS, ou un traceur publicitaire obligerait a
-         declarer du suivi a Apple et a demander le consentement ATT. -->
-    <script>
-      (function () {
-        // iOS sert l'app sur capacitor://localhost, Android sur https://localhost.
-        var natif = location.protocol === 'capacitor:' || location.protocol === 'file:'
-          || location.hostname === 'localhost'
-          || (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
-              && window.Capacitor.isNativePlatform());
-        if (natif) return;
-        // Aperçus de test (Netlify) : aucune fausse conversion envoyée aux pubs.
-        if (location.hostname !== 'app.secoto-transport.fr' && location.hostname !== 'www.app.secoto-transport.fr') return;
-        !function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;
-          var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];
-          f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");
-        oaiq("init", { pixelId: "QaUGD9H7HkVGbEFNafsha4" });
-      })();
-    </script>
+    <!-- 088 : aucune balise publicitaire ici. Google et Meta ne se chargent
+         qu'après l'accord du visiteur (src/lib/consentement.js). -->
   </head>
 
   <body>

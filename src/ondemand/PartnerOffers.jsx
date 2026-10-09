@@ -3,10 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import {
   VEHICLE_CLASSES, VEHICLE_CONSTRAINTS, SLOTS,
-  acceptOffer, carrierDirectStatus, declineOffer, departmentsFromText, formatCents, formatDateTime,
+  acceptOffer, carrierDirectStatus, declineOffer, formatCents, formatDateTime,
   getOffer, markOfferSeen, myDispatchPreferences, myOffers, updateDispatchPreferences,
 } from "../lib/onDemand";
 import { randomIdempotencyKey } from "../lib/fileSafety";
+import CouvertureTransporteur from "../CouvertureTransporteur";
 
 const EQUIPMENT = [
   { value: "treuil", label: "Treuil (véhicules non roulants)" },
@@ -35,23 +36,23 @@ const RESULT_TEXT = {
 // ---------------------------------------------------------------------------
 export function DispatchPreferencesPanel({ transporterType }) {
   const [prefs, setPrefs] = useState(null);
-  const [zonesText, setZonesText] = useState("");
+  // 088 : départements et moto se règlent dans la fenêtre « couverture ».
+  const [couverture, setCouverture] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     myDispatchPreferences()
-      .then((p) => { setPrefs(p); setZonesText((p.zones || []).join(", ")); })
+      .then((p) => { setPrefs(p); })
       .catch((e) => setError(humanizeError(e)));
   }, []);
 
   async function save(patch = {}) {
     setBusy(true); setError(""); setMessage("");
     try {
-      const next = await updateDispatchPreferences({ ...prefs, ...patch, zones: departmentsFromText(zonesText) });
+      const next = await updateDispatchPreferences({ ...prefs, ...patch, zones: prefs.zones || [] });
       setPrefs(next);
-      setZonesText((next.zones || []).join(", "));
       setMessage("Préférences enregistrées.");
     } catch (e) {
       setError(humanizeError(e));
@@ -91,12 +92,24 @@ export function DispatchPreferencesPanel({ transporterType }) {
       </div>
       <p className="muted">Sur iPhone, pour n’afficher le détail qu’après Face ID : Réglages › Notifications › Aperçus › « Si déverrouillé ».</p>
       <div className="form-grid" style={{ marginTop: 14 }}>
-        <label className="field field-full"><span>Départements de prise en charge (vide = toute la France)</span>
-          <input value={zonesText} placeholder="75, 92, 93, 94" onChange={(e) => setZonesText(e.target.value)} onBlur={() => save()} />
-        </label>
-        <fieldset className="field field-full"><span>Catégories de véhicules (aucune cochée = toutes)</span>
+        <div className="field field-full">
+          <span>Départements de prise en charge</span>
+          <p style={{ margin: "4px 0 8px" }}>{(prefs.zones || []).length ? prefs.zones.join(", ") : "Non renseignés"}</p>
+          {!couverture && <button type="button" className="btn ghost small" onClick={() => setCouverture(true)}>Modifier mes départements et la moto</button>}
+        </div>
+        {couverture && (
+          <div className="field-full">
+            <CouvertureTransporteur onSaved={() => { setCouverture(false); myDispatchPreferences().then(setPrefs).catch(() => {}); }} onCancel={() => setCouverture(false)} />
+          </div>
+        )}
+        <fieldset className="field field-full"><span>Catégories de véhicules acceptées</span>
           <div className="od-checks">{VEHICLE_CLASSES.map((c) => (
-            <label key={c.value}><input type="checkbox" checked={prefs.vehicle_classes.includes(c.value)} onChange={() => save({ vehicle_classes: toggle(prefs.vehicle_classes, c.value) })} />{c.label}</label>
+            <label key={c.value}><input type="checkbox" checked={prefs.vehicle_classes.includes(c.value)} onChange={() => {
+              const suivant = toggle(prefs.vehicle_classes, c.value);
+              // Aucune case cochée voudrait dire « tout », moto comprise : on garde au moins une catégorie.
+              if (suivant.length === 0) { setError("Gardez au moins une catégorie de véhicule."); return; }
+              save({ vehicle_classes: suivant });
+            }} />{c.label}</label>
           ))}</div>
         </fieldset>
         {transporterType !== "convoyeur" && (

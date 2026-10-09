@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DOCUMENT_TITLES, PRIVACY_PATH, conditionsLinks, conditionsUrl, termsPublic } from "./lib/conditions";
 import { openExternal } from "./platform/runtime";
+import { estNatif, ouvrirReglagesCookies } from "./lib/consentement";
 
 // ============================================================================
 // SECOTO 075 — Accès aux documents légaux, visibles et cliquables.
@@ -63,5 +64,13 @@ export default function LiensLegaux({ role, titre = "Documents" }) {
     ? conditionsLinks(cles, conditions.documents, conditions.version)
     : [{ key: "confidentialite", title: DOCUMENT_TITLES.confidentialite, url: conditionsUrl(PRIVACY_PATH) }];
 
-  return <DocumentsLegaux links={liens} titre={titre} onOpen={(url) => openExternal(url).catch(() => {})} />;
+  return (
+    <>
+      <DocumentsLegaux links={liens} titre={titre} onOpen={(url) => openExternal(url).catch(() => {})} />
+      {/* 088 : le choix de cookies se change à tout moment (web uniquement). */}
+      {!estNatif() && (
+        <button type="button" className="btn ghost small cookies-gerer" onClick={ouvrirReglagesCookies}>Gérer mes cookies</button>
+      )}
+    </>
+  );
 }

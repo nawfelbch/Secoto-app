@@ -16,7 +16,7 @@ import {
   intentIdFromObject,
   subscriptionEventData,
 } from "../lib/secoto-server.js";
-import { mesurerConversion } from "../lib/mesure-conversion.js";
+import { envoyerConversionsMeta } from "../lib/conversions.js";
 
 const {
   STRIPE_SECRET_KEY,
@@ -94,12 +94,8 @@ export async function handleNewFlows(admin, stripeEvent) {
   });
   // 500 -> Stripe rejoue ; la fonction SQL est idempotente et monotone.
   if (error) return response(500, { error: "settle_failed" });
-  if (type === "payment_intent.succeeded") {
-    await mesurerConversion({
-      reference: paymentId,
-      horodatageMs: Number(stripeEvent.created) * 1000 || Date.now(),
-    });
-  }
+  // 088 : commande payée -> API Conversions Meta (si consentement).
+  if (type === "payment_intent.succeeded") await envoyerConversionsMeta(admin);
   return response(200, { ok: true, result });
 }
 
@@ -195,12 +191,7 @@ const handler = async (event) => {
     return response(500, { error: "settle_failed" });
   }
 
-  if (status === "paid") {
-    await mesurerConversion({
-      reference: resolvedPaymentId,
-      horodatageMs: Number(stripeEvent.created) * 1000 || Date.now(),
-    });
-  }
+  if (status === "paid") await envoyerConversionsMeta(admin);
 
   return response(200, { ok: true, result: data });
 };

@@ -112,7 +112,12 @@ import LiensLegaux, { DocumentsLegaux } from "./DocumentsLegaux";
 import SavPanel from "./SavPanel";
 import AdminSavPanel from "./AdminSavPanel";
 import EspaceDirigeant from "./EspaceDirigeant";
+import AcquisitionPanel from "./AcquisitionPanel";
+import CouvertureTransporteur from "./CouvertureTransporteur";
+import { couvertureStatut } from "./lib/couverture";
 import { dirigeantAcces } from "./lib/dirigeant";
+import { attributionPourEnvoi } from "./lib/attribution";
+import { consentementPub, evenement, surChangement } from "./lib/consentement";
 import { clientHasCourse } from "./lib/sav";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
@@ -1144,12 +1149,14 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       email: cleanEmail,
       password,
       options: {
-        data: metadata,
+        // 088 : provenance publicitaire et choix de cookies, lus par la base.
+        data: { ...metadata, attribution: attributionPourEnvoi(), consentement_pub: consentementPub() },
         emailRedirectTo: authRedirectUrl,
       },
     });
 
     if (error) { setError(humanizeError(error)); setLoading(false); return; }
+    evenement("compte_cree", { role: effectiveRole }, { eventId: data.user?.id ? `compte-${data.user.id}` : undefined });
 
     if (!data.user) {
       setNotice("Compte créé. Vérifiez votre email si une confirmation est demandée.");
@@ -1657,6 +1664,16 @@ export default function App() {
     supabase.rpc("secoto_admin_locked_mission_ids").then(({ data }) => { if (vivant) setMissionsVerrouillees(Array.isArray(data) ? data : []); });
     return () => { vivant = false; };
   }, [accountRolePourConditions, flags.mise_en_relation_v2, missions]);
+  // 088 : provenance et choix de cookies rattachés au compte connecté
+  // (une fois par session, puis à chaque changement de choix).
+  useEffect(() => {
+    if (!accountIdPourConditions) return undefined;
+    const envoyer = () => supabase.rpc("secoto_mon_attribution", {
+      p_attr: attributionPourEnvoi(), p_consentement: consentementPub(),
+    }).then(() => {}, () => {});
+    envoyer();
+    return surChangement(envoyer);
+  }, [accountIdPourConditions]);
   // 087 : espace dirigeant — la base seule décide qui y a accès.
   const [espaceDirigeant, setEspaceDirigeant] = useState(false);
   useEffect(() => {
@@ -1671,6 +1688,14 @@ export default function App() {
     if (!accountIdPourConditions || accountRolePourConditions !== "transporter") return undefined;
     let vivant = true;
     carrierRatesStatus().then((s) => { if (vivant) setBareme({ ...s, accountId: accountIdPourConditions }); });
+    return () => { vivant = false; };
+  }, [accountIdPourConditions, accountRolePourConditions]);
+  // 088 : départements couverts et moto, confirmés par chaque transporteur.
+  const [couverture, setCouverture] = useState(null);
+  useEffect(() => {
+    if (!accountIdPourConditions || accountRolePourConditions !== "transporter") return undefined;
+    let vivant = true;
+    couvertureStatut().then((s) => { if (vivant) setCouverture({ ...s, accountId: accountIdPourConditions }); });
     return () => { vivant = false; };
   }, [accountIdPourConditions, accountRolePourConditions]);
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
@@ -4328,6 +4353,7 @@ export default function App() {
           { title: "Réseau", items: [
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
             { key: "clients", label: "Clients", icon: "user" },
+            { key: "acquisition", label: "Acquisition", icon: "chart" },
           ] },
           { title: "Réglages", items: [
             { key: "notifications", label: "Notifications", icon: "settings" },
@@ -4520,6 +4546,19 @@ export default function App() {
       <main className="app-shell">
         <div className="layout">
           <BaremeTransporteur gate status={bareme} onSaved={(s) => setBareme({ ...(s || { required: false }), accountId: account.id })} />
+        </div>
+      </main>
+    );
+  }
+
+  // 088 : puis il confirme ses départements et s'il prend la moto (un écran).
+  if (couverture?.accountId === account.id && couverture?.required && account.role === "transporter"
+      && !(conditionsStatut?.accountId === account.id && conditionsStatut?.required)
+      && !(bareme?.accountId === account.id && bareme?.required)) {
+    return (
+      <main className="app-shell">
+        <div className="layout">
+          <CouvertureTransporteur gate status={couverture} onSaved={(s) => setCouverture({ ...(s || {}), required: false, accountId: account.id })} />
         </div>
       </main>
     );
@@ -5188,6 +5227,12 @@ export default function App() {
           {adminTab === "sav" && (
             <section className="layout">
               <AdminSavPanel />
+            </section>
+          )}
+
+          {adminTab === "acquisition" && (
+            <section className="layout">
+              <AcquisitionPanel />
             </section>
           )}
 

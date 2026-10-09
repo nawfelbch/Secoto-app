@@ -99,3 +99,11 @@ export function totauxAnnee(mois = []) {
     operations: t.operations + Number(m.operations || 0),
   }), { encaisse: 0, reverse: 0, rembourse: 0, commission: 0, operations: 0 });
 }
+
+/** Période des N derniers jours, aujourd'hui inclus (fin exclue = demain). */
+export function derniersJours(n, maintenant = new Date()) {
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fin = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate() + 1);
+  const debut = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() - n);
+  return { debut: iso(debut), fin: iso(fin) };
+}

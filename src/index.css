@@ -1757,3 +1757,42 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
   .dir-liste li .dir-montant { position: static; justify-self: end; font-size: 1rem; }
   .dir-declaration .btn { width: 100%; min-width: 0; }
 }
+
+/* ============================================================
+   088 — BANDEAU COOKIES, ACQUISITION, COUVERTURE TRANSPORTEUR
+============================================================ */
+.cookies-bandeau { position: fixed; z-index: 2000; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
+  padding: 12px max(12px, env(safe-area-inset-right, 0px)) max(12px, calc(env(safe-area-inset-bottom, 0px) + 10px)) max(12px, env(safe-area-inset-left, 0px));
+  pointer-events: none; }
+.cookies-carte { pointer-events: auto; width: 100%; max-width: 560px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 18px;
+  background: var(--glass-strong); box-shadow: var(--shadow-card); backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); }
+.cookies-titre { margin: 0 0 6px; font-weight: 700; font-size: 0.95rem; }
+.cookies-texte { margin: 0 0 12px; font-size: 0.86rem; line-height: 1.45; color: var(--text-soft); }
+.cookies-texte a { color: var(--accent-2); }
+.cookies-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cookies-btn { min-height: 46px; justify-content: center; font-weight: 700; border: 1px solid var(--border); background: var(--glass-soft); color: var(--text); }
+.cookies-gerer { margin-top: 10px; }
+
+.acq-periodes { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border-soft); border-radius: 999px; background: var(--glass-soft); }
+.acq-periodes button { min-height: 40px; padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 600; font-size: 0.86rem; }
+.acq-periodes button.active { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: var(--accent-ink); }
+.acq-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.acq-liste li { padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 14px; background: var(--glass-soft); display: grid; gap: 8px; min-width: 0; }
+.acq-tete { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; min-width: 0; }
+.acq-tete strong { overflow-wrap: anywhere; }
+.acq-chiffres { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.acq-chiffres span { display: grid; gap: 2px; font-size: 0.74rem; color: var(--muted); }
+.acq-chiffres b { font-family: var(--font-display); font-size: 1.05rem; color: var(--text); }
+.acq-deps { display: flex; flex-wrap: wrap; gap: 6px; }
+.acq-deps span { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--glass-soft); font-size: 0.82rem; }
+
+.couv-raccourcis { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.couv-raccourcis button { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--glass-soft); font-weight: 600; font-size: 0.86rem; color: var(--text); }
+.couv-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; max-height: 38vh; overflow-y: auto; padding: 2px; -webkit-overflow-scrolling: touch; }
+.couv-grille button { min-height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--glass-soft); font-weight: 700; color: var(--text); }
+.couv-grille button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.couv-moto { display: flex; gap: 12px; align-items: flex-start; margin: 14px 0 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--glass-soft); }
+.couv-moto input { width: 22px; height: 22px; margin-top: 2px; flex: 0 0 auto; }
+@media (max-width: 640px) {
+  .acq-chiffres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

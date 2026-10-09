@@ -1,8 +1,10 @@
-// Mesure de conversion (pixel OpenAI).
+// SECOTO — Mesure de conversion côté navigateur (088).
 //
-// Un seul point d'entree pour toute l'application : l'evenement ne part qu'une
-// fois par paiement, jamais dans l'app iOS (ou le pixel n'est pas charge), et
-// un echec de mesure ne doit jamais casser l'ecran qui le porte.
+// Un seul point d'entrée pour toute l'application : l'événement ne part qu'une
+// fois par paiement, seulement avec l'accord du visiteur (voir consentement.js),
+// et un échec de mesure ne doit jamais casser l'écran qui le porte.
+// L'ancien pixel OpenAI est retiré (décision de Nawfal du 09/10/2026).
+import { evenement } from "./consentement";
 
 const CLE = "secoto:conversions-mesurees";
 
@@ -13,18 +15,20 @@ function dejaMesure(reference) {
     window.localStorage.setItem(CLE, JSON.stringify([...vues, reference].slice(-50)));
     return false;
   } catch {
-    // Navigation privee, stockage bloque : on mesure, quitte a compter deux fois.
+    // Navigation privée, stockage bloqué : on mesure, quitte à compter deux fois.
     return false;
   }
 }
 
-export function conversionCommande(reference) {
+/** event_id commun navigateur / serveur : « cmd-<identifiant du paiement> ». */
+export const eventIdCommande = (paymentId) => `cmd-${paymentId}`;
+
+export function conversionCommande(paymentId) {
   try {
-    if (!reference || typeof window === "undefined") return;
-    if (typeof window.oaiq !== "function") return; // app iOS, ou pixel non charge
-    if (dejaMesure(String(reference))) return;
-    window.oaiq("measure", "order_created", { type: "contents" });
+    if (!paymentId || typeof window === "undefined") return;
+    if (dejaMesure(String(paymentId))) return;
+    evenement("commande_payee", { currency: "EUR" }, { eventId: eventIdCommande(paymentId) });
   } catch {
-    // Jamais d'erreur remontee au client pour une question de mesure.
+    // Jamais d'erreur remontée au client pour une question de mesure.
   }
 }

@@ -8,6 +8,8 @@ import { supabase } from "../supabaseClient";
 import { getPlatform, getServerFunctionUrl } from "../platform/runtime";
 import { humanizeError } from "./humanError";
 import { randomIdempotencyKey } from "./fileSafety";
+import { attributionPourEnvoi } from "./attribution";
+import { consentementPub } from "./consentement";
 
 export const VEHICLE_CLASSES = [
   { value: "voiture", label: "Voiture" },
@@ -135,9 +137,11 @@ async function callPublicFunction(name, body) {
 export const featureFlags = () => rpc("secoto_feature_flags", {});
 
 // ---- Client ----------------------------------------------------------------
-export const requestQuote = (payload) => callFunction("quote-transport", { payload });
+// 088 : chaque devis emporte la provenance du visiteur et son choix de cookies.
+const mesureDevis = () => ({ attribution: attributionPourEnvoi(), consentement: consentementPub() });
+export const requestQuote = (payload) => callFunction("quote-transport", { payload, ...mesureDevis() });
 // Devis sans compte : le prix s'affiche d'abord, le compte vient pour réserver.
-export const publicQuote = (payload) => callPublicFunction("quote-public", { payload });
+export const publicQuote = (payload) => callPublicFunction("quote-public", { payload, ...mesureDevis() });
 export const claimAnonQuote = (token) => rpc("secoto_anon_quote_claim", { p_token: token });
 
 // Le jeton du devis anonyme survit à la création du compte : sans lui, le
