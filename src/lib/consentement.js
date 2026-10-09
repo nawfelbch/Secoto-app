@@ -107,6 +107,9 @@ function chargerMeta() {
   t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
   document,'script','https://connect.facebook.net/en_US/fbevents.js');
   window.fbq("consent", "grant");
+  // Pas d'événements devinés par Meta (« Subscribe » sur un clic de bouton) :
+  // seuls les événements envoyés par l'app comptent.
+  window.fbq("set", "autoConfig", false, IDS.meta);
   window.fbq("init", IDS.meta);
   window.fbq("track", "PageView");
 }
