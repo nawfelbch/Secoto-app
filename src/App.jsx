@@ -113,8 +113,6 @@ import SavPanel from "./SavPanel";
 import AdminSavPanel from "./AdminSavPanel";
 import EspaceDirigeant from "./EspaceDirigeant";
 import AcquisitionPanel from "./AcquisitionPanel";
-import CouvertureTransporteur from "./CouvertureTransporteur";
-import { couvertureStatut } from "./lib/couverture";
 import { dirigeantAcces } from "./lib/dirigeant";
 import { attributionPourEnvoi } from "./lib/attribution";
 import { consentementPub, evenement, surChangement } from "./lib/consentement";
@@ -1688,14 +1686,6 @@ export default function App() {
     if (!accountIdPourConditions || accountRolePourConditions !== "transporter") return undefined;
     let vivant = true;
     carrierRatesStatus().then((s) => { if (vivant) setBareme({ ...s, accountId: accountIdPourConditions }); });
-    return () => { vivant = false; };
-  }, [accountIdPourConditions, accountRolePourConditions]);
-  // 088 : départements couverts et moto, confirmés par chaque transporteur.
-  const [couverture, setCouverture] = useState(null);
-  useEffect(() => {
-    if (!accountIdPourConditions || accountRolePourConditions !== "transporter") return undefined;
-    let vivant = true;
-    couvertureStatut().then((s) => { if (vivant) setCouverture({ ...s, accountId: accountIdPourConditions }); });
     return () => { vivant = false; };
   }, [accountIdPourConditions, accountRolePourConditions]);
   // Etat du compte de versement Stripe du transporteur : sans lui, une course
@@ -4559,19 +4549,6 @@ export default function App() {
       <main className="app-shell">
         <div className="layout">
           <BaremeTransporteur gate status={bareme} onSaved={(s) => setBareme({ ...(s || { required: false }), accountId: account.id })} />
-        </div>
-      </main>
-    );
-  }
-
-  // 088 : puis il confirme ses départements et s'il prend la moto (un écran).
-  if (couverture?.accountId === account.id && couverture?.required && account.role === "transporter"
-      && !(conditionsStatut?.accountId === account.id && conditionsStatut?.required)
-      && !(bareme?.accountId === account.id && bareme?.required)) {
-    return (
-      <main className="app-shell">
-        <div className="layout">
-          <CouvertureTransporteur gate status={couverture} onSaved={(s) => setCouverture({ ...(s || {}), required: false, accountId: account.id })} />
         </div>
       </main>
     );

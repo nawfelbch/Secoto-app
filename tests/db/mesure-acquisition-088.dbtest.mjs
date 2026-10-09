@@ -1,4 +1,4 @@
-// Tests d'intégration base de données — migration 088 (mesure de l'acquisition, test, réseau, couverture).
+// Tests d'intégration base de données — migration 088 (mesure de l'acquisition, test, réseau, aucune sectorisation).
 // Exécution : PGURL=postgres://... node --test tests/db/mesure-acquisition-088.dbtest.mjs
 // Base JETABLE uniquement (données fictives « TEST »). Jamais sur la production.
 import test from "node:test";
@@ -198,32 +198,34 @@ test("088 : tableau d'acquisition (admin) par source et campagne", async () => {
   await assert.rejects(as(ids.client, "select public.secoto_admin_acquisition($1::date,$2::date)", [debut, fin]), /./);
 });
 
-test("088 : réseau sans les comptes internes ; couverture départements + moto", async () => {
+test("088 : réseau par type (PL, VL, convoyeurs), sans les comptes internes", async () => {
   await sql("update public.accounts set is_internal = true where id=$1", [ids.interne]);
   const avant = (await as(ids.admin, "select public.secoto_admin_reseau() as r"))[0].r;
   const total = avant.resume.transporteurs;
   await sql("update public.accounts set is_internal = false where id=$1", [ids.interne]);
   const apres = (await as(ids.admin, "select public.secoto_admin_reseau() as r"))[0].r;
   assert.equal(apres.resume.transporteurs, total + 1, "le compte interne était exclu");
+  assert.ok(apres.par_type.some((t) => t.type === "vl" && t.transporteurs >= 2));
+  assert.equal(apres.departements, undefined, "plus aucun découpage par département");
   await sql("update public.accounts set is_internal = true where id=$1", [ids.interne]);
+  await assert.rejects(as(ids.client, "select public.secoto_admin_reseau()"), /./);
+});
 
-  let s = (await as(ids.ready, "select public.secoto_carrier_coverage_status() as r"))[0].r;
-  assert.equal(s.required, true);
-  assert.equal(s.moto, false, "moto décochée par défaut");
-  await assert.rejects(as(ids.ready, "select public.secoto_carrier_coverage_save($1,false)", [["99"]]), /Département inconnu/);
-  await assert.rejects(as(ids.ready, "select public.secoto_carrier_coverage_save($1,false)", [[]]), /au moins un département/);
-  s = (await as(ids.ready, "select public.secoto_carrier_coverage_save($1,false) as r", [["92", "75", "2a"]]))[0].r;
-  assert.equal(s.required, false);
-  let p = (await sql("select zones, departements_base, vehicle_classes from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0];
-  assert.deepEqual([...p.departements_base].sort(), ["2A", "75", "92"]);
-  assert.deepEqual(p.zones, [], "aucune restriction : il reçoit les missions de toute la France");
-  assert.ok(!p.vehicle_classes.includes("moto"));
-  assert.ok(p.vehicle_classes.includes("voiture"));
-  s = (await as(ids.ready, "select public.secoto_carrier_coverage_save($1,true) as r", [["92"]]))[0].r;
-  assert.equal(s.moto, true);
-  p = (await sql("select vehicle_classes from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0];
-  assert.ok(p.vehicle_classes.includes("moto"));
-  // Un client n'est jamais concerné.
-  assert.equal((await as(ids.client, "select public.secoto_carrier_coverage_status() as r"))[0].r.required, false);
-  await assert.rejects(as(ids.client, "select public.secoto_carrier_coverage_save($1,true)", [["92"]]), /Réservé aux transporteurs/);
+test("088 : aucune sectorisation — un département saisi est ignoré, la mission part partout", async () => {
+  // Le réglage envoyé avec zones ["92"] (test.before) a été vidé.
+  assert.deepEqual((await sql("select zones from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0].zones, []);
+  // Même en écrivant directement en base, aucun département n'est retenu.
+  await sql("update public.partner_dispatch_preferences set zones = '{06}' where account_id=$1", [ids.ready]);
+  assert.deepEqual((await sql("select zones from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0].zones, []);
+  // Une mission au départ des Hauts-de-Seine part au transporteur, où qu'il soit.
+  const o = await book(ids.client);
+  assert.equal((await sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.ready, o.id]))[0].e, true);
+  // Transporteur tout neuf, sans aucun réglage : éligible aussi.
+  await account("neuf", "transporter", { type: "vl" });
+  await makeReady(ids.neuf, `acct_test_${randomUUID().slice(0, 8)}`);
+  assert.equal((await sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.neuf, o.id]))[0].e, true);
+  // Seul le type compte : un convoyeur ne reçoit pas une mission plateau.
+  await account("convoyeur", "transporter", { type: "convoyeur" });
+  await makeReady(ids.convoyeur, `acct_test_${randomUUID().slice(0, 8)}`);
+  assert.equal((await sql("select secoto_private.od_partner_eligible($1,$2) e", [ids.convoyeur, o.id]))[0].e, false);
 });

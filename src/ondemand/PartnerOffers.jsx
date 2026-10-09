@@ -7,8 +7,6 @@ import {
   getOffer, markOfferSeen, myDispatchPreferences, myOffers, updateDispatchPreferences,
 } from "../lib/onDemand";
 import { randomIdempotencyKey } from "../lib/fileSafety";
-import CouvertureTransporteur from "../CouvertureTransporteur";
-import { couvertureStatut } from "../lib/couverture";
 
 const EQUIPMENT = [
   { value: "treuil", label: "Treuil (véhicules non roulants)" },
@@ -37,14 +35,6 @@ const RESULT_TEXT = {
 // ---------------------------------------------------------------------------
 export function DispatchPreferencesPanel({ transporterType }) {
   const [prefs, setPrefs] = useState(null);
-  // 088 : départements et moto se règlent dans la fenêtre « couverture ».
-  const [couverture, setCouverture] = useState(false);
-  const [base, setBase] = useState([]);
-  useEffect(() => {
-    let vivant = true;
-    couvertureStatut().then((s) => { if (vivant) setBase(s?.zones || []); });
-    return () => { vivant = false; };
-  }, [couverture]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -58,7 +48,8 @@ export function DispatchPreferencesPanel({ transporterType }) {
   async function save(patch = {}) {
     setBusy(true); setError(""); setMessage("");
     try {
-      const next = await updateDispatchPreferences({ ...prefs, ...patch, zones: prefs.zones || [] });
+      // 088 : aucune sectorisation, les missions viennent de toute la France.
+      const next = await updateDispatchPreferences({ ...prefs, ...patch, zones: [] });
       setPrefs(next);
       setMessage("Préférences enregistrées.");
     } catch (e) {
@@ -99,24 +90,10 @@ export function DispatchPreferencesPanel({ transporterType }) {
       </div>
       <p className="muted">Sur iPhone, pour n’afficher le détail qu’après Face ID : Réglages › Notifications › Aperçus › « Si déverrouillé ».</p>
       <div className="form-grid" style={{ marginTop: 14 }}>
-        <div className="field field-full">
-          <span>Départements où vous êtes basé (vous recevez les missions de toute la France)</span>
-          <p style={{ margin: "4px 0 8px" }}>{base.length ? base.join(", ") : "Non renseignés"}</p>
-          {!couverture && <button type="button" className="btn ghost small" onClick={() => setCouverture(true)}>Modifier mes départements et la moto</button>}
-        </div>
-        {couverture && (
-          <div className="field-full">
-            <CouvertureTransporteur onSaved={() => { setCouverture(false); myDispatchPreferences().then(setPrefs).catch(() => {}); }} onCancel={() => setCouverture(false)} />
-          </div>
-        )}
-        <fieldset className="field field-full"><span>Catégories de véhicules acceptées</span>
+        <p className="field-full muted" style={{ margin: 0 }}>Vous recevez les missions de toute la France, selon votre type de véhicule.</p>
+        <fieldset className="field field-full"><span>Catégories de véhicules (aucune cochée = toutes)</span>
           <div className="od-checks">{VEHICLE_CLASSES.map((c) => (
-            <label key={c.value}><input type="checkbox" checked={prefs.vehicle_classes.includes(c.value)} onChange={() => {
-              const suivant = toggle(prefs.vehicle_classes, c.value);
-              // Aucune case cochée voudrait dire « tout », moto comprise : on garde au moins une catégorie.
-              if (suivant.length === 0) { setError("Gardez au moins une catégorie de véhicule."); return; }
-              save({ vehicle_classes: suivant });
-            }} />{c.label}</label>
+            <label key={c.value}><input type="checkbox" checked={prefs.vehicle_classes.includes(c.value)} onChange={() => save({ vehicle_classes: toggle(prefs.vehicle_classes, c.value) })} />{c.label}</label>
           ))}</div>
         </fieldset>
         {transporterType !== "convoyeur" && (
