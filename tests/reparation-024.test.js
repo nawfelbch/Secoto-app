@@ -258,9 +258,12 @@ test("le brouillon chiffré ne réencode plus les photos à chaque frappe", () =
 });
 
 test("un envoi ne peut plus rester pendant indéfiniment", () => {
-  assert.match(privateFilesSource, /xhr\.timeout = timeoutMs/);
-  assert.match(privateFilesSource, /xhr\.ontimeout/);
-  assert.match(privateFilesSource, /UPLOAD_TIMEOUT_MS = 45_000/);
+  // 10/10/2026 : arrêt si l'envoi n'avance plus (et non plus au bout de 45 s
+  // d'un envoi lent qui progresse), avec un plafond absolu par photo.
+  assert.match(privateFilesSource, /UPLOAD_TIMEOUT_MS = 60_000/);
+  assert.match(privateFilesSource, /UPLOAD_MAX_MS = 6 \* 60_000/);
+  assert.match(privateFilesSource, /couperSiBloque\(\); \/\/ ça avance/);
+  assert.match(privateFilesSource, /arretReseau = true; xhr\.abort\(\)/);
   assert.match(appSource, /function cancelTrackingUpload\(/);
 });
 

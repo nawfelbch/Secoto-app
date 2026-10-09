@@ -8,8 +8,8 @@ import { supabase, supabaseAnonKey, supabaseUrl } from "../supabaseClient";
 // · L'envoi n'avait AUCUN délai maximum. En zone blanche, dans un parking
 //   souterrain ou un ascenseur — le quotidien d'un convoyeur — la requête
 //   restait pendante indéfiniment : le bouton restait grisé, aucune sortie
-//   possible sauf tuer l'application. Chaque envoi a désormais un délai de
-//   45 s, et l'écran peut l'annuler.
+//   possible sauf tuer l'application. Un envoi qui n'avance plus pendant
+//   60 s est arrêté (voir UPLOAD_TIMEOUT_MS), et l'écran peut l'annuler.
 //
 // · Les fichiers partaient un par un : jusqu'à dix envois en série. Ils
 //   partent maintenant deux par deux, avec une progression par fichier
@@ -20,7 +20,13 @@ import { supabase, supabaseAnonKey, supabaseUrl } from "../supabaseClient";
 //   sont re-signées à la demande.
 // ============================================================================
 
-export const UPLOAD_TIMEOUT_MS = 45_000;
+// 10/10/2026 : le délai ne coupe plus un envoi LENT mais qui avance. Il coupe
+// seulement un envoi qui n'avance plus du tout depuis UPLOAD_TIMEOUT_MS
+// (réseau perdu). Avant, une photo de 1,7 Mo sur une barre de réseau était
+// coupée au bout de 45 s alors qu'elle progressait, trois fois de suite.
+export const UPLOAD_TIMEOUT_MS = 60_000;
+// Garde-fou absolu par photo, même si elle avance au compte-gouttes.
+export const UPLOAD_MAX_MS = 6 * 60_000;
 const SIGNED_URL_DEFAULT_SECONDS = 900; // 15 minutes
 const SIGN_CONCURRENCY = 6;
 const UPLOAD_CONCURRENCY = 2;
@@ -79,11 +85,19 @@ async function verifyExistingObject(bucket, path) {
   return !error && Boolean(data?.signedUrl);
 }
 
-function uploadOnce({ bucket, path, file, accessToken, onProgress, signal, timeoutMs }) {
+function uploadOnce({ bucket, path, file, accessToken, onProgress, signal, timeoutMs, maxMs = UPLOAD_MAX_MS }) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let arretReseau = false;
+    let veille = null;
+    let plafond = null;
+    const nettoyer = () => { clearTimeout(veille); clearTimeout(plafond); };
+    const couperSiBloque = () => {
+      clearTimeout(veille);
+      veille = setTimeout(() => { arretReseau = true; xhr.abort(); }, timeoutMs);
+    };
+
     xhr.open("POST", encodeStoragePath(bucket, path), true);
-    xhr.timeout = timeoutMs;
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
     xhr.setRequestHeader("apikey", supabaseAnonKey);
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
@@ -91,17 +105,23 @@ function uploadOnce({ bucket, path, file, accessToken, onProgress, signal, timeo
     xhr.setRequestHeader("cache-control", "3600");
 
     xhr.upload.onprogress = (event) => {
+      couperSiBloque(); // ça avance : on laisse le temps qu'il faut
       if (!event.lengthComputable) return;
       onProgress?.(Math.min(99, Math.round((event.loaded / event.total) * 100)));
     };
-    xhr.onerror = () => reject(new Error("Envoi interrompu par le réseau."));
-    xhr.ontimeout = () => {
-      const error = new Error("Le réseau ne répond plus. L’envoi a été arrêté après 45 secondes.");
-      error.timeout = true;
-      reject(error);
+    xhr.onerror = () => { nettoyer(); reject(new Error("Envoi interrompu par le réseau.")); };
+    xhr.onabort = () => {
+      nettoyer();
+      if (arretReseau) {
+        const error = new Error("Le réseau ne répond plus. Rapprochez-vous d’une zone mieux couverte puis relancez l’envoi : vos photos sont gardées.");
+        error.timeout = true;
+        reject(error);
+        return;
+      }
+      reject(new DOMException("Envoi annulé.", "AbortError"));
     };
-    xhr.onabort = () => reject(new DOMException("Envoi annulé.", "AbortError"));
     xhr.onload = () => {
+      nettoyer();
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress?.(100);
         resolve({ duplicate: false });
@@ -123,6 +143,8 @@ function uploadOnce({ bucket, path, file, accessToken, onProgress, signal, timeo
       }
       signal.addEventListener("abort", () => xhr.abort(), { once: true });
     }
+    couperSiBloque();
+    plafond = setTimeout(() => { arretReseau = true; xhr.abort(); }, Math.max(maxMs, timeoutMs));
     xhr.send(file);
   });
 }
