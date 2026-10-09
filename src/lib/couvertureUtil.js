@@ -10,7 +10,6 @@ export const DEPARTEMENTS = Object.freeze([
 export const RACCOURCIS = Object.freeze([
   { key: "idf", label: "Île-de-France", deps: ["75", "77", "78", "91", "92", "93", "94", "95"] },
   { key: "azur", label: "Côte d’Azur", deps: ["06", "83"] },
-  { key: "france", label: "Toute la France", deps: DEPARTEMENTS },
 ]);
 
 /** Ajoute ou retire un département ; résultat trié dans l'ordre officiel. */

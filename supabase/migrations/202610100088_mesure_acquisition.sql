@@ -10,7 +10,8 @@
 --      envoyée par le serveur (API Conversions Meta, import Google Ads par gclid).
 --   4. is_test sur missions et commandes : exclues de tous les chiffres.
 --   5. is_internal sur les comptes SECOTO : exclus des statistiques du réseau.
---   6. Couverture transporteur : départements + moto, confirmés par chacun.
+--   6. Couverture transporteur : départements où il est basé (information
+--      seulement : il reçoit toujours toute la France) + moto, confirmés par chacun.
 --
 -- ADDITIF : colonnes nullables ou à valeur par défaut, tables et fonctions
 -- nouvelles, déclencheurs nouveaux. Les fonctions 087 (espace dirigeant) sont
@@ -625,7 +626,7 @@ begin
   perform secoto_private.assert_admin();
   with t as (
     select a.id, a.transporter_type,
-           coalesce(p.zones, '{}') as zones, coalesce(p.vehicle_classes, '{}') as classes,
+           coalesce(p.departements_base, '{}') as zones, coalesce(p.vehicle_classes, '{}') as classes,
            coalesce(p.available, false) as disponible, p.coverage_confirmed_at
       from public.accounts a
       left join public.partner_dispatch_preferences p on p.account_id = a.id
@@ -635,7 +636,7 @@ begin
   ), d as (
     select z as departement, count(*) as n, count(*) filter (where t.disponible) as dispo,
            count(*) filter (where cardinality(t.classes) = 0 or 'moto' = any(t.classes)) as moto
-      from t cross join lateral unnest(case when cardinality(t.zones) = 0 then array['Toute la France'] else t.zones end) z
+      from t cross join lateral unnest(case when cardinality(t.zones) = 0 then array['Non renseigné'] else t.zones end) z
      group by z
   )
   select jsonb_build_object(
@@ -655,7 +656,11 @@ $f$;
 
 -- 10. Couverture du transporteur : départements + moto ------------------------
 alter table public.partner_dispatch_preferences
-  add column if not exists coverage_confirmed_at timestamptz;
+  add column if not exists coverage_confirmed_at timestamptz,
+  add column if not exists departements_base text[] not null default '{}';
+comment on column public.partner_dispatch_preferences.departements_base is
+  'Départements où le transporteur est basé (information, statistiques). NE FILTRE PAS la diffusion : '
+  'les transporteurs se déplacent dans toute la France (retours à vide).';
 
 create or replace function secoto_private.departements_valides()
 returns text[] language sql immutable set search_path = ''
@@ -677,7 +682,7 @@ begin
   select * into p from public.partner_dispatch_preferences where account_id = v_uid;
   return jsonb_build_object(
     'required', p.coverage_confirmed_at is null,
-    'zones', coalesce(to_jsonb(p.zones), '[]'::jsonb),
+    'zones', coalesce(to_jsonb(p.departements_base), '[]'::jsonb),
     'moto', coalesce(p.coverage_confirmed_at is not null and 'moto' = any(p.vehicle_classes), false),
     'convoyeur', a.transporter_type = 'convoyeur',
     'confirmed_at', p.coverage_confirmed_at);
@@ -700,10 +705,13 @@ begin
   if coalesce(cardinality(v_zones), 0) = 0 then raise exception 'Choisissez au moins un département.'; end if;
   v_classes := case when coalesce(p_moto, false) then array['voiture', 'utilitaire', 'moto', 'autre']
                     else array['voiture', 'utilitaire', 'autre'] end;
-  insert into public.partner_dispatch_preferences as p(account_id, zones, vehicle_classes, coverage_confirmed_at, updated_at)
-  values (v_uid, v_zones, v_classes, now(), now())
+  -- Les départements sont une information : la diffusion reste ouverte à
+  -- toute la France (zones vides), décision de Nawfal du 09/10/2026.
+  insert into public.partner_dispatch_preferences as p(account_id, zones, departements_base, vehicle_classes, coverage_confirmed_at, updated_at)
+  values (v_uid, '{}', v_zones, v_classes, now(), now())
   on conflict (account_id) do update
-     set zones = excluded.zones,
+     set zones = '{}',
+         departements_base = excluded.departements_base,
          -- Les autres catégories déjà choisies sont conservées ; seule la moto suit la réponse.
          vehicle_classes = case
            when cardinality(p.vehicle_classes) = 0 then excluded.vehicle_classes

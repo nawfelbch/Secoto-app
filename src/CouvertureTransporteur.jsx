@@ -4,7 +4,9 @@ import { couvertureEnregistrer, couvertureStatut } from "./lib/couverture";
 import { DEPARTEMENTS, RACCOURCIS, appliquerRaccourci, basculer, resumeDepartements } from "./lib/couvertureUtil";
 
 // ============================================================================
-// SECOTO 088 — Couverture du transporteur : départements + moto.
+// SECOTO 088 — Couverture du transporteur : départements où il est basé + moto.
+// Les départements sont une INFORMATION : le transporteur reçoit toujours les
+// missions de toute la France (trajets longs, retours à vide).
 // Un seul écran. Fenêtre à la reconnexion tant qu'elle n'a pas été confirmée,
 // puis modifiable à tout moment depuis « Disponibilité ». La moto est décochée
 // par défaut : le transporteur la coche seulement s'il la transporte vraiment.
@@ -40,8 +42,8 @@ export default function CouvertureTransporteur({ status: statusInitial = null, g
   const convoyeur = Boolean(status?.convoyeur);
   return (
     <div className={gate ? "panel panel-full" : "panel"} role={gate ? "dialog" : undefined} aria-modal={gate || undefined} aria-labelledby="couv-titre">
-      <h2 id="couv-titre">{gate ? "Où prenez-vous les véhicules en charge ?" : "Départements et moto"}</h2>
-      <p className="muted">Vous recevez uniquement les missions qui partent des départements cochés.</p>
+      <h2 id="couv-titre">{gate ? "Où êtes-vous basé ?" : "Départements et moto"}</h2>
+      <p className="muted">Cochez le ou les départements où vous êtes basé. Vous continuez à recevoir les missions de toute la France, retours compris.</p>
 
       <div className="couv-raccourcis">
         {RACCOURCIS.map((r) => (

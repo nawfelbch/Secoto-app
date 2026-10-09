@@ -91,7 +91,7 @@ export default function AcquisitionPanel() {
               <div className="kpi-card"><span>Prennent la moto</span><strong>{net.resume?.moto || 0}</strong></div>
               <div className="kpi-card"><span>Couverture confirmée</span><strong>{net.resume?.couverture_confirmee || 0}</strong></div>
             </div>
-            <h3 className="dir-sous-titre">Par département de prise en charge</h3>
+            <h3 className="dir-sous-titre">Par département où ils sont basés</h3>
             <div className="acq-deps">
               {(net.departements || []).map((d) => (
                 <span key={d.departement}><strong>{d.departement}</strong> · {d.transporteurs} transp.{d.moto ? ` · ${d.moto} moto` : ""}</span>

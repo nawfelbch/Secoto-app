@@ -214,8 +214,9 @@ test("088 : réseau sans les comptes internes ; couverture départements + moto"
   await assert.rejects(as(ids.ready, "select public.secoto_carrier_coverage_save($1,false)", [[]]), /au moins un département/);
   s = (await as(ids.ready, "select public.secoto_carrier_coverage_save($1,false) as r", [["92", "75", "2a"]]))[0].r;
   assert.equal(s.required, false);
-  let p = (await sql("select zones, vehicle_classes from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0];
-  assert.deepEqual([...p.zones].sort(), ["2A", "75", "92"]);
+  let p = (await sql("select zones, departements_base, vehicle_classes from public.partner_dispatch_preferences where account_id=$1", [ids.ready]))[0];
+  assert.deepEqual([...p.departements_base].sort(), ["2A", "75", "92"]);
+  assert.deepEqual(p.zones, [], "aucune restriction : il reçoit les missions de toute la France");
   assert.ok(!p.vehicle_classes.includes("moto"));
   assert.ok(p.vehicle_classes.includes("voiture"));
   s = (await as(ids.ready, "select public.secoto_carrier_coverage_save($1,true) as r", [["92"]]))[0].r;

@@ -8,6 +8,7 @@ import {
 } from "../lib/onDemand";
 import { randomIdempotencyKey } from "../lib/fileSafety";
 import CouvertureTransporteur from "../CouvertureTransporteur";
+import { couvertureStatut } from "../lib/couverture";
 
 const EQUIPMENT = [
   { value: "treuil", label: "Treuil (véhicules non roulants)" },
@@ -38,6 +39,12 @@ export function DispatchPreferencesPanel({ transporterType }) {
   const [prefs, setPrefs] = useState(null);
   // 088 : départements et moto se règlent dans la fenêtre « couverture ».
   const [couverture, setCouverture] = useState(false);
+  const [base, setBase] = useState([]);
+  useEffect(() => {
+    let vivant = true;
+    couvertureStatut().then((s) => { if (vivant) setBase(s?.zones || []); });
+    return () => { vivant = false; };
+  }, [couverture]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -93,8 +100,8 @@ export function DispatchPreferencesPanel({ transporterType }) {
       <p className="muted">Sur iPhone, pour n’afficher le détail qu’après Face ID : Réglages › Notifications › Aperçus › « Si déverrouillé ».</p>
       <div className="form-grid" style={{ marginTop: 14 }}>
         <div className="field field-full">
-          <span>Départements de prise en charge</span>
-          <p style={{ margin: "4px 0 8px" }}>{(prefs.zones || []).length ? prefs.zones.join(", ") : "Non renseignés"}</p>
+          <span>Départements où vous êtes basé (vous recevez les missions de toute la France)</span>
+          <p style={{ margin: "4px 0 8px" }}>{base.length ? base.join(", ") : "Non renseignés"}</p>
           {!couverture && <button type="button" className="btn ghost small" onClick={() => setCouverture(true)}>Modifier mes départements et la moto</button>}
         </div>
         {couverture && (
