@@ -111,6 +111,8 @@ import ConditionsGate, { ConditionsSentence } from "./ConditionsGate";
 import LiensLegaux, { DocumentsLegaux } from "./DocumentsLegaux";
 import SavPanel from "./SavPanel";
 import AdminSavPanel from "./AdminSavPanel";
+import EspaceDirigeant from "./EspaceDirigeant";
+import { dirigeantAcces } from "./lib/dirigeant";
 import { clientHasCourse } from "./lib/sav";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
@@ -1655,6 +1657,14 @@ export default function App() {
     supabase.rpc("secoto_admin_locked_mission_ids").then(({ data }) => { if (vivant) setMissionsVerrouillees(Array.isArray(data) ? data : []); });
     return () => { vivant = false; };
   }, [accountRolePourConditions, flags.mise_en_relation_v2, missions]);
+  // 087 : espace dirigeant — la base seule décide qui y a accès.
+  const [espaceDirigeant, setEspaceDirigeant] = useState(false);
+  useEffect(() => {
+    if (accountRolePourConditions !== "admin" || !accountIdPourConditions) return undefined;
+    let vivant = true;
+    dirigeantAcces().then((ok) => { if (vivant) setEspaceDirigeant(ok); });
+    return () => { vivant = false; };
+  }, [accountRolePourConditions, accountIdPourConditions]);
   // 085 : barème du transporteur (il fixe librement son prix).
   const [bareme, setBareme] = useState(null);
   useEffect(() => {
@@ -4252,6 +4262,7 @@ export default function App() {
       hand: "M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8",
       settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
       bank: "M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M2 20h20M12 3l9 5H3l9-5z",
+      chart: "M3 3v18h18M7 15l4-4 3 3 5-6",
       phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z",
     }[name] || "M12 5v14M5 12h14";
     return (
@@ -4298,6 +4309,9 @@ export default function App() {
           { title: "Priorités", items: [
             { key: "alertes", label: "À traiter", icon: "megaphone", count: adminAlerts.length || undefined },
           ] },
+          ...(espaceDirigeant ? [{ title: "Dirigeant", items: [
+            { key: "dirigeant", label: "Espace dirigeant", icon: "chart" },
+          ] }] : []),
           { title: "Missions", items: [
             { key: "create", label: "Créer une mission", icon: "plus" },
             { key: "published", label: "Publiées", icon: "megaphone", count: publishedMissions.length },
@@ -5174,6 +5188,12 @@ export default function App() {
           {adminTab === "sav" && (
             <section className="layout">
               <AdminSavPanel />
+            </section>
+          )}
+
+          {adminTab === "dirigeant" && espaceDirigeant && (
+            <section className="layout">
+              <EspaceDirigeant />
             </section>
           )}
         </>
