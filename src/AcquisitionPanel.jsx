@@ -5,7 +5,7 @@ import { derniersJours, euros } from "./lib/dirigeantUtil";
 
 // ============================================================================
 // SECOTO 088 — Acquisition (administrateur) : d'où viennent les clients, et
-// l'état du réseau de transporteurs par département. Lecture seule.
+// l'état du réseau de transporteurs par type de véhicule. Lecture seule.
 // Les missions et commandes de test, et les comptes internes SECOTO, sont exclus.
 // ============================================================================
 
@@ -88,16 +88,17 @@ export default function AcquisitionPanel() {
             <div className="kpi-grid dir-kpi">
               <div className="kpi-card"><span>Transporteurs vérifiés</span><strong>{net.resume?.transporteurs || 0}</strong></div>
               <div className="kpi-card"><span>Disponibles</span><strong>{net.resume?.disponibles || 0}</strong></div>
-              <div className="kpi-card"><span>Prennent la moto</span><strong>{net.resume?.moto || 0}</strong></div>
-              <div className="kpi-card"><span>Couverture confirmée</span><strong>{net.resume?.couverture_confirmee || 0}</strong></div>
+              <div className="kpi-card"><span>Plateau VL</span><strong>{net.resume?.vl || 0}</strong></div>
+              <div className="kpi-card"><span>Porte-voitures PL</span><strong>{net.resume?.pl || 0}</strong></div>
+              <div className="kpi-card"><span>Convoyeurs</span><strong>{net.resume?.convoyeurs || 0}</strong></div>
             </div>
-            <h3 className="dir-sous-titre">Par département où ils sont basés</h3>
+            <h3 className="dir-sous-titre">Par type de véhicule</h3>
             <div className="acq-deps">
-              {(net.departements || []).map((d) => (
-                <span key={d.departement}><strong>{d.departement}</strong> · {d.transporteurs} transp.{d.moto ? ` · ${d.moto} moto` : ""}</span>
+              {(net.par_type || []).map((d) => (
+                <span key={d.type}><strong>{d.type}</strong> · {d.transporteurs} transp. · {d.disponibles} disponibles</span>
               ))}
             </div>
-            <p className="muted dir-note">Comptes internes SECOTO exclus. Un chauffeur salarié compte avec son entreprise.</p>
+            <p className="muted dir-note">Chaque mission part à tous les transporteurs du bon type (PL, VL ou convoyage), partout en France. Comptes internes SECOTO exclus. Un chauffeur salarié compte avec son entreprise.</p>
           </>
         )}
       </div>

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { DUREE_ATTRIBUTION_MS, lireParametres } from "../src/lib/attribution.js";
 import { DUREE_CHOIX_MS, VERSION_COOKIES, choixValide, hoteAutorise } from "../src/lib/consentement.js";
-import { DEPARTEMENTS, RACCOURCIS, appliquerRaccourci, basculer, resumeDepartements } from "../src/lib/couvertureUtil.js";
 import { derniersJours } from "../src/lib/dirigeantUtil.js";
 import { csvGoogle, envoyerConversionsMeta, evenementMeta, fbcDepuisFbclid, heureParis } from "../netlify/lib/conversions.js";
 import { attributionPropre } from "../netlify/lib/attribution-serveur.js";
@@ -45,17 +44,17 @@ test("bandeau : Refuser et Accepter au même niveau, aucun traceur dans index.ht
   assert.match(lire("public/politique-confidentialite.html"), /id="cookies"/);
 });
 
-test("couverture : départements de métropole et Corse, raccourcis, résumé", () => {
-  assert.equal(DEPARTEMENTS.length, 96);
-  assert.ok(DEPARTEMENTS.includes("2A") && DEPARTEMENTS.includes("2B") && !DEPARTEMENTS.includes("20"));
-  assert.deepEqual(basculer(["92"], "75"), ["75", "92"]);
-  assert.deepEqual(basculer(["75", "92"], "92"), ["75"]);
-  const idf = RACCOURCIS.find((r) => r.key === "idf").deps;
-  assert.equal(appliquerRaccourci([], idf).length, 8);
-  assert.deepEqual(appliquerRaccourci(idf, idf), []);
-  assert.equal(resumeDepartements(DEPARTEMENTS), "Toute la France");
-  assert.equal(resumeDepartements([]), "Aucun département choisi");
-  assert.match(lire("src/CouvertureTransporteur.jsx"), /useState\(Boolean\(statusInitial\?\.moto\)\)/);
+test("aucune sectorisation : pas de fenêtre départements, aucune zone saisie par le transporteur", () => {
+  assert.equal(existsSync(new URL("../src/CouvertureTransporteur.jsx", import.meta.url)), false);
+  const app = lire("src/App.jsx");
+  assert.doesNotMatch(app, /CouvertureTransporteur|couvertureStatut|couv-/);
+  const offres = lire("src/ondemand/PartnerOffers.jsx");
+  assert.match(offres, /zones: \[\]/);
+  assert.doesNotMatch(offres, /departmentsFromText/);
+  const m = lire("supabase/migrations/202610100088_mesure_acquisition.sql");
+  assert.match(m, /trg_secoto_preferences_sans_secteur/);
+  assert.match(m, /zones_avant_088/);
+  assert.doesNotMatch(lire("src/AcquisitionPanel.jsx"), /departements/);
 });
 
 test("Meta : événement Purchase, valeur = commission, données hachées, event_id commun", () => {

@@ -10,8 +10,8 @@
 --      envoyée par le serveur (API Conversions Meta, import Google Ads par gclid).
 --   4. is_test sur missions et commandes : exclues de tous les chiffres.
 --   5. is_internal sur les comptes SECOTO : exclus des statistiques du réseau.
---   6. Couverture transporteur : départements où il est basé (information
---      seulement : il reçoit toujours toute la France) + moto, confirmés par chacun.
+--   6. Aucune sectorisation : chaque mission part à tous les transporteurs du
+--      bon type (PL, VL ou convoyeur), partout en France.
 --
 -- ADDITIF : colonnes nullables ou à valeur par défaut, tables et fonctions
 -- nouvelles, déclencheurs nouveaux. Les fonctions 087 (espace dirigeant) sont
@@ -617,7 +617,7 @@ begin
 end;
 $f$;
 
--- 9. Réseau de transporteurs par département (admin, hors comptes internes) --
+-- 9. Réseau de transporteurs par type (admin, hors comptes internes) ---------
 create or replace function public.secoto_admin_reseau()
 returns jsonb language plpgsql stable security definer set search_path = ''
 as $f$
@@ -625,109 +625,83 @@ declare v jsonb;
 begin
   perform secoto_private.assert_admin();
   with t as (
-    select a.id, a.transporter_type,
-           coalesce(p.departements_base, '{}') as zones, coalesce(p.vehicle_classes, '{}') as classes,
-           coalesce(p.available, false) as disponible, p.coverage_confirmed_at
+    select a.id, coalesce(a.transporter_type::text, '?') as type,
+           coalesce(p.available, true) as disponible
       from public.accounts a
       left join public.partner_dispatch_preferences p on p.account_id = a.id
      where a.role = 'transporter' and a.status = 'active' and coalesce(a.is_verified, false)
        and a.deleted_at is null and not a.is_internal
        and secoto_private.carrier_rate_owner(a.id) = a.id
-  ), d as (
-    select z as departement, count(*) as n, count(*) filter (where t.disponible) as dispo,
-           count(*) filter (where cardinality(t.classes) = 0 or 'moto' = any(t.classes)) as moto
-      from t cross join lateral unnest(case when cardinality(t.zones) = 0 then array['Non renseigné'] else t.zones end) z
-     group by z
   )
   select jsonb_build_object(
-    'departements', (select coalesce(jsonb_agg(jsonb_build_object('departement', departement, 'transporteurs', n,
-                       'disponibles', dispo, 'moto', moto) order by n desc, departement), '[]'::jsonb) from d),
+    'par_type', (select coalesce(jsonb_agg(jsonb_build_object('type', type, 'transporteurs', n, 'disponibles', dispo)
+                   order by n desc), '[]'::jsonb)
+                   from (select type, count(*) as n, count(*) filter (where disponible) as dispo from t group by type) x),
     'resume', (select jsonb_build_object(
        'transporteurs', count(*),
        'disponibles', count(*) filter (where disponible),
-       'moto', count(*) filter (where cardinality(classes) = 0 or 'moto' = any(classes)),
-       'couverture_confirmee', count(*) filter (where coverage_confirmed_at is not null),
-       'plateau', count(*) filter (where transporter_type in ('vl', 'pl')),
-       'convoyeurs', count(*) filter (where transporter_type = 'convoyeur')) from t))
+       'pl', count(*) filter (where type = 'pl'),
+       'vl', count(*) filter (where type = 'vl'),
+       'convoyeurs', count(*) filter (where type = 'convoyeur')) from t))
     into v;
   return v;
 end;
 $f$;
 
--- 10. Couverture du transporteur : départements + moto ------------------------
+-- 10. Aucune sectorisation (décision de Nawfal du 09/10/2026) -----------------
+-- Une mission part à TOUS les transporteurs du bon type (PL, VL ou convoyeur),
+-- partout en France : ils font de longs trajets et des retours à vide.
+-- Les départements éventuellement saisis autrefois sont mis de côté (rien
+-- n'est perdu) et la diffusion ne les regarde plus jamais, y compris quand
+-- une ancienne version de l'application en renvoie.
 alter table public.partner_dispatch_preferences
-  add column if not exists coverage_confirmed_at timestamptz,
-  add column if not exists departements_base text[] not null default '{}';
-comment on column public.partner_dispatch_preferences.departements_base is
-  'Départements où le transporteur est basé (information, statistiques). NE FILTRE PAS la diffusion : '
-  'les transporteurs se déplacent dans toute la France (retours à vide).';
+  add column if not exists zones_avant_088 text[];
+comment on column public.partner_dispatch_preferences.zones_avant_088 is
+  'Départements saisis avant le 09/10/2026, conservés pour mémoire. Plus aucun filtre par département.';
 
-create or replace function secoto_private.departements_valides()
-returns text[] language sql immutable set search_path = ''
-as $f$
-  select array_agg(d order by d) from (
-    select lpad(g::text, 2, '0') as d from generate_series(1, 95) g where g <> 20
-    union all select '2A' union all select '2B') x;
-$f$;
+update public.partner_dispatch_preferences
+   set zones_avant_088 = zones, zones = '{}', updated_at = now()
+ where cardinality(zones) > 0 and zones_avant_088 is null;
 
-create or replace function public.secoto_carrier_coverage_status()
-returns jsonb language plpgsql stable security definer set search_path = ''
+create or replace function secoto_private.trg_preferences_sans_secteur()
+returns trigger language plpgsql set search_path = ''
 as $f$
-declare v_uid uuid := auth.uid(); a public.accounts%rowtype; p public.partner_dispatch_preferences%rowtype;
 begin
-  select * into a from public.accounts where id = v_uid and deleted_at is null;
-  if not found or a.role <> 'transporter' then return jsonb_build_object('required', false); end if;
-  -- Un chauffeur salarié ne fixe pas la couverture : c'est son gérant.
-  if secoto_private.carrier_rate_owner(v_uid) <> v_uid then return jsonb_build_object('required', false); end if;
-  select * into p from public.partner_dispatch_preferences where account_id = v_uid;
-  return jsonb_build_object(
-    'required', p.coverage_confirmed_at is null,
-    'zones', coalesce(to_jsonb(p.departements_base), '[]'::jsonb),
-    'moto', coalesce(p.coverage_confirmed_at is not null and 'moto' = any(p.vehicle_classes), false),
-    'convoyeur', a.transporter_type = 'convoyeur',
-    'confirmed_at', p.coverage_confirmed_at);
-end;
-$f$;
-
-create or replace function public.secoto_carrier_coverage_save(p_zones text[], p_moto boolean)
-returns jsonb language plpgsql volatile security definer set search_path = ''
-as $f$
-declare v_uid uuid := auth.uid(); a public.accounts%rowtype; v_zones text[]; v_classes text[];
-begin
-  select * into a from public.accounts where id = v_uid and deleted_at is null;
-  if not found or a.role <> 'transporter' then raise exception 'Réservé aux transporteurs.'; end if;
-  if secoto_private.carrier_rate_owner(v_uid) <> v_uid then raise exception 'Seul le gérant fixe la couverture.'; end if;
-  if exists (select 1 from unnest(coalesce(p_zones, '{}')) z
-              where upper(btrim(z)) <> all(secoto_private.departements_valides())) then
-    raise exception 'Département inconnu.';
+  if cardinality(coalesce(new.zones, '{}')) > 0 then
+    new.zones := '{}';
   end if;
-  select array_agg(distinct upper(btrim(z))) into v_zones from unnest(coalesce(p_zones, '{}')) z;
-  if coalesce(cardinality(v_zones), 0) = 0 then raise exception 'Choisissez au moins un département.'; end if;
-  v_classes := case when coalesce(p_moto, false) then array['voiture', 'utilitaire', 'moto', 'autre']
-                    else array['voiture', 'utilitaire', 'autre'] end;
-  -- Les départements sont une information : la diffusion reste ouverte à
-  -- toute la France (zones vides), décision de Nawfal du 09/10/2026.
-  -- Sans ligne de préférences, un transporteur est considéré disponible
-  -- (od_partner_eligible : coalesce(available, true)). La ligne créée ici le
-  -- reste donc : répondre à la fenêtre ne doit JAMAIS couper ses missions.
-  insert into public.partner_dispatch_preferences as p(account_id, available, zones, departements_base, vehicle_classes, coverage_confirmed_at, updated_at)
-  values (v_uid, true, '{}', v_zones, v_classes, now(), now())
-  on conflict (account_id) do update
-     set zones = '{}',
-         departements_base = excluded.departements_base,
-         -- Les autres catégories déjà choisies sont conservées ; seule la moto suit la réponse.
-         vehicle_classes = case
-           when cardinality(p.vehicle_classes) = 0 then excluded.vehicle_classes
-           when coalesce(p_moto, false) then (select array_agg(distinct c) from unnest(p.vehicle_classes || array['moto']) c)
-           else coalesce((select array_agg(c) from unnest(p.vehicle_classes) c where c <> 'moto'), array['voiture', 'utilitaire', 'autre'])
-         end,
-         coverage_confirmed_at = now(),
-         updated_at = now();
-  perform secoto_private.audit('carrier_coverage_saved', 'account', v_uid::text,
-    jsonb_build_object('zones', v_zones, 'moto', coalesce(p_moto, false)));
-  return public.secoto_carrier_coverage_status();
+  return new;
 end;
 $f$;
+
+drop trigger if exists trg_secoto_preferences_sans_secteur on public.partner_dispatch_preferences;
+create trigger trg_secoto_preferences_sans_secteur
+  before insert or update of zones on public.partner_dispatch_preferences
+  for each row execute function secoto_private.trg_preferences_sans_secteur();
+
+-- 10 bis. Ancienne fenêtre « départements » (première version de 088) --------
+-- Si une base a reçu la première version de 088, la fenêtre est neutralisée
+-- immédiatement (elle ne s'affiche plus, même sur une ancienne version de
+-- l'application) et les types de véhicules qu'elle avait réglés sont remis
+-- à « tous ». Sur une base neuve, rien à faire.
+do $neutre$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'partner_dispatch_preferences'
+                and column_name = 'coverage_confirmed_at') then
+    execute 'update public.partner_dispatch_preferences
+                set vehicle_classes = ''{}'', updated_at = now()
+              where coverage_confirmed_at is not null and cardinality(vehicle_classes) > 0';
+  end if;
+  if to_regprocedure('public.secoto_carrier_coverage_status()') is not null then
+    execute $corps$
+      create or replace function public.secoto_carrier_coverage_status()
+      returns jsonb language sql stable security definer set search_path = ''
+      as $x$ select jsonb_build_object('required', false, 'zones', '[]'::jsonb, 'moto', true) $x$
+    $corps$;
+  end if;
+end;
+$neutre$;
 
 -- 11. Droits -----------------------------------------------------------------
 revoke all on function secoto_private.attr_clean(text) from public, anon, authenticated;
@@ -737,8 +711,8 @@ revoke all on function secoto_private.trg_order_attribution() from public, anon,
 revoke all on function secoto_private.trg_payment_conversion() from public, anon, authenticated;
 revoke all on function secoto_private.sha256_hex(text) from public, anon, authenticated;
 revoke all on function secoto_private.phone_e164_digits(text) from public, anon, authenticated;
-revoke all on function secoto_private.departements_valides() from public, anon, authenticated;
 revoke all on function secoto_private.dirigeant_lignes() from public, anon, authenticated;
+revoke all on function secoto_private.trg_preferences_sans_secteur() from public, anon, authenticated;
 
 revoke all on function public.secoto_attribution_devis(uuid, jsonb, boolean) from public, anon, authenticated;
 revoke all on function public.secoto_conversions_meta_a_envoyer(integer) from public, anon, authenticated;
@@ -752,14 +726,10 @@ grant execute on function public.secoto_conversions_google() to service_role;
 revoke all on function public.secoto_mon_attribution(jsonb, boolean) from public, anon;
 revoke all on function public.secoto_admin_acquisition(date, date) from public, anon;
 revoke all on function public.secoto_admin_reseau() from public, anon;
-revoke all on function public.secoto_carrier_coverage_status() from public, anon;
-revoke all on function public.secoto_carrier_coverage_save(text[], boolean) from public, anon;
 revoke all on function public.secoto_dirigeant_tableau(integer) from public, anon;
 revoke all on function public.secoto_dirigeant_litiges() from public, anon;
 grant execute on function public.secoto_mon_attribution(jsonb, boolean) to authenticated;
 grant execute on function public.secoto_admin_acquisition(date, date) to authenticated;
 grant execute on function public.secoto_admin_reseau() to authenticated;
-grant execute on function public.secoto_carrier_coverage_status() to authenticated;
-grant execute on function public.secoto_carrier_coverage_save(text[], boolean) to authenticated;
 grant execute on function public.secoto_dirigeant_tableau(integer) to authenticated;
 grant execute on function public.secoto_dirigeant_litiges() to authenticated;

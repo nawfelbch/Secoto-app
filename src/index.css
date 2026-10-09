@@ -1786,13 +1786,6 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
 .acq-deps { display: flex; flex-wrap: wrap; gap: 6px; }
 .acq-deps span { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--glass-soft); font-size: 0.82rem; }
 
-.couv-raccourcis { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
-.couv-raccourcis button { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--glass-soft); font-weight: 600; font-size: 0.86rem; color: var(--text); }
-.couv-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; max-height: 38vh; overflow-y: auto; padding: 2px; -webkit-overflow-scrolling: touch; }
-.couv-grille button { min-height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--glass-soft); font-weight: 700; color: var(--text); }
-.couv-grille button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
-.couv-moto { display: flex; gap: 12px; align-items: flex-start; margin: 14px 0 4px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--glass-soft); }
-.couv-moto input { width: 22px; height: 22px; margin-top: 2px; flex: 0 0 auto; }
 @media (max-width: 640px) {
   .acq-chiffres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
