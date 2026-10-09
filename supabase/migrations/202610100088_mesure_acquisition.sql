@@ -683,7 +683,8 @@ create trigger trg_secoto_preferences_sans_secteur
 -- Si une base a reçu la première version de 088, la fenêtre est neutralisée
 -- immédiatement (elle ne s'affiche plus, même sur une ancienne version de
 -- l'application) et les types de véhicules qu'elle avait réglés sont remis
--- à « tous ». Sur une base neuve, rien à faire.
+-- à « tous », et ceux qu'elle avait mis indisponibles par erreur sont remis
+-- disponibles. Sur une base neuve, rien à faire.
 do $neutre$
 begin
   if exists (select 1 from information_schema.columns
@@ -692,6 +693,18 @@ begin
     execute 'update public.partner_dispatch_preferences
                 set vehicle_classes = ''{}'', updated_at = now()
               where coverage_confirmed_at is not null and cardinality(vehicle_classes) > 0';
+    -- Transporteurs coupés par erreur en répondant à la fenêtre : remis
+    -- disponibles (jamais ceux qui se sont mis indisponibles eux-mêmes).
+    execute 'update public.partner_dispatch_preferences
+                set available = true, updated_at = now()
+              where coverage_confirmed_at is not null and available = false and available_changed_at is null';
+  end if;
+  if to_regprocedure('public.secoto_carrier_coverage_save(text[], boolean)') is not null then
+    execute $corps$
+      create or replace function public.secoto_carrier_coverage_save(p_zones text[], p_moto boolean)
+      returns jsonb language sql stable security definer set search_path = ''
+      as $x$ select jsonb_build_object('required', false, 'zones', '[]'::jsonb, 'moto', true) $x$
+    $corps$;
   end if;
   if to_regprocedure('public.secoto_carrier_coverage_status()') is not null then
     execute $corps$
