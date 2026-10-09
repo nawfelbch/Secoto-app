@@ -134,7 +134,77 @@ export function validateFiles(files, options = {}) {
 }
 
 function canUseCanvas() {
-  return typeof document !== "undefined" && typeof createImageBitmap === "function";
+  return typeof document !== "undefined" && typeof document.createElement === "function";
+}
+
+// 10/10/2026 — Sur iPhone, les photos partaient à 1,2-1,8 Mo : createImageBitmap
+// échouait en silence dans la vue web et la photo d'origine repartait telle
+// quelle. En zone de réseau faible, l'état des lieux de livraison restait
+// bloqué. On essaie désormais plusieurs décodeurs et deux encodeurs avant
+// d'abandonner : l'image est réduite dès que l'un d'eux réussit.
+
+/** Décode une image : createImageBitmap, sinon <img> (toujours dispo sur iOS). */
+async function decodeImage(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close?.() };
+    } catch { /* on essaie autrement */ }
+    try {
+      const bitmap = await createImageBitmap(file);
+      return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close?.() };
+    } catch { /* on essaie autrement */ }
+  }
+  if (typeof Image === "undefined" || typeof URL === "undefined" || !URL.createObjectURL) return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("image illisible"));
+      el.src = url;
+    });
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+    if (!width || !height) return null;
+    return { source: img, width, height, close: () => {} };
+  } catch {
+    return null;
+  } finally {
+    // L'image est déjà décodée : l'adresse temporaire peut être libérée.
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch { /* rien */ } }, 0);
+  }
+}
+
+/** Encode le canvas en JPEG : toBlob, sinon toDataURL (anciennes vues web). */
+async function encodeJpeg(canvas, quality) {
+  if (typeof canvas.toBlob === "function") {
+    const blob = await new Promise((resolve) => {
+      try { canvas.toBlob(resolve, "image/jpeg", quality); } catch { resolve(null); }
+    });
+    if (blob && blob.size > 0) return blob;
+  }
+  try {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    const base64 = dataUrl.split(",")[1] || "";
+    if (!base64) return null;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: "image/jpeg" });
+  } catch {
+    return null;
+  }
+}
+
+/** Dimensions réduites : le plus grand côté ramené à maxDimension. */
+export function dimensionsReduites(width, height, maxDimension = EVIDENCE_COMPRESSION.maxDimension) {
+  const scale = Math.min(1, maxDimension / Math.max(width, height, 1));
+  return {
+    scale,
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
 }
 
 /**
@@ -152,22 +222,25 @@ export async function compressEvidenceImage(file, {
   if (compressionThreshold > 0 && file.size <= compressionThreshold && isUploadReady(file)) return file;
   if (!canUseCanvas()) return file;
 
-  let bitmap;
+  let image = null;
   try {
-    bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
+    image = await decodeImage(file);
+    if (!image) return file;
+    const { scale, width, height } = dimensionsReduites(image.width, image.height, maxDimension);
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
+    if (!context) return file;
     // Fond blanc : une PNG transparente convertie en JPEG ne vire pas au noir.
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, width, height);
-    context.drawImage(bitmap, 0, 0, width, height);
+    context.drawImage(image.source, 0, 0, width, height);
 
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    const blob = await encodeJpeg(canvas, quality);
+    // Libère tout de suite la mémoire du canvas (iPhone : mémoire limitée).
+    canvas.width = 0;
+    canvas.height = 0;
     if (!blob || blob.size <= 0) return file;
     // On garde l'original s'il est déjà plus léger ET déjà au bon format.
     if (isUploadReady(file) && blob.size >= file.size && scale === 1) return file;
@@ -180,7 +253,7 @@ export async function compressEvidenceImage(file, {
   } catch {
     return file;
   } finally {
-    bitmap?.close?.();
+    image?.close?.();
   }
 }
 
