@@ -18,6 +18,7 @@ const FLAG_LABEL = {
   subscriptions: "Abonnements professionnels",
   dispatch_notifications: "Diffusion automatique aux partenaires",
   live_tracking: "Suivi de position pendant la mission",
+  adresses_internationales: "Adresses hors de France (Europe et monde)",
 };
 
 function download(content, name, type = "text/csv;charset=utf-8") {

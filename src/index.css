@@ -484,6 +484,10 @@ input:focus, select:focus, textarea:focus {
 .ac-item.active, .ac-item:hover { background: var(--accent-soft); }
 .ac-main { font-size: 0.92rem; color: var(--text); line-height: 1.25; }
 .ac-sub { font-size: 0.74rem; color: var(--muted); }
+/* 089 : adresses hors de France */
+.ac-hors-france { align-self: flex-start; min-height: 44px; padding: 8px 0; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 0.86rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; touch-action: manipulation; }
+.ac-attribution { display: block; padding: 6px 12px; cursor: default; }
+.ac-attribution a { color: inherit; }
 
 /* ============================================================
    CONTACT + PASSE MOBILE (anti-debordement, cibles tactiles)
@@ -1713,7 +1717,7 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
    087 — ESPACE DIRIGEANT
 ============================================================ */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.dir-entete .tabs { margin-bottom: 0; flex-wrap: wrap; }
+.dir-entete .tabs { margin-bottom: 0; flex-wrap: wrap; }
 .dir-entete .tabs button { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 .dir-entete p { margin: 0; }
 .dir-ligne-titre { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }

@@ -37,6 +37,7 @@ export const MANUAL_REASONS = {
   prix_automatique_desactive: "Le prix de ce trajet est établi par SECOTO.",
   aucun_bareme_actif: "Ce mode de transport fait l’objet d’un devis personnalisé.",
   itineraire_indisponible: "L’itinéraire n’a pas pu être calculé automatiquement.",
+  international_hors_zone: "Pour ce trajet international, SECOTO étudie votre demande et vous établit un prix personnalisé.",
   distance_indisponible: "L’itinéraire n’a pas pu être calculé automatiquement.",
   categorie_vehicule_hors_bareme: "Cette catégorie de véhicule demande une étude personnalisée.",
   distance_hors_bareme_automatique: "Sur cette distance, SECOTO établit un devis personnalisé.",
@@ -132,6 +133,25 @@ async function callPublicFunction(name, body) {
       : "Le prix n’a pas pu être calculé. Vérifiez les adresses et réessayez."));
   }
   return payload;
+}
+
+// 089 : adresses hors de France (Geoapify ou OpenRouteService, clé côté
+// serveur). Renvoie { items, provider } ; ne lève jamais d'erreur réseau
+// vers l'écran : une panne donne simplement { items: [], erreur: true }.
+export async function adressesEtrangeres(q, { signal } = {}) {
+  try {
+    const res = await fetch(getServerFunctionUrl("adresse-internationale"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q }),
+      signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    return { items: Array.isArray(data.items) ? data.items : [], provider: data.provider || null, erreur: !res.ok };
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    return { items: [], provider: null, erreur: true };
+  }
 }
 
 export const featureFlags = () => rpc("secoto_feature_flags", {});

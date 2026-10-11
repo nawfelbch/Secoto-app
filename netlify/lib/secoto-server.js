@@ -68,6 +68,15 @@ export function validCoordinate(point) {
   return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
 }
 
+/** Pays d'une adresse (France par défaut, comme en base : od_pays). */
+export function paysAdresse(point) {
+  const p = String(point?.country || "").trim().toUpperCase();
+  return p || "FR";
+}
+export function estInternational(from, to) {
+  return paysAdresse(from) !== "FR" || paysAdresse(to) !== "FR";
+}
+
 export async function computeRoute(from, to, { env = process.env, fetchImpl = fetch, profile = "car" } = {}) {
   if (!validCoordinate(from) || !validCoordinate(to)) return null;
   const provider = String(env.ROUTING_PROVIDER || "").toLowerCase();
@@ -77,6 +86,25 @@ export async function computeRoute(from, to, { env = process.env, fetchImpl = fe
     if (provider === "ors" && env.ORS_API_KEY) {
       const orsProfile = profile === "hgv" ? "driving-hgv" : "driving-car";
       const base = String(env.ORS_BASE_URL || "https://api.heigit.org/openrouteservice").replace(/\/+$/, "");
+      // 089 : trajet avec une adresse hors de France → itinéraire SANS ferry.
+      // Une traversée en bateau ne donne jamais de prix automatique : sans
+      // route terrestre, ORS répond en erreur, donc devis établi par SECOTO.
+      if (estInternational(from, to)) {
+        const res = await fetchImpl(`${base}/v2/directions/${orsProfile}`, {
+          method: "POST",
+          headers: { Authorization: env.ORS_API_KEY, Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({
+            coordinates: [[Number(from.lng), Number(from.lat)], [Number(to.lng), Number(to.lat)]],
+            options: { avoid_features: ["ferries"] },
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) return null;
+        const body = await res.json();
+        const summary = body?.routes?.[0]?.summary;
+        if (!summary || !(summary.distance > 0)) return null;
+        return { distance_km: Math.round(summary.distance / 100) / 10, duration_min: Math.round(summary.duration / 60), provider: `ors-${orsProfile}-sans-ferry` };
+      }
       const url = `${base}/v2/directions/${orsProfile}?start=${Number(from.lng)},${Number(from.lat)}&end=${Number(to.lng)},${Number(to.lat)}`;
       const res = await fetchImpl(url, { headers: { Authorization: env.ORS_API_KEY, Accept: "application/geo+json" }, signal: controller.signal });
       if (!res.ok) return null;
