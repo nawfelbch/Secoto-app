@@ -62,7 +62,11 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   // 090 : sans compte, on demande un téléphone (ou un e-mail) juste avant le
   // prix. Écran court, une seule case, déjà rempli si l'appareil le connaît.
   const [etapeContact, setEtapeContact] = useState(false);
-  const [contact, setContact] = useState(() => contactMemorise() || { phone: "", email: "" });
+  const [contact, setContact] = useState(() => {
+    // Numéro déjà connu de l'appareil : affiché comme on l'écrit (06 12 34 56 78).
+    const m = contactMemorise();
+    return m ? { ...m, phone: telephoneLisible(m.phone || "") } : { phone: "", email: "" };
+  });
   const [contactEnvoye, setContactEnvoye] = useState(null);
 
   useEffect(() => {

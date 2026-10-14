@@ -55,3 +55,10 @@ test("parcours : contact obligatoire avant le prix, sans compte, téléphone d'a
   assert.doesNotMatch(m, /\b(drop table|drop column|alter column|drop policy|truncate|delete from)\b/i);
   assert.match(m, /grant execute on function public\.secoto_devis_contact\(uuid, text, text\) to service_role/);
 });
+
+test("090 : un numéro mémorisé s'affiche comme on l'écrit", () => {
+  assert.equal(telephoneLisible("+33783278231"), "07 83 27 82 31");
+  // Le format lisible reste un contact valide, renvoyé au format international.
+  assert.equal(contactValide({ phone: telephoneLisible("+33783278231"), email: "" }).phone, "+33783278231");
+  assert.equal(telephoneLisible("+491512345678"), "+491512345678");
+});
