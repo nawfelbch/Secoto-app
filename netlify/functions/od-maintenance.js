@@ -95,6 +95,11 @@ export async function runMaintenance({ admin, stripe }) {
   const avis = await admin.rpc("secoto_review_requests_tick", { p_limit: 20 });
   report.avis = avis.error ? { error: avis.error.message } : avis.data;
 
+  // 090 : contacts laissés avant le prix, effacés après douze mois sans commande
+  // (promesse de la politique de confidentialité).
+  const contacts = await admin.rpc("secoto_purge_contacts_devis");
+  report.contacts_devis = contacts.error ? { error: contacts.error.message } : contacts.data;
+
   const sub = await admin.rpc("secoto_sub_maintenance_tick");
   report.subscriptions = sub.error ? { error: sub.error.message } : sub.data;
   try {

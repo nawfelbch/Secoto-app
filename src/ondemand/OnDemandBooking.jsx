@@ -11,6 +11,8 @@ import {
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 import { evenement } from "../lib/consentement";
+import ContactAvantPrix from "./ContactAvantPrix";
+import { contactMemorise, contactValide, memoriserContact, telephoneLisible } from "../lib/contactDevis";
 
 const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
 
@@ -57,6 +59,11 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  // 090 : sans compte, on demande un téléphone (ou un e-mail) juste avant le
+  // prix. Écran court, une seule case, déjà rempli si l'appareil le connaît.
+  const [etapeContact, setEtapeContact] = useState(false);
+  const [contact, setContact] = useState(() => contactMemorise() || { phone: "", email: "" });
+  const [contactEnvoye, setContactEnvoye] = useState(null);
 
   useEffect(() => {
     const on = () => setOnline(true);
@@ -152,7 +159,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         schedule: { ...form.schedule, flexibility_days: Number(form.schedule.flexibility_days) || 0 },
         ...(subscriptionActive && overview?.business?.id ? { business_id: overview.business.id } : {}),
       };
-      const result = anonyme ? await publicQuote(payload) : await requestQuote(payload);
+      const leContact = anonyme ? contactValide(contact) : null;
+      if (anonyme && !leContact) throw new Error("Indiquez votre numéro de téléphone ou votre e-mail.");
+      const result = anonyme ? await publicQuote(payload, leContact) : await requestQuote(payload);
+      if (leContact) { memoriserContact(leContact); setContactEnvoye(leContact); }
       if (anonyme) rememberAnonQuote(result.token);
       setQuote(result.quote);
       // 088 : prix vu par le visiteur (mesure, avec son accord seulement).
@@ -343,7 +353,15 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         </div>
       )}
 
-      {step === 3 && (
+      {step === 3 && anonyme && etapeContact && (
+        <ContactAvantPrix
+          value={contact}
+          onChange={setContact}
+          onSubmit={() => { if (contactValide(contact) && !busy && online) computePrice(); }}
+        />
+      )}
+
+      {step === 3 && !(anonyme && etapeContact) && (
         <div className="form-grid">
           <label className="field"><span>Date de prise en charge *</span>
             <input type="date" min={todayIso()} value={form.schedule.pickup_date} onChange={(e) => setSchedule({ pickup_date: e.target.value })} />
@@ -408,7 +426,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
             <div className="alert">
               {MANUAL_REASONS[quote.manual_reason] || "Ce transport fait l’objet d’un devis personnalisé."}{" "}
               {anonyme
-                ? "Créez votre compte pour que SECOTO puisse vous transmettre le prix : c’est le seul moyen de vous recontacter."
+                ? (contactEnvoye
+                  ? `SECOTO vous recontacte très rapidement ${contactEnvoye.phone ? `au ${telephoneLisible(contactEnvoye.phone)}` : `à ${contactEnvoye.email}`} avec votre prix personnalisé.`
+                  : "Créez votre compte pour que SECOTO puisse vous transmettre le prix : c’est le seul moyen de vous recontacter.")
                 : "Votre demande est transmise à SECOTO : vous recevrez le prix dans l’application."}{" "}
               Aucun paiement n’est demandé à ce stade.
             </div>
@@ -455,9 +475,19 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       )}
 
       <div className="actions-row">
-        {step > 0 && step < 5 && <button className="btn ghost" type="button" disabled={busy} onClick={() => { setError(""); setStep(step === 4 ? 3 : step - 1); }}>Retour</button>}
+        {step > 0 && step < 5 && <button className="btn ghost" type="button" disabled={busy} onClick={() => {
+          setError("");
+          if (step === 3 && etapeContact) { setEtapeContact(false); return; }
+          setStep(step === 4 ? 3 : step - 1);
+        }}>Retour</button>}
         {step < 3 && <button className="btn primary" type="button" disabled={Boolean(stepError)} onClick={() => setStep(step + 1)}>Continuer</button>}
-        {step === 3 && <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online} onClick={computePrice}>{busy ? "Calcul de l’itinéraire…" : "Calculer le prix"}</button>}
+        {step === 3 && !anonyme && <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online} onClick={computePrice}>{busy ? "Calcul de l’itinéraire…" : "Calculer le prix"}</button>}
+        {step === 3 && anonyme && !etapeContact && <button className="btn primary" type="button" disabled={Boolean(stepError)} onClick={() => { setError(""); setEtapeContact(true); }}>Continuer</button>}
+        {step === 3 && anonyme && etapeContact && (
+          <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online || !contactValide(contact)} onClick={computePrice}>
+            {busy ? "Calcul de votre prix…" : "Voir mon prix"}
+          </button>
+        )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && anonyme && (
           <button className="btn primary" type="button" disabled={busy || !online} onClick={() => onNeedAccount?.(quote)}>
             Réserver ce transport
@@ -469,10 +499,12 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           </button>
         )}
         {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && anonyme && quote.status !== "expired" && (
-          <button className="btn primary" type="button" onClick={() => onNeedAccount?.(quote)}>Créer mon compte et recevoir le prix</button>
+          contactEnvoye
+            ? <button className="btn ghost" type="button" onClick={() => onNeedAccount?.(quote)}>Suivre ma demande dans l’application (facultatif)</button>
+            : <button className="btn primary" type="button" onClick={() => onNeedAccount?.(quote)}>Créer mon compte et recevoir le prix</button>
         )}
         {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && (
-          <button className="btn ghost" type="button" onClick={() => { setQuote(null); setForm(emptyForm()); setStep(0); }}>Nouvelle demande</button>
+          <button className="btn ghost" type="button" onClick={() => { setQuote(null); setForm(emptyForm()); setEtapeContact(false); setStep(0); }}>Nouvelle demande</button>
         )}
         {stepError && step < 4 && <small className="muted" aria-live="polite">{stepError}</small>}
       </div>

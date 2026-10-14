@@ -1,6 +1,7 @@
 import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
+import { telephoneLisible } from "../lib/contactDevis";
 
 const TABS = [
   { key: "orders", label: "Commandes" },
@@ -20,6 +21,26 @@ const FLAG_LABEL = {
   live_tracking: "Suivi de position pendant la mission",
   adresses_internationales: "Adresses hors de France (Europe et monde)",
 };
+
+// 090 : coordonnées du client (compte, ou laissées avant le prix) en un geste.
+function ContactClient({ q }) {
+  const tel = q?.client_phone || "";
+  const mail = q?.client_email || "";
+  if (!tel && !mail) return null;
+  return (
+    <p className="admin-contact">
+      {tel && (
+        <>
+          <a href={`tel:${tel}`}>{telephoneLisible(tel)}</a>
+          {" · "}
+          <a href={`sms:${tel}`}>SMS</a>
+        </>
+      )}
+      {tel && mail && " · "}
+      {mail && <a href={`mailto:${mail}`}>{mail}</a>}
+    </p>
+  );
+}
 
 function download(content, name, type = "text/csv;charset=utf-8") {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -303,6 +324,7 @@ function AdminQuotes({ quotes, busy, run }) {
                 <p className="muted">
                   {q.client_name} · {formatCents(q.client_price_cents)} · prise en charge {formatDateTime(q.pickup_at)}
                 </p>
+                <ContactClient q={q} />
                 <div className="actions-row">
                   <button className="btn primary small" type="button" disabled={busy}
                     onClick={() => run(() => creerLien(q), "Lien de paiement prêt.")}>
@@ -326,6 +348,7 @@ function AdminQuotes({ quotes, busy, run }) {
               <h3>{q.pickup.city} → {q.delivery.city}</h3>
               <p>{q.vehicle?.model} · {q.vehicle?.class} · {q.vehicle?.rolling ? "roulant" : "NON roulant"} · {q.route?.distance_km ? `${q.route.distance_km} km` : "distance à estimer"}</p>
               <p className="muted">{q.client_name} · prise en charge {formatDateTime(q.pickup_at)} · créneau {q.schedule?.slot}</p>
+              <ContactClient q={q} />
               {q.vehicle?.notes && <p className="muted">« {q.vehicle.notes} »</p>}
               <div className="od-inline-form">
                 <label className="field"><span>Prix client (€)</span><input inputMode="decimal" value={f.client} onChange={(e) => set({ client: e.target.value.replace(",", ".") })} /></label>

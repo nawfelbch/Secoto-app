@@ -75,7 +75,8 @@ test("seul le serveur peut établir un devis anonyme", () => {
 });
 
 test("l'écran de prix fonctionne sans session", () => {
-  assert.match(ECRAN, /anonyme \? await publicQuote\(payload\) : await requestQuote\(payload\)/);
+  // 090 : le visiteur transmet aussi son contact, laissé juste avant le prix.
+  assert.match(ECRAN, /anonyme \? await publicQuote\(payload, leContact\) : await requestQuote\(payload\)/);
   // Sans compte, il n'y a pas de forfait à interroger.
   assert.match(ECRAN, /if \(anonyme \|\| !flags\?\.subscriptions\) return/);
   assert.match(API, /headers: \{ "Content-Type": "application\/json" \}/);

@@ -161,7 +161,8 @@ export const featureFlags = () => rpc("secoto_feature_flags", {});
 const mesureDevis = () => ({ attribution: attributionPourEnvoi(), consentement: consentementPub() });
 export const requestQuote = (payload) => callFunction("quote-transport", { payload, ...mesureDevis() });
 // Devis sans compte : le prix s'affiche d'abord, le compte vient pour réserver.
-export const publicQuote = (payload) => callPublicFunction("quote-public", { payload, ...mesureDevis() });
+// 090 : le contact (téléphone ou e-mail) part avec la demande de prix.
+export const publicQuote = (payload, contact = null) => callPublicFunction("quote-public", { payload, ...mesureDevis(), ...(contact ? { contact } : {}) });
 export const claimAnonQuote = (token) => rpc("secoto_anon_quote_claim", { p_token: token });
 
 // Le jeton du devis anonyme survit à la création du compte : sans lui, le

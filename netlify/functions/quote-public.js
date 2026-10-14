@@ -28,6 +28,19 @@ export function empreinteVisiteur(event, jour = new Date().toISOString().slice(0
   return createHash("sha256").update(`${SECOTO_IP_SALT}|${jour}|${brut}`).digest("hex");
 }
 
+export async function enregistrerContact(admin, quoteId, contact) {
+  if (!quoteId || !contact || typeof contact !== "object") return false;
+  const phone = typeof contact.phone === "string" ? contact.phone.slice(0, 40) : null;
+  const email = typeof contact.email === "string" ? contact.email.slice(0, 254) : null;
+  if (!phone && !email) return false;
+  try {
+    const { error } = await admin.rpc("secoto_devis_contact", { p_quote_id: quoteId, p_phone: phone, p_email: email });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "method_not_allowed" });
   const admin = serviceClient();
@@ -59,6 +72,10 @@ const handler = async (event) => {
   if (error) return json(422, { error: "quote_rejected", message: error.message });
   // 088 : provenance du visiteur (utm, gclid, fbclid) et son choix de cookies.
   await enregistrerAttribution(admin, data?.quote?.id, body);
+  // 090 : téléphone ou e-mail laissé juste avant le prix. Il ne bloque jamais
+  // l'affichage du prix (une ancienne version de l'app n'en envoie pas) ; la
+  // base le vérifie et prévient l'administrateur pour un rappel rapide.
+  await enregistrerContact(admin, data?.quote?.id, body?.contact);
 
   return json(200, { token: data?.token, quote: data?.quote, routing: route ? "ok" : "unavailable" });
 };

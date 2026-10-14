@@ -117,6 +117,7 @@ import { dirigeantAcces } from "./lib/dirigeant";
 import { attributionPourEnvoi } from "./lib/attribution";
 import { consentementPub, evenement, surChangement } from "./lib/consentement";
 import { clientHasCourse } from "./lib/sav";
+import { contactMemorise, telephoneLisible } from "./lib/contactDevis";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
 import CarteContact, { CarteTransporteur } from "./CarteContact";
@@ -1049,11 +1050,12 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
     return () => { vivant = false; };
   }, []);
 
-  const [email, setEmail] = useState("");
+  // 090 : téléphone ou e-mail déjà laissés avant le prix, repris ici.
+  const [email, setEmail] = useState(() => contactMemorise()?.email || "");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(() => telephoneLisible(contactMemorise()?.phone || ""));
   const [missionCode, setMissionCode] = useState(claimInvite?.code || "");
   const [city, setCity] = useState("");
   const [error, setError] = useState("");
