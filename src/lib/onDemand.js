@@ -92,6 +92,11 @@ function explain(error, fallback) {
   return new Error(humanizeError(error, fallback));
 }
 
+// Fonction pas encore créée en base (migration non appliquée).
+export function fonctionAbsente(error) {
+  return ["PGRST202", "42883"].includes(String(error?.code || ""));
+}
+
 async function rpc(name, args, fallback = "Action impossible pour le moment.") {
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw explain(error, fallback);
@@ -292,7 +297,16 @@ export async function uploadEligibilityFile({ businessId, applicationId, file, k
 export const admin = {
   setFlag: (key, enabled) => rpc("secoto_admin_set_feature_flag", { p_key: key, p_enabled: enabled }),
   orders: (status = null) => rpc("secoto_admin_od_orders", { p_status: status }),
-  quotes: (status = null) => rpc("secoto_admin_quotes", { p_status: status }),
+  // Écran admin : seulement les devis utiles (à établir + tarifés valides),
+  // migration 094. Sans elle, on retombe sur la liste complète.
+  quotes: async (status = null) => {
+    if (status === null) {
+      const { data, error } = await supabase.rpc("secoto_admin_quotes_actifs");
+      if (!error) return data;
+      if (!fonctionAbsente(error)) throw explain(error, "Action impossible pour le moment.");
+    }
+    return rpc("secoto_admin_quotes", { p_status: status });
+  },
   priceQuote: (id, clientCents, partnerCents, hours, note, override) =>
     rpc("secoto_admin_price_quote", { p_quote_id: id, p_client_price_cents: clientCents, p_partner_pay_cents: partnerCents, p_validity_hours: hours, p_note: note, p_override_margin: override }),
   // Lien de paiement du devis : le client paie sans compte, et le paiement

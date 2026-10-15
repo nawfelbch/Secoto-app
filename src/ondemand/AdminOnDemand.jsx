@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 import { telephoneLisible } from "../lib/contactDevis";
 import { lienCourt, messageDevisSms } from "../lib/messageDevis";
+import { DEVIS_AFFICHES, devisTarifesValides, filtrerDevis } from "../lib/devisAdmin";
 
 const TABS = [
   { key: "orders", label: "Commandes" },
@@ -236,6 +237,8 @@ function AdminQuotes({ quotes, busy, run }) {
   // le lien doit donc survivre a sa disparition.
   const [lien, setLien] = useState(null);
   const [copie, setCopie] = useState(false);
+  const [recherche, setRecherche] = useState("");
+  const [toutVoir, setToutVoir] = useState(false);
 
   async function envoyerAvecLien(quote, f) {
     await admin.priceQuote(
@@ -268,9 +271,11 @@ function AdminQuotes({ quotes, busy, run }) {
   const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
   // Un devis deja tarife quittait cette liste : si le lien n'avait pas pu etre
   // cree, plus aucun ecran ne permettait de le refabriquer.
-  const tarifes = quotes
-    .filter((q) => q.status === "priced" && (!q.valid_until || new Date(q.valid_until) > new Date()))
-    .slice(0, 12);
+  // Tous restent accessibles : 12 affichés, le reste sur « Voir tout » ou
+  // par la recherche (ville, nom, téléphone, e-mail).
+  const tarifes = devisTarifesValides(quotes);
+  const trouves = filtrerDevis(tarifes, recherche);
+  const affiches = toutVoir || recherche.trim() ? trouves : trouves.slice(0, DEVIS_AFFICHES);
 
   async function creerLien(quote) {
     const resultat = await admin.quotePaymentLink(quote.id, 30);
@@ -319,8 +324,14 @@ function AdminQuotes({ quotes, busy, run }) {
       {tarifes.length > 0 && (
         <details style={{ marginBottom: 14 }}>
           <summary className="muted">Devis déjà tarifés ({tarifes.length}) — créer ou refaire un lien de paiement</summary>
+          <label className="field" style={{ marginTop: 10 }}>
+            <span>Rechercher un devis</span>
+            <input type="search" value={recherche} placeholder="Ville, nom, téléphone ou e-mail"
+              onChange={(e) => setRecherche(e.target.value)} />
+          </label>
+          {recherche.trim() && trouves.length === 0 && <p className="muted">Aucun devis tarifé ne correspond.</p>}
           <div className="cards" style={{ marginTop: 10 }}>
-            {tarifes.map((q) => (
+            {affiches.map((q) => (
               <article className="mission-card" key={q.id}>
                 <div className="card-top"><span className="badge">{q.mode}</span></div>
                 <h3>{q.pickup?.city} → {q.delivery?.city}</h3>
@@ -337,6 +348,13 @@ function AdminQuotes({ quotes, busy, run }) {
               </article>
             ))}
           </div>
+          {affiches.length < trouves.length && (
+            <div className="actions-row" style={{ marginTop: 10 }}>
+              <button className="btn ghost small" type="button" onClick={() => setToutVoir(true)}>
+                Voir les {trouves.length - affiches.length} autres
+              </button>
+            </div>
+          )}
         </details>
       )}
       {pending.length === 0 && <p className="muted">Aucun devis à établir.</p>}
