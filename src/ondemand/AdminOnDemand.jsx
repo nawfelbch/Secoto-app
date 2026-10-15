@@ -2,6 +2,7 @@ import { humanizeError } from "../lib/humanError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 import { telephoneLisible } from "../lib/contactDevis";
+import { lienCourt, messageDevisSms } from "../lib/messageDevis";
 
 const TABS = [
   { key: "orders", label: "Commandes" },
@@ -248,22 +249,21 @@ function AdminQuotes({ quotes, busy, run }) {
     const resultat = await admin.quotePaymentLink(quote.id, 30);
     setLien({
       quoteId: quote.id,
-      url: resultat?.url || "",
+      url: lienCourt(resultat?.url || ""),
       amountCents: Number(resultat?.amount_cents || 0),
       client: quote.client_name || "",
       phone: quote.client_phone || "",
       trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
+      pickupAt: quote.pickup_at || null,
+      mode: quote.mode,
+      vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
     });
     setCopie(false);
     return resultat;
   }
 
-  function messageSms(l) {
-    const montant = (l.amountCents / 100).toFixed(2).replace(".", ",");
-    return `Bonjour, votre devis SECOTO pour le transport ${l.trajet} est prêt : ${montant} €.`
-      + `\nRéglez en ligne ici : ${l.url}`
-      + `\nLe paiement vaut acceptation du devis et lance la recherche du transporteur.`;
-  }
+  // SMS au client : voir src/lib/messageDevis.js.
+  const messageSms = (l) => messageDevisSms(l);
   if (!quotes) return <p className="muted">Chargement…</p>;
   const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
   // Un devis deja tarife quittait cette liste : si le lien n'avait pas pu etre
@@ -276,11 +276,14 @@ function AdminQuotes({ quotes, busy, run }) {
     const resultat = await admin.quotePaymentLink(quote.id, 30);
     setLien({
       quoteId: quote.id,
-      url: resultat?.url || "",
+      url: lienCourt(resultat?.url || ""),
       amountCents: Number(resultat?.amount_cents || 0),
       client: quote.client_name || "",
       phone: quote.client_phone || "",
       trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
+      pickupAt: quote.pickup_at || null,
+      mode: quote.mode,
+      vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
     });
     setCopie(false);
     return resultat;

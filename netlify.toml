@@ -46,6 +46,13 @@
   to = "/politique-confidentialite.html"
   status = 301
 
+# Lien de paiement court envoyé par SMS : /payer?t=… sert la fonction devis-pay.
+[[redirects]]
+  from = "/payer"
+  to = "/.netlify/functions/devis-pay"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
