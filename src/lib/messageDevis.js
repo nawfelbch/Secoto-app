@@ -1,10 +1,8 @@
 // SECOTO — SMS envoyé au client avec son lien de paiement.
 // ----------------------------------------------------------------------------
 // Il doit donner envie de payer tout de suite, sans jargon : le prix tout
-// compris, la date, un lien court, ce qui rassure (remboursement intégral si
-// personne n'accepte) et un humain joignable. Pas d'emoji.
-
-export const TELEPHONE_SECOTO = "07 83 27 82 31";
+// compris, la date, le lien court en action unique, et ce qui rassure
+// (remboursement intégral si personne n'accepte). Pas de téléphone, pas d'emoji.
 
 // Lien court : /payer est réécrit vers la fonction devis-pay (netlify.toml).
 export function lienCourt(url) {
@@ -39,13 +37,15 @@ export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mo
   const prenom = prenomClient(client);
   const prestation = mode === "convoyage" ? "convoyage" : "transport sur plateau";
   const quand = dateLisible(pickupAt);
+  // Une seule action : le lien, seul sur sa ligne, juste après le prix.
   return [
     `Bonjour${prenom ? ` ${prenom}` : ""},`,
-    `Votre ${prestation} ${trajet}${vehicules > 1 ? ` (${vehicules} véhicules)` : ""} est prêt : ${montantLisible(amountCents)} tout compris (carburant, péages, assurance).`,
-    quand ? `Prise en charge prévue le ${quand}.` : "",
-    `Réservez en 1 minute, paiement sécurisé : ${lienCourt(url)}`,
-    "Si aucun transporteur n'est disponible, vous êtes remboursé intégralement. Le paiement vaut acceptation du devis.",
-    `Une question ? Appelez-moi au ${TELEPHONE_SECOTO}.`,
-    "Nawfal, SECOTO",
-  ].filter(Boolean).join("\n");
+    `Votre ${prestation} ${trajet}${vehicules > 1 ? ` (${vehicules} véhicules)` : ""} est prêt : ${montantLisible(amountCents)} tout compris (carburant, péages, assurance)${quand ? `, prise en charge le ${quand}` : ""}.`,
+    "",
+    "Réservez maintenant en 1 minute, paiement sécurisé :",
+    lienCourt(url),
+    "",
+    "Remboursé intégralement si aucun transporteur n'est disponible. Suivi de votre véhicule en direct dans l'app SECOTO. Le paiement vaut acceptation du devis.",
+    "SECOTO",
+  ].join("\n");
 }
