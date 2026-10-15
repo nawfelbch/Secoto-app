@@ -112,6 +112,14 @@ Paiement sécurisé par Stripe. Le règlement vaut acceptation du devis. En cas 
 </div></body></html>`;
 }
 
+// 093 : adresse de l'app qui reprend le devis après création du compte.
+export function lienReprise({ reprendre, trajet, amount_cents: montant }, base = SECOTO_APP_URL) {
+  const q = new URLSearchParams({ reprendre: String(reprendre) });
+  if (trajet) q.set("trajet", String(trajet).slice(0, 120));
+  if (Number.isFinite(Number(montant)) && Number(montant) > 0) q.set("prix", String(Math.round(Number(montant))));
+  return `${String(base).replace(/\/+$/, "")}/?${q.toString()}`;
+}
+
 function html(statusCode, body) {
   return {
     statusCode,
@@ -204,6 +212,11 @@ const handler = async (event) => {
 
   const { data, error } = await admin.rpc("secoto_devis_link_open", { p_token: token });
   if (error) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+  // 093 : devis établi sans compte. Le client crée son compte (30 secondes)
+  // dans l'app ; son devis y est rattaché et l'écran de paiement s'ouvre aussitôt.
+  if (data?.error === "compte_requis" && data.reprendre) {
+    return { statusCode: 302, headers: { Location: lienReprise(data), "Cache-Control": "no-store" }, body: "" };
+  }
   if (data?.error) {
     const motif = MOTIFS[data.error] || MOTIFS.lien_inconnu;
     const paye = data.error === "deja_paye" || data.error === "carte_deja_validee";

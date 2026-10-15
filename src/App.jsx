@@ -119,6 +119,7 @@ import { consentementPub, evenement, surChangement } from "./lib/consentement";
 import { clientHasCourse } from "./lib/sav";
 import { contactMemorise, telephoneLisible } from "./lib/contactDevis";
 import { estErreurReseau, sessionEnregistree } from "./lib/sessionDurable";
+import { capterRepriseDepuisLien, oublierReprise } from "./lib/repriseLien";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
 import CarteContact, { CarteTransporteur } from "./CarteContact";
@@ -1028,9 +1029,9 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
-function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
+function AuthScreen({ onBack, claimInvite = null, repriseLien = null, onMissionAccessComplete }) {
   const claimMode = Boolean(claimInvite?.token || claimInvite?.code);
-  const [authMode, setAuthMode] = useState(claimMode ? "mission" : "login");
+  const [authMode, setAuthMode] = useState(claimMode ? "mission" : repriseLien ? "signup" : "login");
   const [role, setRole] = useState("client");
   const effectiveRole = claimMode ? "client" : role;
 
@@ -1174,12 +1175,21 @@ function AuthScreen({ onBack, claimInvite = null, onMissionAccessComplete }) {
       <header className="app-header">
         <div>
           <p className="eyebrow">SECOTO</p>
-          <h1>{claimMode ? "Retrouvez votre transport" : "Le transport de véhicules, simplifié."}</h1>
+          <h1>{claimMode ? "Retrouvez votre transport" : repriseLien ? "Réservez votre transport" : "Le transport de véhicules, simplifié."}</h1>
           <p className="subtitle">
             {claimMode
               ? "Connectez-vous ou créez votre compte client. Votre transport sera ajouté automatiquement."
-              : "Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous."}
+              : repriseLien
+                ? "Créez votre compte en 30 secondes : le paiement s’ouvre juste après, au prix annoncé. Déjà client ? Onglet « Connexion »."
+                : "Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous."}
           </p>
+          {repriseLien && !claimMode && (repriseLien.trajet || repriseLien.prixCents) && (
+            <div className="reprise-devis" role="status">
+              <span>Votre devis</span>
+              <strong>{repriseLien.trajet}</strong>
+              {repriseLien.prixCents ? <strong className="reprise-devis-prix">{formatCents(repriseLien.prixCents)}</strong> : null}
+            </div>
+          )}
         </div>
         <div className="header-actions">
           {onBack && <button className="btn ghost small" onClick={onBack}>← Retour</button>}
@@ -1556,15 +1566,16 @@ function PasswordRecoveryScreen({ onDone }) {
   );
 }
 
-function PublicEntry({ pendingClaim, onMissionAccessComplete }) {
+function PublicEntry({ pendingClaim, repriseLien = null, onMissionAccessComplete }) {
   const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
-  const [view, setView] = useState(claimMode ? "auth" : "landing");
+  const [view, setView] = useState(claimMode || repriseLien ? "auth" : "landing");
   const effectiveView = claimMode ? "auth" : view;
 
   if (effectiveView === "auth") {
     return (
       <AuthScreen
         claimInvite={pendingClaim}
+        repriseLien={claimMode ? null : repriseLien}
         onMissionAccessComplete={onMissionAccessComplete}
         onBack={claimMode ? null : () => setView("landing")}
       />
@@ -1582,6 +1593,8 @@ function PublicEntry({ pendingClaim, onMissionAccessComplete }) {
 const signatureImpossible = new Set();
 
 export default function App() {
+  // 093 : lien de paiement d'un devis sans compte (?reprendre=…), capté avant tout rendu.
+  const [repriseLien] = useState(() => capterRepriseDepuisLien());
   const [session, setSession] = useState(null);
   const [account, setAccount] = useState(null);
   const [bootLoading, setBootLoading] = useState(true);
@@ -1786,6 +1799,7 @@ export default function App() {
     if (!token) return;
     claimAnonQuote(token)
       .then((quote) => {
+        oublierReprise();
         setDevisRepris(quote);
         setReserverAussitot(["priced", "manual_priced"].includes(quote?.status));
         setClientTab("ondemand");
@@ -4523,6 +4537,7 @@ export default function App() {
   if (!session) return (
     <PublicEntry
       pendingClaim={pendingClaim}
+      repriseLien={repriseLien}
       onMissionAccessComplete={({ missionId, publicRef }) => {
         setPendingClaim(null);
         setClaimStatus("claimed");
