@@ -34,6 +34,39 @@ function todayIso() {
 
 // `anonyme` : le visiteur n'a pas encore de compte. Il obtient son prix, puis
 // crée son compte pour réserver — jamais l'inverse.
+// Après chaque demande sans compte : créer son compte (ou se connecter) doit
+// sauter aux yeux, en une action, juste sous le prix ou sous la demande.
+function CompteCta({ prix, onCompte }) {
+  return (
+    <div className="od-compte-cta" role="region" aria-label="Créer mon compte">
+      <strong className="od-compte-titre">
+        {prix ? "Réservez ce prix en 1 minute" : "Recevez votre prix directement dans l’app"}
+      </strong>
+      <ul>
+        {prix ? (
+          <>
+            <li>Compte gratuit, créé en 30 secondes</li>
+            <li>Le paiement s’ouvre juste après, au prix affiché</li>
+            <li>Remboursé intégralement si aucun transporteur n’accepte</li>
+          </>
+        ) : (
+          <>
+            <li>Compte gratuit, créé en 30 secondes</li>
+            <li>Vous êtes prévenu dès que votre prix est prêt</li>
+            <li>Paiement en 1 clic, suivi de votre véhicule en direct</li>
+          </>
+        )}
+      </ul>
+      <button className="btn primary od-compte-btn" type="button" onClick={() => onCompte("signup")}>
+        {prix ? "Créer mon compte et réserver" : "Créer mon compte gratuit"}
+      </button>
+      <button className="linklike od-compte-connexion" type="button" onClick={() => onCompte("login")}>
+        Déjà client ? Me connecter
+      </button>
+    </div>
+  );
+}
+
 export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null, reserverAussitot = false }) {
   const [step, setStep] = useState(initialQuote ? 4 : 0);
   // Repris du site vitrine (?vehicle=…&service=…) : le modele et le mode sont
@@ -396,6 +429,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <span>Prix total du transport</span>
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
+              {anonyme && <CompteCta prix onCompte={(mode) => onNeedAccount?.(quote, mode)} />}
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
                 {devisDirect
@@ -436,6 +470,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 : "Votre demande est transmise à SECOTO : vous recevrez le prix dans l’application."}{" "}
               Aucun paiement n’est demandé à ce stade.
             </div>
+          )}
+          {anonyme && !["priced", "manual_priced"].includes(quote.status) && quote.status !== "expired" && (
+            <CompteCta prix={false} onCompte={(mode) => onNeedAccount?.(quote, mode)} />
           )}
         </div>
       )}
@@ -493,7 +530,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           </button>
         )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && anonyme && (
-          <button className="btn primary" type="button" disabled={busy || !online} onClick={() => onNeedAccount?.(quote)}>
+          <button className="btn primary" type="button" disabled={busy || !online} onClick={() => onNeedAccount?.(quote, "signup")}>
             Réserver ce transport
           </button>
         )}
@@ -501,11 +538,6 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription)} onClick={book}>
             {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait" : "Réserver et passer au paiement"}
           </button>
-        )}
-        {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && anonyme && quote.status !== "expired" && (
-          contactEnvoye
-            ? <button className="btn ghost" type="button" onClick={() => onNeedAccount?.(quote)}>Suivre ma demande dans l’application (facultatif)</button>
-            : <button className="btn primary" type="button" onClick={() => onNeedAccount?.(quote)}>Créer mon compte et recevoir le prix</button>
         )}
         {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && (
           <button className="btn ghost" type="button" onClick={() => { setQuote(null); setForm(emptyForm()); setEtapeContact(false); setStep(0); }}>Nouvelle demande</button>

@@ -43,3 +43,12 @@ export function lireReprise(s = stockage()) {
 export function oublierReprise(s = stockage()) {
   try { s?.removeItem(CLE_REPRISE); } catch { /* indisponible */ }
 }
+
+// Demande faite à l'instant sans compte : même rappel (trajet, prix) sur
+// l'écran de compte. Sans prix (devis personnalisé), seul le trajet s'affiche.
+export function repriseDepuisDevis(quote) {
+  if (!quote) return null;
+  const trajet = [quote.pickup?.city, quote.delivery?.city].filter(Boolean).join(" → ").slice(0, 120);
+  const avecPrix = ["priced", "manual_priced"].includes(quote.status) && Number(quote.client_price_cents) > 0;
+  return { trajet, prixCents: avecPrix ? Math.round(Number(quote.client_price_cents)) : null };
+}

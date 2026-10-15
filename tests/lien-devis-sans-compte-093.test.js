@@ -51,7 +51,7 @@ test("la page de paiement envoie vers l'app quand un compte est requis", async (
 test("l'app ouvre la création de compte, puis rattache le devis et ouvre le paiement", () => {
   assert.match(APP, /const \[repriseLien\] = useState\(\(\) => capterRepriseDepuisLien\(\)\);/);
   assert.match(APP, /useState\(claimMode \|\| repriseLien \? "auth" : "landing"\)/);
-  assert.match(APP, /useState\(claimMode \? "mission" : repriseLien \? "signup" : "login"\)/);
+  assert.match(APP, /useState\(claimMode \? "mission" : modeInitial \|\| \(repriseLien \? "signup" : "login"\)\)/);
   assert.match(APP, /oublierReprise\(\);\s+setDevisRepris\(quote\);\s+setReserverAussitot/);
 });
 

@@ -119,7 +119,7 @@ import { consentementPub, evenement, surChangement } from "./lib/consentement";
 import { clientHasCourse } from "./lib/sav";
 import { contactMemorise, telephoneLisible } from "./lib/contactDevis";
 import { estErreurReseau, sessionEnregistree } from "./lib/sessionDurable";
-import { capterRepriseDepuisLien, oublierReprise } from "./lib/repriseLien";
+import { capterRepriseDepuisLien, oublierReprise, repriseDepuisDevis } from "./lib/repriseLien";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
 import CarteContact, { CarteTransporteur } from "./CarteContact";
@@ -1029,9 +1029,12 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
-function AuthScreen({ onBack, claimInvite = null, repriseLien = null, onMissionAccessComplete }) {
+function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitial = null, onMissionAccessComplete }) {
   const claimMode = Boolean(claimInvite?.token || claimInvite?.code);
-  const [authMode, setAuthMode] = useState(claimMode ? "mission" : repriseLien ? "signup" : "login");
+  const [authMode, setAuthMode] = useState(claimMode ? "mission" : modeInitial || (repriseLien ? "signup" : "login"));
+  // Devis sans compte (lien de paiement ou demande qui vient d'être faite) :
+  // seulement « Créer un compte » et « Connexion », rien d'autre à choisir.
+  const repriseSansPrix = Boolean(repriseLien && !repriseLien.prixCents);
   const [role, setRole] = useState("client");
   const effectiveRole = claimMode ? "client" : role;
 
@@ -1175,12 +1178,14 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, onMissionA
       <header className="app-header">
         <div>
           <p className="eyebrow">SECOTO</p>
-          <h1>{claimMode ? "Retrouvez votre transport" : repriseLien ? "Réservez votre transport" : "Le transport de véhicules, simplifié."}</h1>
+          <h1>{claimMode ? "Retrouvez votre transport" : repriseLien ? (repriseSansPrix ? "Recevez votre prix" : "Réservez votre transport") : "Le transport de véhicules, simplifié."}</h1>
           <p className="subtitle">
             {claimMode
               ? "Connectez-vous ou créez votre compte client. Votre transport sera ajouté automatiquement."
               : repriseLien
-                ? "Créez votre compte en 30 secondes : le paiement s’ouvre juste après, au prix annoncé. Déjà client ? Onglet « Connexion »."
+                ? (repriseSansPrix
+                  ? "Créez votre compte en 30 secondes : votre demande y est déjà, et vous êtes prévenu dès que votre prix est prêt. Déjà client ? Onglet « Connexion »."
+                  : "Créez votre compte en 30 secondes : le paiement s’ouvre juste après, au prix annoncé. Déjà client ? Onglet « Connexion ».")
                 : "Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous."}
           </p>
           {repriseLien && !claimMode && (repriseLien.trajet || repriseLien.prixCents) && (
@@ -1208,6 +1213,11 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, onMissionA
             ? [
                 { value: "mission", label: "Accès client" },
                 { value: "login", label: "Compte existant" },
+              ]
+            : repriseLien
+            ? [
+                { value: "signup", label: "Créer un compte" },
+                { value: "login", label: "Connexion" },
               ]
             : [
                 { value: "login", label: "Connexion" },
@@ -1432,7 +1442,7 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, onMissionA
    Landing publique — un seul chemin : s'identifier puis commander
 ============================================================ */
 
-function PublicLanding({ onShowAuth }) {
+function PublicLanding({ onShowAuth, onNeedAccount }) {
   // Le site vitrine peut arriver avec ?from=…&to=…&vehicle=…&service=… .
   // On garde ce qui est exploitable pour pré-remplir la demande APRÈS
   // identification : les adresses, elles, seront revérifiées une par une.
@@ -1494,7 +1504,7 @@ function PublicLanding({ onShowAuth }) {
           <OnDemandBooking
             anonyme
             flags={{ od_payments: true }}
-            onNeedAccount={onShowAuth}
+            onNeedAccount={onNeedAccount}
           />
           <ul className="od-steps-inline">
             <li>1. Trajet et véhicule</li>
@@ -1569,20 +1579,38 @@ function PasswordRecoveryScreen({ onDone }) {
 function PublicEntry({ pendingClaim, repriseLien = null, onMissionAccessComplete }) {
   const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
   const [view, setView] = useState(claimMode || repriseLien ? "auth" : "landing");
+  // Demande faite à l'instant sans compte : l'écran de compte la rappelle
+  // (trajet, prix) et s'ouvre sur « Créer un compte » ou « Connexion ».
+  const [entree, setEntree] = useState(null);
   const effectiveView = claimMode ? "auth" : view;
+  const landing = (
+    <PublicLanding
+      onShowAuth={() => { setEntree(null); setView("auth"); }}
+      onNeedAccount={(quote, mode) => {
+        setEntree({ mode: mode === "login" ? "login" : "signup", reprise: repriseDepuisDevis(quote) });
+        setView("auth");
+      }}
+    />
+  );
 
-  if (effectiveView === "auth") {
-    return (
-      <AuthScreen
-        claimInvite={pendingClaim}
-        repriseLien={claimMode ? null : repriseLien}
-        onMissionAccessComplete={onMissionAccessComplete}
-        onBack={claimMode ? null : () => setView("landing")}
-      />
-    );
-  }
-
-  return <PublicLanding onShowAuth={() => setView("auth")} />;
+  const surCompte = effectiveView === "auth";
+  // La page de demande reste montée (cachée) pendant l'écran de compte :
+  // « Retour » retrouve le prix tel quel, sans tout ressaisir.
+  return (
+    <>
+      {(!surCompte || entree) && <div hidden={surCompte}>{landing}</div>}
+      {surCompte && (
+        <AuthScreen
+          key={entree?.mode || "auth"}
+          claimInvite={pendingClaim}
+          repriseLien={claimMode ? null : entree?.reprise || repriseLien}
+          modeInitial={claimMode ? null : entree?.mode || null}
+          onMissionAccessComplete={onMissionAccessComplete}
+          onBack={claimMode ? null : () => { setView("landing"); }}
+        />
+      )}
+    </>
+  );
 }
 
 /* ============================================================
