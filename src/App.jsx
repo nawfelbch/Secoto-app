@@ -118,6 +118,7 @@ import { attributionPourEnvoi } from "./lib/attribution";
 import { consentementPub, evenement, surChangement } from "./lib/consentement";
 import { clientHasCourse } from "./lib/sav";
 import { contactMemorise, telephoneLisible } from "./lib/contactDevis";
+import { estErreurReseau, sessionEnregistree } from "./lib/sessionDurable";
 import BaremeTransporteur from "./BaremeTransporteur";
 import { carrierRatesStatus } from "./lib/carrierRates";
 import CarteContact, { CarteTransporteur } from "./CarteContact";
@@ -2012,7 +2013,11 @@ export default function App() {
     let alive = true;
     initializePlatform({
       onResume: async () => {
-        const { data } = await supabase.auth.getSession();
+        supabase.auth.startAutoRefresh();
+        const { data, error } = await supabase.auth.getSession();
+        // Réseau encore endormi au réveil du téléphone : on garde la session,
+        // le rafraîchissement automatique réessaie tout seul.
+        if (error && !data?.session) return;
         if (!data?.session) {
           accountLoadGenerationRef.current += 1;
           dataGenerationRef.current += 1;
@@ -2024,6 +2029,7 @@ export default function App() {
         scheduleRefresh(0);
         loadNotifications(accountRef.current);
       },
+      onPause: () => { supabase.auth.stopAutoRefresh(); },
       onNetworkChange: ({ connected }) => {
         setNetworkConnected(Boolean(connected));
         if (connected) scheduleRefresh(0);
@@ -2159,7 +2165,14 @@ export default function App() {
   /* ---------- Boot / session ---------- */
   useEffect(() => {
     let mounted = true;
-    const timer = setTimeout(() => {
+    const debut = Date.now();
+    const finAttente = () => {
+      // Une session est enregistrée sur l'appareil : réseau lent, on attend la
+      // réponse (jusqu'à 30 s) plutôt que d'afficher l'écran de connexion.
+      if (mounted && sessionEnregistree() && Date.now() - debut < 30000) {
+        timer = setTimeout(finAttente, 4000);
+        return;
+      }
       if (mounted) {
         setBootLoading(false);
         setSession(null);
@@ -2168,7 +2181,9 @@ export default function App() {
         notificationGenerationRef.current += 1;
         setAccount(null);
       }
-    }, 8000);
+    };
+    let timer = setTimeout(finAttente, 8000);
+    let essais = 0;
 
     async function boot() {
       try {
@@ -2183,6 +2198,13 @@ export default function App() {
       } catch (err) {
         if (mounted) {
           clearTimeout(timer);
+          // Coupure réseau au démarrage : la session reste sur l'appareil. On
+          // réessaie au lieu de renvoyer l'utilisateur vers la connexion.
+          if (sessionEnregistree() && estErreurReseau(err) && essais < 20) {
+            essais += 1;
+            setTimeout(() => { if (mounted) boot(); }, 3000);
+            return;
+          }
           setError(humanizeError(err, "Erreur au chargement de la session Supabase."));
           setSession(null); setAccount(null); setBootLoading(false);
         }
@@ -3944,7 +3966,9 @@ export default function App() {
     draftTimersRef.current.clear();
     const owner = account?.id;
     await disablePush(account?.id);
-    await supabase.auth.signOut();
+    // Seulement cet appareil : se déconnecter sur l'ordinateur ne doit pas
+    // déconnecter le téléphone (la portée par défaut est « tous les appareils »).
+    await supabase.auth.signOut({ scope: "local" });
     supabase.removeAllChannels();
     if (owner) await clearEncryptedAccountData(owner).catch(() => {});
     setSession(null); setAccount(null);

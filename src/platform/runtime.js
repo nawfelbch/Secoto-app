@@ -180,6 +180,7 @@ export async function shareOrOpen({ title = "SECOTO", text = "", url }) {
 
 export async function initializePlatform({
   onResume,
+  onPause,
   onNetworkChange,
   onDeepLink,
   onBack,
@@ -222,6 +223,7 @@ export async function initializePlatform({
     handles.push(
       await App.addListener("appStateChange", ({ isActive }) => {
         if (isActive) onResume?.();
+        else onPause?.();
       }),
     );
     handles.push(await App.addListener("resume", () => onResume?.()));
