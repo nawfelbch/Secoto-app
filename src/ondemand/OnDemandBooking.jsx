@@ -336,8 +336,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               </button>
               <small className="muted">
                 {form.mode === "plateau" || !toutRoule
-                  ? "Plusieurs véhicules sur le même camion : le prix baisse pour chacun d’eux."
-                  : "Jusqu’à 3 véhicules. Sur plateau, le prix baisse pour chacun d’eux."}
+                  ? "Sur le même plateau, chaque véhicule en plus est à −25 %."
+                  : "Jusqu’à 3 véhicules. Sur plateau, chaque véhicule en plus est à −25 %."}
               </small>
             </div>
           )}
