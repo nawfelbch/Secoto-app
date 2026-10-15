@@ -1,6 +1,11 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Crédits Netlify : chaque déploiement de production coûte 15 crédits. Un
+  # commit qui ne touche ni le site ni les fonctions (versions iOS/Android,
+  # migrations SQL, tests, documents) n'est pas redéployé. Toujours déployé :
+  # premier build, même commit relancé à la main, référence inconnue.
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && [ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- src public netlify netlify.toml package.json package-lock.json .npmrc index.html vite.config.js"
 
 # Ces variables sont PUBLIQUES par conception (URL Supabase + cle anon protegee
 # par les RLS + cle VAPID publique) : elles doivent apparaitre dans le bundle
@@ -9,8 +14,9 @@
 [build.environment]
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_VAPID_PUBLIC_KEY,SUPABASE_URL,VITE_APPLE_PAY_MERCHANT_ID,VITE_SECOTO_FUNCTIONS_BASE_URL,VITE_MAP_TILE_URL,VITE_MAP_ATTRIBUTION"
 
+# File de reprise : les notifications partent déjà en direct, ceci rattrape les échecs.
 [functions."retry-push-outbox"]
-  schedule = "* * * * *"
+  schedule = "*/2 * * * *"
 
 # Migration 030 : devis, verrous de capture expirés, libérations et
 # remboursements des commandes à la demande, suspension des abonnements.
@@ -20,21 +26,21 @@
 # Migration 032 : heure estimée d'arrivée des missions suivies en direct et
 # purge horaire des positions devenues inutiles.
 [functions."live-eta"]
-  schedule = "*/2 * * * *"
+  schedule = "*/5 * * * *"
 
 [functions."retry-account-deletions"]
-  schedule = "*/5 * * * *"
+  schedule = "17 * * * *"
 
 # Doublon e-mail des evenements critiques (paiement, annulation) : support
 # durable exige par la confirmation de commande et la renonciation au droit de
 # retractation. La notification push ne suffit pas.
 [functions."send-transactional-email"]
-  schedule = "* * * * *"
+  schedule = "*/2 * * * *"
 
 # Remboursement integral de la commission lorsque le TRANSPORTEUR se desiste.
 # Une annulation par le client ne cree jamais de ligne a rembourser.
 [functions."retry-refunds"]
-  schedule = "*/5 * * * *"
+  schedule = "*/15 * * * *"
 
 [[redirects]]
   from = "/suppression-compte"
