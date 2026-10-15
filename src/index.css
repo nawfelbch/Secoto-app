@@ -1844,3 +1844,12 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
 .od-compte-cta li::before { content: "\2713"; position: absolute; left: 0; color: #f5620f; font-weight: 700; }
 .od-compte-btn { width: 100%; min-height: 52px; font-size: 1.05rem; }
 .od-compte-connexion { align-self: center; padding: 8px 12px; min-height: 44px; font-weight: 600; }
+
+/* 095 : confirmation de suppression d'un devis, dans la carte. */
+.od-supprimer {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.06);
+}

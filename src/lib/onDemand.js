@@ -307,6 +307,10 @@ export const admin = {
     }
     return rpc("secoto_admin_quotes", { p_status: status });
   },
+  // 095 : supprimer = retirer des listes (rien n'est effacé), restaurable.
+  deleteQuote: (id, motif = null) => rpc("secoto_admin_quote_supprimer", { p_quote: id, p_motif: motif }),
+  restoreQuote: (id) => rpc("secoto_admin_quote_restaurer", { p_quote: id }),
+  deletedQuotes: () => rpc("secoto_admin_quotes_supprimes", {}),
   priceQuote: (id, clientCents, partnerCents, hours, note, override) =>
     rpc("secoto_admin_price_quote", { p_quote_id: id, p_client_price_cents: clientCents, p_partner_pay_cents: partnerCents, p_validity_hours: hours, p_note: note, p_override_margin: override }),
   // Lien de paiement du devis : le client paie sans compte, et le paiement

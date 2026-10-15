@@ -231,6 +231,75 @@ function AdminOrders({ orders, busy, run, transporters, relation = false }) {
   );
 }
 
+// Suppression en deux temps, sans fenêtre système (iOS / Android / Web).
+function SupprimerDevis({ q, busy, run }) {
+  const [confirmer, setConfirmer] = useState(false);
+  const [motif, setMotif] = useState("");
+  if (!confirmer) {
+    return (
+      <button className="btn ghost small" type="button" disabled={busy} onClick={() => setConfirmer(true)}>
+        Supprimer
+      </button>
+    );
+  }
+  return (
+    <div className="od-supprimer">
+      <label className="field">
+        <span>Motif (facultatif)</span>
+        <input value={motif} maxLength={300} placeholder="Test, doublon, client injoignable…" onChange={(e) => setMotif(e.target.value)} />
+      </label>
+      <p className="muted">Le devis sort de vos listes et son lien de paiement ne fonctionne plus. Rien n’est effacé : il reste restaurable.</p>
+      <div className="actions-row" style={{ flexWrap: "wrap" }}>
+        <button className="btn danger small" type="button" disabled={busy}
+          onClick={() => run(() => admin.deleteQuote(q.id, motif.trim() || null), "Devis supprimé.")}>
+          Confirmer la suppression
+        </button>
+        <button className="btn ghost small" type="button" disabled={busy} onClick={() => { setConfirmer(false); setMotif(""); }}>
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Devis supprimés : chargés seulement à l'ouverture, restaurables en un clic.
+function DevisSupprimes({ busy, run }) {
+  const [liste, setListe] = useState(null);
+  const [erreur, setErreur] = useState("");
+  async function charger() {
+    setErreur("");
+    try { setListe(await admin.deletedQuotes()); } catch (e) { setErreur(humanizeError(e)); }
+  }
+  return (
+    <details style={{ marginTop: 18 }} onToggle={(e) => { if (e.currentTarget.open) charger(); }}>
+      <summary className="muted">Devis supprimés — restaurer</summary>
+      {erreur && <p className="muted">{erreur}</p>}
+      {!liste && !erreur && <p className="muted">Chargement…</p>}
+      {liste && liste.length === 0 && <p className="muted">Aucun devis supprimé.</p>}
+      {liste && liste.length > 0 && (
+        <div className="cards" style={{ marginTop: 10 }}>
+          {liste.map((q) => (
+            <article className="mission-card" key={q.id}>
+              <div className="card-top"><span className="badge">{q.mode}</span></div>
+              <h3>{q.pickup?.city} → {q.delivery?.city}</h3>
+              <p className="muted">
+                {q.client_name || "Demande sans compte"} · supprimé le {formatDateTime(q.supprime_le)}
+                {q.motif_suppression ? ` · « ${q.motif_suppression} »` : ""}
+              </p>
+              <div className="actions-row">
+                <button className="btn ghost small" type="button" disabled={busy}
+                  onClick={() => run(async () => { await admin.restoreQuote(q.id); await charger(); }, "Devis restauré.")}>
+                  Restaurer
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </details>
+  );
+}
+
 function AdminQuotes({ quotes, busy, run }) {
   const [form, setForm] = useState({});
   // Dernier lien fabrique : la carte disparait des que le devis est tarife,
@@ -345,6 +414,7 @@ function AdminQuotes({ quotes, busy, run }) {
                     Créer le lien de paiement
                   </button>
                 </div>
+                <SupprimerDevis q={q} busy={busy} run={run} />
               </article>
             ))}
           </div>
@@ -389,10 +459,12 @@ function AdminQuotes({ quotes, busy, run }) {
                   Devis seul (règlement en espèces)
                 </button>
               </div>
+              <SupprimerDevis q={q} busy={busy} run={run} />
             </article>
           );
         })}
       </div>
+      <DevisSupprimes busy={busy} run={run} />
     </>
   );
 }
