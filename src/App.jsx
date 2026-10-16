@@ -132,6 +132,7 @@ import AdminMissionPilot, {
 import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFlow";
 // Migration 030-032 : transport à la demande, offres partenaires, abonnement, suivi.
 import OnDemandBooking from "./ondemand/OnDemandBooking";
+import ReserverExpress from "./ondemand/ReserverExpress";
 import PaiementAFinaliser from "./ondemand/PaiementAFinaliser";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
@@ -1185,7 +1186,7 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitia
               : repriseLien
                 ? (repriseSansPrix
                   ? "Créez votre compte en 30 secondes : votre demande y est déjà, et vous êtes prévenu dès que votre prix est prêt. Déjà client ? Onglet « Connexion »."
-                  : "Créez votre compte en 30 secondes : le paiement s’ouvre juste après, au prix annoncé. Déjà client ? Onglet « Connexion ».")
+                  : "Votre nom et votre e-mail suffisent : le paiement s’ouvre juste après, au prix annoncé. Pas de mot de passe à créer.")
                 : "Publiez une course en 30 secondes ou trouvez des missions de convoyage et de transport auto / moto près de chez vous."}
           </p>
           {repriseLien && !claimMode && (repriseLien.trajet || repriseLien.prixCents) && (
@@ -1292,6 +1293,10 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitia
                 </button>
               </form>
             </>
+          ) : repriseLien?.prixCents && !claimMode ? (
+            // Devis déjà tarifé (lien SMS ou prix affiché) : réservation express,
+            // sans formulaire d'inscription ni mot de passe.
+            <ReserverExpress onConnexion={() => setAuthMode("login")} />
           ) : (
             <>
               <h2>Créer un compte</h2>
@@ -1466,7 +1471,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
   }, [prefill]);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell landing-public">
       <header className="app-header">
         <div><p className="eyebrow">SECOTO</p><h1>Transport de véhicules</h1></div>
         <div className="topbar-actions">
@@ -1495,9 +1500,8 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
           {prefill && (prefill.from || prefill.to) && (
             <p className="muted">Votre trajet {prefill.from || "—"} → {prefill.to || "—"} est conservé pour l’étape suivante.</p>
           )}
-          <p className="muted" style={{ marginBottom: 18 }}>
+          <p className="muted landing-intro" style={{ marginBottom: 18 }}>
             Le prix s’affiche tout de suite, sans compte et sans engagement.
-            Vous ne créez votre compte qu’au moment de réserver.
           </p>
           {/* Le prix AVANT le compte : c'est la promesse de la publicite, et
               c'est ce que le visiteur obtient ici, sans donner son nom. */}
@@ -1509,7 +1513,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
           <ul className="od-steps-inline">
             <li>1. Trajet et véhicule</li>
             <li>2. Prix affiché immédiatement</li>
-            <li>3. Compte créé pour réserver</li>
+            <li>3. Réservation en 1 minute, sans mot de passe</li>
             <li>4. Paiement, puis diffusion à nos transporteurs vérifiés</li>
           </ul>
           <p className="muted" style={{ marginTop: 14 }}>
@@ -1739,6 +1743,9 @@ export default function App() {
   // mene directement jusqu'a l'ecran de paiement.
   const [devisRepris, setDevisRepris] = useState(null);
   const [reserverAussitot, setReserverAussitot] = useState(false);
+  // Devis en cours de reprise vers le paiement : rien ne doit s'intercaler
+  // (fenêtre des notifications comprise) entre le prix et la carte bancaire.
+  const [repriseEnCours, setRepriseEnCours] = useState(false);
   const [focusOfferId, setFocusOfferId] = useState(null);
   const [clientTrackingMissionId, setClientTrackingMissionId] = useState(null);
   const [pendingClaim, setPendingClaim] = useState(() => getPendingMissionClaim());
@@ -1825,6 +1832,7 @@ export default function App() {
     if (!account?.id || !["client", "admin"].includes(String(account.role))) return;
     const token = takeAnonQuote();
     if (!token) return;
+    queueMicrotask(() => setRepriseEnCours(true));
     claimAnonQuote(token)
       .then((quote) => {
         oublierReprise();
@@ -1833,7 +1841,10 @@ export default function App() {
         setClientTab("ondemand");
         setNotice("Votre prix est conservé : il ne reste plus qu'à régler.");
       })
-      .catch((err) => setError(humanizeError(err, "Votre devis n'a pas pu être repris. Recalculez votre prix, cela prend une minute.")));
+      .catch((err) => {
+        setRepriseEnCours(false);
+        setError(humanizeError(err, "Votre devis n'a pas pu être repris. Recalculez votre prix, cela prend une minute."));
+      });
   }, [account?.id, account?.role]);
 
   useEffect(() => {
@@ -4652,7 +4663,7 @@ export default function App() {
         ))}
       </div>
 
-      {pushSupported() && pushState === "idle" && !pushGateVue && (
+      {pushSupported() && pushState === "idle" && !pushGateVue && !repriseEnCours && !devisRepris && (
         <NotificationConsentGate
           busy={pushDecisionBusy}
           onEnable={handleEnablePush}
@@ -4917,6 +4928,7 @@ export default function App() {
                 onBooked={() => {
                   setDevisRepris(null);
                   setReserverAussitot(false);
+                  setRepriseEnCours(false);
                   setClientTab("orders");
                   loadAllData(account);
                 }}

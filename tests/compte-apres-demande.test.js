@@ -19,13 +19,15 @@ test("rappel de la demande : trajet + prix si tarifé, trajet seul sinon", () =>
 
 test("bloc compte sous le prix ET sous chaque demande en devis personnalisé", () => {
   assert.match(BOOKING, /function CompteCta\(\{ prix, onCompte \}\)/);
-  assert.match(BOOKING, /\{anonyme && <CompteCta prix onCompte=\{\(mode\) => onNeedAccount\?\.\(quote, mode\)\} \/>\}/);
+  // Prix affiché : réservation express (nom + e-mail), sans formulaire d'inscription.
+  assert.match(BOOKING, /\{anonyme && <ReserverExpress onConnexion=\{\(\) => onNeedAccount\?\.\(quote, "login"\)\} \/>\}/);
   assert.match(BOOKING, /<CompteCta prix=\{false\} onCompte=/);
   assert.match(BOOKING, /onCompte\("signup"\)/);
   assert.match(BOOKING, /onCompte\("login"\)/);
   assert.match(BOOKING, /Déjà client \? Me connecter/);
-  // Prix obtenu : un seul mot d'action, « Réserver ».
-  assert.match(BOOKING, /\{prix \? "Réserver" : "Créer mon compte gratuit"\}/);
+  const EXPRESS = readFileSync(new URL("../src/ondemand/ReserverExpress.jsx", import.meta.url), "utf8");
+  assert.match(EXPRESS, /"Réserver"/);
+  assert.match(EXPRESS, /Déjà client \? Me connecter/);
   // Plus de bouton « facultatif » discret.
   assert.doesNotMatch(BOOKING, /\(facultatif\)/);
   assert.match(CSS, /\.od-compte-btn \{ width: 100%; min-height: 52px;/);

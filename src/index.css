@@ -1853,3 +1853,20 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
   border: 1px solid rgba(239, 68, 68, 0.45);
   background: rgba(239, 68, 68, 0.06);
 }
+
+/* Téléphone, visiteur venu d'une publicité : le premier champ (adresse de
+   départ) doit être visible sans faire défiler. Les arguments restent plus bas,
+   sous le formulaire. */
+@media (max-width: 640px) {
+  .landing-public .app-header { flex-direction: row; align-items: center; margin-bottom: 10px; gap: 10px; }
+  .landing-public .app-header h1 { font-size: 1.25rem; }
+  .landing-public .app-header .eyebrow { margin-bottom: 2px; }
+  .landing-public .topbar-actions .btn { padding: 8px 12px; font-size: 0.8rem; }
+  .landing-public .hero { padding: 4px 4px 0; }
+  .landing-public .hero-badge { margin-bottom: 8px; padding: 5px 12px; font-size: 0.7rem; }
+  .landing-public .hero-title { font-size: 1.55rem; margin-bottom: 8px; max-width: 22ch; }
+  .landing-public .hero-sub, .landing-public .hero-points { display: none; }
+  .landing-public .landing-intro { display: none; }
+  .landing-public .deposit-card > h2 { display: none; }
+  .od-anonyme > .od-titre, .od-anonyme > .od-intro { display: none; }
+}

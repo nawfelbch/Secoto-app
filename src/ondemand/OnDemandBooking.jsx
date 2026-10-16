@@ -12,6 +12,7 @@ import {
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 import { evenement } from "../lib/consentement";
 import ContactAvantPrix from "./ContactAvantPrix";
+import ReserverExpress from "./ReserverExpress";
 import { contactMemorise, contactValide, memoriserContact, telephoneLisible } from "../lib/contactDevis";
 
 const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
@@ -264,9 +265,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const devisDirect = quote?.payment_circuit === "direct";
 
   return (
-    <div className="panel panel-full">
-      <h2>Transport à la demande</h2>
-      <p className="muted">
+    <div className={`panel panel-full${anonyme ? " od-anonyme" : ""}`}>
+      <h2 className="od-titre">Transport à la demande</h2>
+      <p className="muted od-intro">
         {direct || devisDirect
           ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
           : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
@@ -429,7 +430,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <span>Prix total du transport</span>
                 <strong>{formatCents(quote.client_price_cents)}</strong>
               </div>
-              {anonyme && <CompteCta prix onCompte={(mode) => onNeedAccount?.(quote, mode)} />}
+              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} />}
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
                 {devisDirect
@@ -527,11 +528,6 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         {step === 3 && anonyme && etapeContact && (
           <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online || !contactValide(contact)} onClick={computePrice}>
             {busy ? "Calcul de votre prix…" : "Voir mon prix"}
-          </button>
-        )}
-        {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && anonyme && (
-          <button className="btn primary" type="button" disabled={busy || !online} onClick={() => onNeedAccount?.(quote, "signup")}>
-            Réserver ce transport
           </button>
         )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (
