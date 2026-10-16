@@ -58,7 +58,7 @@ function CompteCta({ prix, onCompte }) {
         )}
       </ul>
       <button className="btn primary od-compte-btn" type="button" onClick={() => onCompte("signup")}>
-        {prix ? "Créer mon compte et réserver" : "Créer mon compte gratuit"}
+        {prix ? "Réserver" : "Créer mon compte gratuit"}
       </button>
       <button className="linklike od-compte-connexion" type="button" onClick={() => onCompte("login")}>
         Déjà client ? Me connecter

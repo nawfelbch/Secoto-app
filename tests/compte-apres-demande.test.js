@@ -24,6 +24,8 @@ test("bloc compte sous le prix ET sous chaque demande en devis personnalisé", (
   assert.match(BOOKING, /onCompte\("signup"\)/);
   assert.match(BOOKING, /onCompte\("login"\)/);
   assert.match(BOOKING, /Déjà client \? Me connecter/);
+  // Prix obtenu : un seul mot d'action, « Réserver ».
+  assert.match(BOOKING, /\{prix \? "Réserver" : "Créer mon compte gratuit"\}/);
   // Plus de bouton « facultatif » discret.
   assert.doesNotMatch(BOOKING, /\(facultatif\)/);
   assert.match(CSS, /\.od-compte-btn \{ width: 100%; min-height: 52px;/);
