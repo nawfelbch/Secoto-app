@@ -123,7 +123,7 @@ export function lienReprise({ reprendre, trajet, amount_cents: montant }, base =
 function html(statusCode, body) {
   return {
     statusCode,
-    headers: { "Cache-Control": "no-store", "Content-Type": "text/html; charset=utf-8" },
+    headers: { "Cache-Control": "no-store", "Content-Type": "text/html; charset=utf-8", "X-Robots-Tag": "noindex, nofollow" },
     body,
   };
 }

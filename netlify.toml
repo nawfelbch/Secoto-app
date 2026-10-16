@@ -63,3 +63,10 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Référencement : l'app n'est jamais indexée (le site vitrine secoto-transport.fr
+# porte le contenu public). Complète la balise robots de index.html.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { humanizeError } from "./lib/humanError";
 import { acquisition, reseau } from "./lib/acquisition";
+import { libelleSource } from "./lib/sourcesProvenance";
 import { derniersJours, euros } from "./lib/dirigeantUtil";
 
 // ============================================================================
@@ -61,7 +62,7 @@ export default function AcquisitionPanel() {
               {lignes.map((l) => (
                 <li key={`${l.source}|${l.campagne}`}>
                   <div className="acq-tete">
-                    <strong>{l.source}</strong>
+                    <strong>{libelleSource(l.source)}</strong>
                     <span className="muted">{l.campagne === "—" ? "sans campagne" : l.campagne}</span>
                   </div>
                   <div className="acq-chiffres">
@@ -74,7 +75,7 @@ export default function AcquisitionPanel() {
               ))}
             </ul>
             <p className="muted dir-note">
-              « (direct) » regroupe les visites sans lien de campagne : bouche-à-oreille, Leboncoin, recherche naturelle, appli. Pour suivre une campagne, ajoutez utm_source et utm_campaign à son lien.
+              « Google naturel » : visiteurs venus de la recherche Google sans publicité (la campagne indique la page du site qui les a amenés). « Site » : autres visiteurs du site vitrine. « (direct) » : visites sans lien de campagne (bouche-à-oreille, Leboncoin, appli).
             </p>
           </>
         )}
