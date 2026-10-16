@@ -35,3 +35,18 @@ update public.doc_templates
                 regexp_replace(html, 'SIRET ?: ?951 857 531 00028', 'Immatriculation en cours de mise à jour', 'g'),
                 'SIRE[NT] 951 857 531( 00028)?', 'Immatriculation en cours de mise à jour', 'g')
  where html ~ '951 857 531';
+
+-- 3. Garde-fou : une application pas encore mise à jour (ancien build iOS /
+--    Android) resynchronise ses maquettes à l'ouverture de l'espace admin.
+--    La base retire le numéro au passage : il ne peut pas revenir par là.
+do $m$
+begin
+  if position('values (p_kind, p_html, now())'
+              in coalesce(pg_get_functiondef(to_regprocedure('public.secoto_save_doc_template(text,text)')), '')) > 0 then
+    perform secoto_private.mig074_patch(
+      'public.secoto_save_doc_template(text,text)'::regprocedure,
+      'values (p_kind, p_html, now())',
+      'values (p_kind, /* 097 */ regexp_replace(regexp_replace(p_html, ''SIRET ?: ?951 857 531 00028'', ''Immatriculation en cours de mise à jour'', ''g''), ''SIRE[NT] 951 857 531( 00028)?'', ''Immatriculation en cours de mise à jour'', ''g''), now())');
+  end if;
+end
+$m$;
