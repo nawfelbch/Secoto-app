@@ -9,8 +9,8 @@ export function questionsReservation({ mode = "plateau", circuit = null, relatio
   faq.push({
     q: "Qui est SECOTO ?",
     r: plateau
-      ? "SECOTO est une plateforme de mise en relation (SIREN 951 857 531). Nous sélectionnons des transporteurs professionnels indépendants, vérifions leurs documents (inscription au registre des transporteurs, assurance) et vous mettons en relation avec celui qui accepte votre transport. Le transport est réalisé par ce transporteur, sous sa propre responsabilité."
-      : "SECOTO (SIREN 951 857 531) organise votre convoyage : un convoyeur professionnel vérifié conduit votre véhicule jusqu’à destination, avec un état des lieux photo au départ et à l’arrivée.",
+      ? "SECOTO est une plateforme de mise en relation. Nous sélectionnons des transporteurs professionnels indépendants, vérifions leurs documents (inscription au registre des transporteurs, assurance) et vous mettons en relation avec celui qui accepte votre transport. Le transport est réalisé par ce transporteur, sous sa propre responsabilité."
+      : "SECOTO organise votre convoyage : un convoyeur professionnel vérifié conduit votre véhicule jusqu’à destination, avec un état des lieux photo au départ et à l’arrivée.",
   });
   faq.push({
     q: "Quand suis-je débité ?",

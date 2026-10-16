@@ -16,7 +16,7 @@ import { carrierAcceptBillingMandate, carrierDirectStatus, connectOnboarding } f
 const MANDAT_VERSION = "2026-10-08";
 
 const MANDAT_TEXTE = [
-  "En activant le paiement direct, vous donnez mandat à SECOTO (SIREN 951 857 531) d’établir et d’émettre, en votre nom et pour votre compte, les factures des transports que vous réalisez pour les clients mis en relation par l’application.",
+  "En activant le paiement direct, vous donnez mandat à SECOTO d’établir et d’émettre, en votre nom et pour votre compte, les factures des transports que vous réalisez pour les clients mis en relation par l’application.",
   "Chaque facture porte la mention « Facture établie par SECOTO au nom et pour le compte de » votre entreprise, avec vos informations ci-dessous et une numérotation propre à votre entreprise. Vous garantissez l’exactitude de ces informations et les tenez à jour.",
   "Vous restez seul redevable de la TVA éventuellement due sur vos prestations et de vos obligations déclaratives.",
   "Une copie de chaque facture est disponible dans l’application dès son émission ; vous disposez de 7 jours pour la contester.",

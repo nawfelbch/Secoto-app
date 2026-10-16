@@ -35,7 +35,7 @@ test("page de réservation : toutes les réponses avant de payer, fidèles au ci
   const q = (list, start) => list.find((x) => x.q.startsWith(start))?.r || "";
   assert.ok(direct.length >= 8);
   assert.match(q(direct, "Qui est SECOTO"), /mise en relation/);
-  assert.match(q(direct, "Qui est SECOTO"), /951 857 531/);
+  assert.doesNotMatch(q(direct, "Qui est SECOTO"), /951[ .]?857[ .]?531/);
   assert.match(q(direct, "Quand suis-je débité"), /Uniquement quand un transporteur accepte/);
   assert.match(q(direct, "Qui sera mon interlocuteur"), /téléphone/);
   assert.match(q(direct, "Puis-je annuler"), /sans frais tant qu’aucun transporteur/);

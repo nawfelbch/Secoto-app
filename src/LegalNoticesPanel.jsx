@@ -126,7 +126,7 @@ export default function LegalNoticesPanel({ role }) {
       <div className="card-section">
         <h3>Éditeur</h3>
         <p>
-          SECOTO — micro-entrepreneur · SIREN 951 857 531 · code APE 8299Z.
+          SECOTO — micro-entrepreneur · Immatriculation en cours de mise à jour · code APE 8299Z.
           <br />
           TVA non applicable, article 293 B du CGI.
           <br />
