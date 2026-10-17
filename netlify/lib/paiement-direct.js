@@ -34,6 +34,21 @@ export function needsCustomerAction(error) {
     || (error?.decline_code === "authentication_required");
 }
 
+// Seule une carte (Apple Pay et Google Pay compris) se débite hors session.
+// Klarna, Satispay, Amazon Pay, Link… enregistrés à la réservation : le client
+// paie lui-même sur une page Stripe, comme pour une validation bancaire.
+export async function debitableHorsSession(stripe, paymentMethodId) {
+  const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+  return pm?.type === "card";
+}
+
+// Stripe refuse ce moyen de paiement pour un débit hors session (filet de
+// sécurité si le contrôle ci-dessus n'a pas suffi) : le client paie lui-même.
+export function moyenNonDebitable(error) {
+  return error?.type === "StripeInvalidRequestError"
+    && (error?.param === "payment_method" || /payment_method/.test(error?.code || ""));
+}
+
 function isCardError(error) {
   return error?.type === "StripeCardError" || CARD_DECLINE_CODES.has(error?.code) || CARD_DECLINE_CODES.has(error?.decline_code);
 }
@@ -69,6 +84,10 @@ export async function chargeDirect({ admin, stripe, orderId, now = Date.now() })
 
   const cles = `${ctx.payment_id}-${stripeAccount}-${ctx.payment_method_id}`;
   try {
+    if (!(await debitableHorsSession(stripe, ctx.payment_method_id))) {
+      const { data } = await admin.rpc("secoto_direct_charge_needs_action", { p_order_id: orderId, p_intent_id: null });
+      return { result: "needs_action", ...(data || {}) };
+    }
     // La carte enregistrée chez SECOTO est recopiée sur le compte du
     // transporteur : le client n'a rien à ressaisir.
     const pm = await stripe.paymentMethods.create(
@@ -104,7 +123,7 @@ export async function chargeDirect({ admin, stripe, orderId, now = Date.now() })
     }
     return captureResult(admin, orderId, false, `intent_${intent.status}`);
   } catch (err) {
-    if (needsCustomerAction(err)) {
+    if (needsCustomerAction(err) || moyenNonDebitable(err)) {
       const failed = err?.raw?.payment_intent?.id;
       if (failed) await cancelQuietly(stripe, failed, stripeAccount);
       const { data } = await admin.rpc("secoto_direct_charge_needs_action", { p_order_id: orderId, p_intent_id: null });

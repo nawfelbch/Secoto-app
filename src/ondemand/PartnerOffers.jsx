@@ -34,7 +34,7 @@ const RESULT_TEXT = {
   capture_failed: "Le paiement du client n’a pas pu être finalisé : la mission n’est pas confirmée. Aucune pénalité.",
   // 074 : paiement direct (plateau).
   payment_account_required: "Pour accepter les missions plateau, activez d’abord le paiement direct : le client vous paie directement, SECOTO ne garde que ses frais.",
-  needs_action: "Mission réservée pour vous : le client valide son paiement auprès de sa banque. Vous êtes prévenu dès que c’est fait.",
+  needs_action: "Mission réservée pour vous : le client valide son paiement. Vous êtes prévenu dès que c’est fait.",
 };
 
 // ---------------------------------------------------------------------------

@@ -152,8 +152,8 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               )}
               {order.payment_action_required && (
                 <div className="alert error" role="alert">
-                  Un transporteur a accepté votre mission. Votre banque demande une validation : validez le paiement
-                  pour confirmer le transport. Sans validation, la mission sera proposée à nouveau.
+                  Un transporteur a accepté votre mission. Validez le paiement pour confirmer le transport (demande de
+                  votre banque, ou paiement par Klarna, Satispay…). Sans validation, la mission sera proposée à nouveau.
                 </div>
               )}
               <div className="actions-row">

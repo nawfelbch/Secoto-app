@@ -58,7 +58,10 @@ function fakeStripe(over = {}) {
   const rec = (name, impl) => async (...args) => { calls.push({ name, args }); return impl(...args); };
   return {
     calls,
-    paymentMethods: { create: rec("paymentMethods.create", over.pmCreate || (async () => ({ id: "pm_clone" }))) },
+    paymentMethods: {
+      create: rec("paymentMethods.create", over.pmCreate || (async () => ({ id: "pm_clone" }))),
+      retrieve: rec("paymentMethods.retrieve", over.pmRetrieve || (async (id) => ({ id, type: "card" }))),
+    },
     paymentIntents: {
       create: rec("paymentIntents.create", over.piCreate || (async () => ({ id: "pi_direct", status: "succeeded" }))),
       retrieve: rec("paymentIntents.retrieve", over.piRetrieve || (async () => ({ id: "pi_x", status: "succeeded", amount: 50000 }))),
@@ -115,6 +118,17 @@ test("débit direct : sur le compte du transporteur, commission SECOTO en applic
   assert.match(pi.args[1].idempotencyKey, /^secoto-direct-charge-p1-acct_T-pm_C$/);
   assert.ok(admin.updates.some((u) => u.table === "payments" && u.patch.provider_intent_id === "pi_direct"));
   assert.ok(!stripe.calls.some((c) => c.name === "transfers.create"));
+});
+
+test("débit direct : Klarna (ou tout moyen autre qu'une carte) -> le client paie lui-même, rien n'est recopié ni débité", async () => {
+  const admin = withCtx();
+  const stripe = fakeStripe({ pmRetrieve: async (id) => ({ id, type: "klarna" }) });
+  const r = await direct.chargeDirect({ admin, stripe, orderId: "o1" });
+  assert.equal(r.result, "needs_action");
+  assert.equal(stripe.calls.some((c) => c.name === "paymentMethods.create"), false);
+  assert.equal(stripe.calls.some((c) => c.name === "paymentIntents.create"), false);
+  assert.ok(admin.calls.some((c) => c.name === "secoto_direct_charge_needs_action"));
+  assert.equal(admin.calls.some((c) => c.name === "secoto_od_capture_result"), false, "la mission n'est pas libérée");
 });
 
 test("débit direct : clés stables -> une reprise retrouve le même paiement", async () => {

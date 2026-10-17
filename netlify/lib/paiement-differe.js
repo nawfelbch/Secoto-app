@@ -10,8 +10,11 @@
 // Si la banque demande une validation (3D Secure), la tentative est annulée,
 // le client est prévenu et la mission reste réservée au transporteur le
 // temps réglé (24 h par défaut) ; au-delà, elle repart en diffusion.
+// Même parcours quand le moyen enregistré n'est pas une carte (Klarna,
+// Satispay, Amazon Pay…) : il ne se débite pas hors session, le client paie
+// lui-même sur la page Stripe (Klarna en plusieurs fois compris).
 // Toutes les opérations Stripe portent une clé d'idempotence stable.
-import { needsCustomerAction } from "./paiement-direct.js";
+import { debitableHorsSession, moyenNonDebitable, needsCustomerAction } from "./paiement-direct.js";
 
 const CARD_DECLINE_CODES = new Set([
   "card_declined", "expired_card", "insufficient_funds", "incorrect_cvc", "processing_error",
@@ -69,6 +72,7 @@ export async function chargeDiffere({ admin, stripe, orderId, now = Date.now() }
   }
 
   try {
+    if (!(await debitableHorsSession(stripe, ctx.payment_method_id))) return needsAction(admin, orderId);
     const intent = await stripe.paymentIntents.create(
       {
         amount: ctx.amount_cents,
@@ -100,7 +104,7 @@ export async function chargeDiffere({ admin, stripe, orderId, now = Date.now() }
     }
     return captureResult(admin, orderId, false, `intent_${intent.status}`);
   } catch (err) {
-    if (needsCustomerAction(err)) {
+    if (needsCustomerAction(err) || moyenNonDebitable(err)) {
       const failed = err?.raw?.payment_intent?.id;
       if (failed) await cancelQuietly(stripe, failed);
       return needsAction(admin, orderId);

@@ -51,7 +51,10 @@ function fakeStripe(over = {}) {
   const rec = (name, impl) => async (...args) => { calls.push({ name, args }); return impl(...args); };
   return {
     calls,
-    paymentMethods: { create: rec("paymentMethods.create", async () => ({ id: "pm_clone" })) },
+    paymentMethods: {
+      create: rec("paymentMethods.create", async () => ({ id: "pm_clone" })),
+      retrieve: rec("paymentMethods.retrieve", over.pmRetrieve || (async (id) => ({ id, type: "card" }))),
+    },
     paymentIntents: {
       create: rec("paymentIntents.create", over.piCreate || (async () => ({ id: "pi_differe", status: "succeeded" }))),
       retrieve: rec("paymentIntents.retrieve", async () => ({ id: "pi_x", status: "succeeded", amount: 50000 })),
@@ -124,6 +127,40 @@ test("scénario 3 — 3D Secure demandé : tentative annulée, client prévenu, 
   const r2 = await chargeDiffere({ admin: adminWith(ctx()), stripe: stripe2, orderId: "o1" });
   assert.equal(r2.result, "needs_action");
   assert.ok(stripe2.calls.some((c) => c.name === "paymentIntents.cancel" && c.args[0] === "pi_ra"));
+});
+
+test("Klarna, Satispay, Amazon Pay enregistrés : aucun débit hors session, le client valide lui-même, la mission reste réservée", async () => {
+  for (const type of ["klarna", "satispay", "amazon_pay", "link"]) {
+    const admin = adminWith(ctx());
+    const stripe = fakeStripe({ pmRetrieve: async (id) => ({ id, type }) });
+    const r = await chargeDiffere({ admin, stripe, orderId: "o1" });
+    assert.equal(r.result, "needs_action", type);
+    assert.equal(r.wait_minutes, 1440);
+    assert.equal(stripe.calls.some((c) => c.name === "paymentIntents.create"), false, `${type} : aucune tentative de débit`);
+    assert.ok(admin.calls.some((c) => c.name === "secoto_differe_needs_action"));
+    assert.equal(admin.calls.some((c) => c.name === "secoto_od_capture_result"), false, "rien n'est tranché");
+  }
+});
+
+test("moyen refusé par Stripe pour un débit hors session : le client valide lui-même (plus de nouvel essai sans fin)", async () => {
+  const err = Object.assign(new Error("The PaymentMethod provided (klarna) is not allowed for this PaymentIntent."), {
+    type: "StripeInvalidRequestError", param: "payment_method",
+  });
+  const admin = adminWith(ctx());
+  const stripe = fakeStripe({ piCreate: async () => { throw err; } });
+  const r = await chargeDiffere({ admin, stripe, orderId: "o1" });
+  assert.equal(r.result, "needs_action");
+  assert.equal(r.retry, undefined);
+  assert.ok(admin.calls.some((c) => c.name === "secoto_differe_needs_action"));
+});
+
+test("contrôle du moyen impossible (réseau) : rien n'est tranché, nouvel essai", async () => {
+  const admin = adminWith(ctx());
+  const stripe = fakeStripe({ pmRetrieve: async () => { throw new Error("ECONNRESET"); } });
+  const r = await chargeDiffere({ admin, stripe, orderId: "o1" });
+  assert.deepEqual(r, { result: "pending_capture", retry: true });
+  assert.equal(stripe.calls.some((c) => c.name === "paymentIntents.create"), false);
+  assert.equal(admin.calls.some((c) => c.name === "secoto_differe_needs_action"), false);
 });
 
 test("3D Secure en attente : rien ne bouge avant le délai ; après, la mission repart (aucun débit)", async () => {
