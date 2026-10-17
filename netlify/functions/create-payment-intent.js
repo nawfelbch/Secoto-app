@@ -438,68 +438,30 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     return response(409, { error: "payment_not_payable" });
   }
 
-  if (platform === "web") {
-    // Stripe « Managed Payments » (actif par défaut sur le compte SECOTO)
-    // refuse le mode « setup » : on le désactive pour cette requête.
-    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
-      {
-        ...managed,
-        mode: "setup",
-        customer: customerId,
-        currency: payment.currency || "eur",
-        setup_intent_data: { metadata, description: `Validation de carte — commande ${order.public_ref}` },
-        metadata,
-        success_url: retourOk,
-        cancel_url: retourAnnule,
-      },
-      { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup-web`, payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed }) },
-    ));
-    if (["pending", "failed"].includes(payment.status)) {
-      await admin.from("payments").update({ status: "processing", updated_at: new Date(now).toISOString() }).eq("id", payment.id);
-    }
-    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit, setup: true });
+  // Page Stripe en mode « setup » sur le web ET dans l'application : c'est elle
+  // qui propose Klarna, Satispay… (la feuille de paiement intégrée de l'app ne
+  // les affichait pas). Depuis l'iPhone / Android, elle s'ouvre dans le
+  // navigateur et revient dans l'application (passerelle /retour-app.html).
+  // Stripe « Managed Payments » (actif par défaut sur le compte SECOTO)
+  // refuse le mode « setup » : on le désactive pour cette requête.
+  const natif = platform !== "web";
+  const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+    {
+      ...managed,
+      mode: "setup",
+      customer: customerId,
+      currency: payment.currency || "eur",
+      setup_intent_data: { metadata, description: `Validation de carte — commande ${order.public_ref}` },
+      metadata,
+      success_url: natif ? retourOkAppli : retourOk,
+      cancel_url: natif ? retourAnnuleAppli : retourAnnule,
+    },
+    { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup-web`, payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed, ...(natif ? { platform } : {}) }) },
+  ));
+  if (["pending", "failed"].includes(payment.status)) {
+    await admin.from("payments").update({ status: "processing", updated_at: new Date(now).toISOString() }).eq("id", payment.id);
   }
-
-  let setupIntent = null;
-  if (payment.setup_intent_id) {
-    setupIntent = await stripe.setupIntents.retrieve(payment.setup_intent_id);
-    if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(setupIntent.status)) setupIntent = null;
-  }
-  if (!setupIntent) {
-    setupIntent = await stripe.setupIntents.create(
-      {
-        customer: customerId,
-        usage: "off_session",
-        automatic_payment_methods: { enabled: true },
-        description: `Validation de carte — commande ${order.public_ref}`,
-        metadata,
-      },
-      { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup`, payment.id, { customerId, status: payment.status, previous: payment.setup_intent_id || "" }) },
-    );
-  }
-  await admin.from("payments").update({
-    setup_intent_id: setupIntent.id,
-    ...(["pending", "failed"].includes(payment.status) ? { status: "processing" } : {}),
-    updated_at: new Date(now).toISOString(),
-  }).eq("id", payment.id);
-
-  // Sans clé éphémère, la validation reste possible : seules les cartes
-  // enregistrées ne sont pas proposées.
-  const ephemeralKey = await stripe.ephemeralKeys
-    .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
-    .then((key) => key.secret)
-    .catch(() => null);
-  return response(200, {
-    mode: "setup_sheet",
-    setupIntentClientSecret: setupIntent.client_secret,
-    publishableKey: STRIPE_PUBLISHABLE_KEY || null,
-    customerId,
-    ephemeralKey,
-    amountCents: payment.amount_cents,
-    currency: payment.currency || "eur",
-    circuit,
-    returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
-  });
+  return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit, setup: true });
 }
 
 export default withLambda(withCors(handler));

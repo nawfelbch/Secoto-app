@@ -248,12 +248,17 @@ test("réservation : la carte est enregistrée chez SECOTO (SetupIntent), jamais
   const payment = { id: "p1", order_id: "o1", purpose: "od_plateau", status: "pending", amount_cents: 48000, currency: "eur", debit_a_confirmation: true };
   const res = await directFlow({ admin, stripe, payment, platform: "ios", customerId: "cus_1", account: {}, returnScreen: "courses", returnQuery: "commande=o1", differe: true });
   const body = JSON.parse(res.body);
-  assert.equal(body.mode, "setup_sheet");
+  // Application : page Stripe (Klarna, Satispay… proposés), retour dans l'application.
+  assert.equal(body.mode, "checkout");
   assert.equal(body.circuit, "differe");
-  const si = stripe.calls.find((c) => c.name === "setupIntents.create");
-  assert.equal(si.args[0].usage, "off_session");
-  assert.equal(si.args[0].metadata.secoto_circuit, "differe");
-  assert.equal(si.args[1].stripeAccount, undefined);
+  assert.equal(body.setup, true);
+  const cs = stripe.calls.find((c) => c.name === "checkout.sessions.create");
+  assert.equal(cs.args[0].mode, "setup");
+  assert.equal(cs.args[0].setup_intent_data.metadata.secoto_circuit, "differe");
+  assert.equal(cs.args[0].setup_intent_data.metadata.secoto_payment_id, "p1");
+  assert.match(cs.args[0].success_url, /\/retour-app\.html\?ecran=courses&commande=o1&paiement=ok$/);
+  assert.equal(cs.args[1].stripeAccount, undefined);
+  assert.equal(stripe.calls.some((c) => c.name === "setupIntents.create"), false);
   assert.equal(stripe.calls.some((c) => c.name === "paymentIntents.create"), false, "aucun débit à la réservation");
   // Web : page Stripe en mode « setup ».
   const s2 = fakeStripe();

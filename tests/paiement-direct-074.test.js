@@ -341,17 +341,23 @@ test("paiement côté client : carte validée sans débit (natif et web), valida
 
   const s1 = fakeStripe();
   const r1 = JSON.parse((await directFlow({ admin: fakeAdmin({ tables }), stripe: s1, payment: base, ...args })).body);
-  assert.equal(r1.mode, "setup_sheet");
-  assert.equal(r1.setupIntentClientSecret, "seti_1_secret");
-  const si = s1.calls.find((c) => c.name === "setupIntents.create");
-  assert.equal(si.args[0].usage, "off_session");
-  assert.equal(si.args[0].customer, "cus_C");
+  // Depuis l'iPhone aussi : page Stripe (Klarna, Satispay… proposés), retour dans l'application.
+  assert.equal(r1.mode, "checkout");
+  const setup = s1.calls.find((c) => c.name === "checkout.sessions.create");
+  assert.equal(setup.args[0].mode, "setup");
+  assert.equal(setup.args[0].customer, "cus_C");
+  assert.match(setup.args[0].success_url, /\/retour-app\.html\?ecran=courses&commande=o1&paiement=ok$/);
+  assert.match(setup.args[0].cancel_url, /\/retour-app\.html\?ecran=courses&commande=o1&paiement=annule$/);
+  assert.ok(!s1.calls.some((c) => c.name === "setupIntents.create"), "plus de feuille de paiement intégrée");
   assert.ok(!s1.calls.some((c) => c.name === "paymentIntents.create"), "aucun débit à la réservation");
 
   const s2 = fakeStripe();
   const r2 = JSON.parse((await directFlow({ admin: fakeAdmin({ tables }), stripe: s2, payment: base, ...args, platform: "web" })).body);
   assert.equal(r2.mode, "checkout");
-  assert.equal(s2.calls.find((c) => c.name === "checkout.sessions.create").args[0].mode, "setup");
+  const web = s2.calls.find((c) => c.name === "checkout.sessions.create");
+  assert.equal(web.args[0].mode, "setup");
+  assert.doesNotMatch(web.args[0].success_url, /retour-app/, "sur le web, retour direct sur le site");
+  assert.notEqual(web.args[1].idempotencyKey, setup.args[1].idempotencyKey, "web et application : sessions distinctes");
 
   const locked = { transport_orders: [{ id: "o1", status: "partner_locked", public_ref: "CMD-2026-TEST", lock_expires_at: new Date(Date.now() + 7200000).toISOString() }] };
   const s3 = fakeStripe();
