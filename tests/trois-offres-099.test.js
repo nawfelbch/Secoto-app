@@ -13,7 +13,7 @@ const { chargeDiffere, isDiffere } = await import("../netlify/lib/paiement-diffe
 const { captureForOrder } = await import("../netlify/functions/offer-accept.js");
 const { runMaintenance } = await import("../netlify/functions/od-maintenance.js");
 const { handleDirectSetup } = await import("../netlify/functions/stripe-webhook.js");
-const { directFlow } = await import("../netlify/functions/create-payment-intent.js");
+const { directFlow, billingPrefill } = await import("../netlify/functions/create-payment-intent.js");
 
 function fakeAdmin({ rpc = {}, tables = {} } = {}) {
   const calls = [];
@@ -265,6 +265,58 @@ test("réservation : la carte est enregistrée chez SECOTO (SetupIntent), jamais
   const web = JSON.parse((await directFlow({ admin, stripe: s2, payment, platform: "web", customerId: "cus_1", account: {}, returnScreen: "courses", returnQuery: "commande=o1", differe: true })).body);
   assert.equal(web.setup, true);
   assert.equal(s2.calls.find((c) => c.name === "checkout.sessions.create").args[0].mode, "setup");
+});
+
+test("app 2.3.6 : feuille de paiement intégrée (Klarna affiché), coordonnées pré-remplies ; app 2.3.5 : page Stripe", async () => {
+  const admin = fakeAdmin({ tables: { transport_orders: [{ id: "o1", status: "awaiting_payment", public_ref: "CMD-T" }] } });
+  const payment = { id: "p1", order_id: "o1", purpose: "od_plateau", status: "pending", amount_cents: 48000, currency: "eur", debit_a_confirmation: true };
+  const args = { admin, payment, platform: "ios", customerId: "cus_1", account: { email: "c@test.invalid", full_name: "Client Test" }, returnScreen: "courses", returnQuery: "commande=o1", differe: true };
+  const stripe = fakeStripe();
+  const body = JSON.parse((await directFlow({ ...args, stripe, feuilleKlarna: true })).body);
+  assert.equal(body.mode, "setup_sheet");
+  assert.equal(body.setupIntentClientSecret, "seti_1_secret");
+  assert.deepEqual(body.billing, { email: "c@test.invalid", name: "Client Test" });
+  const si = stripe.calls.find((c) => c.name === "setupIntents.create");
+  assert.equal(si.args[0].usage, "off_session");
+  assert.deepEqual(si.args[0].automatic_payment_methods, { enabled: true }, "moyens du tableau de bord Stripe, Klarna compris");
+  assert.equal(si.args[0].metadata.secoto_circuit, "differe");
+  assert.equal(stripe.calls.some((c) => c.name === "checkout.sessions.create"), false);
+  assert.equal(stripe.calls.some((c) => c.name === "paymentIntents.create"), false, "aucun débit à la réservation");
+  // Ancienne app (sans le signal) : page Stripe dans le navigateur, Klarna proposé.
+  const s2 = fakeStripe();
+  const old = JSON.parse((await directFlow({ ...args, stripe: s2 })).body);
+  assert.equal(old.mode, "checkout");
+  assert.equal(s2.calls.some((c) => c.name === "setupIntents.create"), false);
+});
+
+test("app 2.3.6 : « Valider le paiement » dans la feuille intégrée (Klarna en plusieurs fois), montant lu en base", async () => {
+  const admin = fakeAdmin({
+    tables: { transport_orders: [{ id: "o1", status: "partner_locked", public_ref: "CMD-T", lock_expires_at: new Date(Date.now() + 86400000).toISOString() }] },
+    rpc: { secoto_differe_charge_context: () => ({ data: ctx() }) },
+  });
+  const stripe = fakeStripe({ piCreate: async () => ({ id: "pi_sheet", client_secret: "pi_sheet_secret", status: "requires_payment_method" }) });
+  const payment = { id: "p1", order_id: "o1", purpose: "od_plateau", status: "requires_capture", amount_cents: 1, currency: "eur", debit_a_confirmation: true, direct_action_required_at: new Date().toISOString() };
+  const body = JSON.parse((await directFlow({ admin, stripe, payment, platform: "ios", customerId: "cus_1", account: { email: "c@test.invalid" }, returnScreen: "courses", returnQuery: "commande=o1", differe: true, feuilleKlarna: true })).body);
+  assert.equal(body.mode, "payment_sheet");
+  assert.equal(body.clientSecret, "pi_sheet_secret");
+  assert.deepEqual(body.billing, { email: "c@test.invalid" });
+  const pi = stripe.calls.find((c) => c.name === "paymentIntents.create");
+  assert.equal(pi.args[0].amount, 48000, "montant de la base, jamais celui de la ligne envoyée");
+  assert.equal(pi.args[0].customer, "cus_1");
+  assert.deepEqual(pi.args[0].automatic_payment_methods, { enabled: true });
+  assert.equal(pi.args[0].off_session, undefined, "le client paie lui-même");
+  assert.equal(pi.args[0].metadata.secoto_payment_id, "p1", "le webhook confirme la mission");
+  assert.equal(pi.args[0].metadata.secoto_circuit, "differe");
+  assert.equal(pi.args[1].stripeAccount, undefined, "compte SECOTO");
+  assert.match(pi.args[1].idempotencyKey, /^secoto-differe-sheet-p1-/);
+  assert.equal(stripe.calls.some((c) => c.name === "checkout.sessions.create"), false);
+});
+
+test("coordonnées pré-remplies : e-mail et nom seulement s'ils sont connus", () => {
+  assert.deepEqual(billingPrefill({ email: " a@b.fr ", full_name: "" }), { email: "a@b.fr" });
+  assert.deepEqual(billingPrefill({ email: null, full_name: "Jean Dupont" }), { name: "Jean Dupont" });
+  assert.equal(billingPrefill({}), null);
+  assert.equal(billingPrefill(null), null);
 });
 
 test("3D Secure : le client paie lui-même sur une page Stripe du compte SECOTO", async () => {

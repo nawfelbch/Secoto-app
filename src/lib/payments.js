@@ -23,6 +23,7 @@ import { supabase } from "../supabaseClient";
 import { randomIdempotencyKey } from "./fileSafety";
 import { getServerFunctionUrl } from "../platform/runtime";
 import { humanizeError } from "./humanError";
+import { STRIPE_RETURN_URL } from "./deepLinks";
 
 export const PAYMENT_STATUS_LABEL = {
   not_required: "Aucun paiement requis",
@@ -134,7 +135,9 @@ async function requestIntent(paymentId) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ paymentId, platform: platform() }),
+    // 2.3.6 : la feuille intégrée sait afficher Klarna (adresse de retour
+    // STRIPE_RETURN_URL) ; sans ce signal, le serveur ouvre la page Stripe.
+    body: JSON.stringify({ paymentId, platform: platform(), ...(platform() !== "web" ? { feuilleKlarna: true } : {}) }),
   });
 
   const body = await result.json().catch(() => ({}));
@@ -205,6 +208,13 @@ export async function payNow(paymentId) {
     ...customerOptions,
     merchantDisplayName: "SECOTO",
     countryCode: "FR",
+    // Retour dans l'application après Klarna, Satispay… : sans cette adresse,
+    // Stripe masque ces moyens de paiement dans la feuille iOS.
+    returnURL: STRIPE_RETURN_URL,
+    // Un moyen par ligne, avec son nom (« Klarna » écrit en toutes lettres).
+    paymentMethodLayout: "vertical",
+    // Coordonnées déjà connues : rien à ressaisir.
+    ...(intent.billing ? { defaultBillingDetails: intent.billing } : {}),
     // Apple Pay exige un merchant identifier déclaré dans le compte développeur
     // ET l'entitlement com.apple.developer.in-app-payments côté iOS.
     applePayMerchantId: import.meta.env.VITE_APPLE_PAY_MERCHANT_ID || undefined,

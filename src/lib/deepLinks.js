@@ -26,6 +26,15 @@ export const ALLOWED_APP_SCREENS = Object.freeze([
   "abonnement",
 ]);
 
+// 2.3.6 — Retour de Klarna, Satispay… vers la feuille de paiement Stripe de
+// l'application. Ce lien est remis au SDK Stripe, jamais traité comme une
+// navigation SECOTO.
+export const STRIPE_RETURN_URL = "secoto://stripe-redirect";
+
+export function isStripeReturnUrl(rawUrl) {
+  return typeof rawUrl === "string" && rawUrl.toLowerCase().startsWith(STRIPE_RETURN_URL);
+}
+
 const MISSION_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 const CLAIM_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,200}$/;
 const PUBLIC_REF_PATTERN = /^[A-Z0-9-]{4,60}$/;

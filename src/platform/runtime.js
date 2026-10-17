@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { parseSecotoDeepLink, buildNativeAuthRedirect } from "../lib/deepLinks";
+import { parseSecotoDeepLink, buildNativeAuthRedirect, isStripeReturnUrl } from "../lib/deepLinks";
 
 export function getPlatform() {
   const platform = Capacitor.getPlatform();
@@ -187,6 +187,19 @@ export async function initializePlatform({
 } = {}) {
   const handles = [];
   const runDeepLink = async (rawUrl) => {
+    // Retour de Klarna, Satispay… : remis au SDK Stripe, qui termine le
+    // paiement dans sa feuille. Aucune navigation dans l'application.
+    if (isStripeReturnUrl(rawUrl)) {
+      if (isNativePlatform()) {
+        try {
+          const { Stripe } = await import("@capacitor-community/stripe");
+          await Stripe.handleURLCallback({ url: rawUrl });
+        } catch {
+          // Lien déjà pris en charge par le SDK : rien d'autre à faire.
+        }
+      }
+      return;
+    }
     const parsed = parseSecotoDeepLink(
       rawUrl,
       typeof window !== "undefined" ? window.location.origin : undefined,

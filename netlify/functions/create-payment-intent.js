@@ -55,6 +55,15 @@ function idempotencyKey(prefix, id, params) {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_PLATFORMS = new Set(["ios", "android", "web"]);
 
+// Coordonnées pré-remplies dans la feuille de paiement de l'application :
+// le client n'a rien à ressaisir (Klarna demande notamment l'e-mail).
+export function billingPrefill(account) {
+  const email = String(account?.email || "").trim();
+  const name = String(account?.full_name || "").trim();
+  if (!email && !name) return null;
+  return { ...(email ? { email } : {}), ...(name ? { name } : {}) };
+}
+
 function response(statusCode, body) {
   return {
     statusCode,
@@ -88,6 +97,9 @@ const handler = async (event) => {
   }
   const paymentId = payload.paymentId;
   const platform = ALLOWED_PLATFORMS.has(payload.platform) ? payload.platform : "web";
+  // 2.3.6+ : la feuille de paiement intégrée connaît son adresse de retour
+  // (secoto://stripe-redirect) et peut donc afficher Klarna, Satispay…
+  const feuilleKlarna = platform !== "web" && payload.feuilleKlarna === true;
   if (!UUID_PATTERN.test(paymentId || "")) return response(400, { error: "invalid_payment_id" });
   if (platform !== "web" && !STRIPE_PUBLISHABLE_KEY) {
     return response(503, { error: "server_not_configured" });
@@ -178,7 +190,7 @@ const handler = async (event) => {
 
   if (direct || differe) {
     try {
-      return await directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe });
+      return await directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe, feuilleKlarna });
     } catch (error) {
       await admin.from("payments").update({
         last_error: String(error?.message || "stripe_error").slice(0, 500),
@@ -327,6 +339,7 @@ const handler = async (event) => {
       currency: payment.currency || "eur",
       captureMethod,
       returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
+      billing: billingPrefill(account),
     });
   } catch (error) {
     await admin
@@ -348,7 +361,7 @@ const handler = async (event) => {
 //  · Si sa banque exige une validation au moment du débit : page de paiement
 //    Stripe ouverte SUR LE COMPTE DU TRANSPORTEUR, commission SECOTO comprise.
 // ---------------------------------------------------------------------------
-export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe = false, now = Date.now() }) {
+export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe = false, feuilleKlarna = false, now = Date.now() }) {
   // 099 : même parcours pour le débit à la confirmation, mais tout se passe sur
   // le compte SECOTO (aucun compte transporteur, aucune commission séparée).
   const circuit = differe ? "differe" : "direct";
@@ -380,6 +393,38 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       const lockMs = order.lock_expires_at ? Date.parse(order.lock_expires_at) : 0;
       const expiresAt = Math.floor(Math.min(Math.max(now + 31 * 60 * 1000, lockMs), now + 23 * 3600 * 1000) / 1000);
       const description = `Transport de véhicule — commande ${order.public_ref}`;
+      // Application 2.3.6+ : paiement dans la feuille intégrée (Klarna en
+      // plusieurs fois compris), sans passer par le navigateur. Montant lu en
+      // base ; une intention par acceptation de transporteur.
+      if (feuilleKlarna) {
+        const intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
+          {
+            ...managed,
+            amount: ctx.amount_cents,
+            currency: ctx.currency || "eur",
+            customer: customerId,
+            description,
+            automatic_payment_methods: { enabled: true },
+            metadata,
+          },
+          { idempotencyKey: idempotencyKey("secoto-differe-sheet", payment.id, { amount: ctx.amount_cents, customerId, managed, offer: ctx.lock_offer_id || "" }) },
+        ));
+        const ephemeralKey = await stripe.ephemeralKeys
+          .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
+          .then((key) => key.secret)
+          .catch(() => null);
+        return response(200, {
+          mode: "payment_sheet",
+          clientSecret: intent.client_secret,
+          publishableKey: STRIPE_PUBLISHABLE_KEY || null,
+          customerId,
+          ephemeralKey,
+          amountCents: ctx.amount_cents,
+          currency: ctx.currency || "eur",
+          circuit,
+          billing: billingPrefill(account),
+        });
+      }
       const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
         {
           ...managed,
@@ -438,10 +483,56 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     return response(409, { error: "payment_not_payable" });
   }
 
-  // Page Stripe en mode « setup » sur le web ET dans l'application : c'est elle
-  // qui propose Klarna, Satispay… (la feuille de paiement intégrée de l'app ne
-  // les affichait pas). Depuis l'iPhone / Android, elle s'ouvre dans le
-  // navigateur et revient dans l'application (passerelle /retour-app.html).
+  // Application 2.3.6+ : feuille de paiement intégrée, Klarna et Satispay
+  // compris (elle connaît son adresse de retour secoto://stripe-redirect).
+  if (feuilleKlarna) {
+    let setupIntent = null;
+    if (payment.setup_intent_id) {
+      setupIntent = await stripe.setupIntents.retrieve(payment.setup_intent_id);
+      if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(setupIntent.status)) setupIntent = null;
+    }
+    if (!setupIntent) {
+      setupIntent = await stripe.setupIntents.create(
+        {
+          customer: customerId,
+          usage: "off_session",
+          automatic_payment_methods: { enabled: true },
+          description: `Validation de carte — commande ${order.public_ref}`,
+          metadata,
+        },
+        { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup`, payment.id, { customerId, status: payment.status, previous: payment.setup_intent_id || "" }) },
+      );
+    }
+    await admin.from("payments").update({
+      setup_intent_id: setupIntent.id,
+      ...(["pending", "failed"].includes(payment.status) ? { status: "processing" } : {}),
+      updated_at: new Date(now).toISOString(),
+    }).eq("id", payment.id);
+
+    // Sans clé éphémère, la validation reste possible : seules les cartes
+    // enregistrées ne sont pas proposées.
+    const ephemeralKey = await stripe.ephemeralKeys
+      .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
+      .then((key) => key.secret)
+      .catch(() => null);
+    return response(200, {
+      mode: "setup_sheet",
+      setupIntentClientSecret: setupIntent.client_secret,
+      publishableKey: STRIPE_PUBLISHABLE_KEY || null,
+      customerId,
+      ephemeralKey,
+      amountCents: payment.amount_cents,
+      currency: payment.currency || "eur",
+      circuit,
+      returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
+      billing: billingPrefill(account),
+    });
+  }
+
+  // Web, et application 2.3.5 ou antérieure (feuille sans adresse de retour,
+  // donc sans Klarna) : page Stripe en mode « setup ». Depuis l'iPhone /
+  // Android, elle s'ouvre dans le navigateur et revient dans l'application
+  // (passerelle /retour-app.html).
   // Stripe « Managed Payments » (actif par défaut sur le compte SECOTO)
   // refuse le mode « setup » : on le désactive pour cette requête.
   const natif = platform !== "web";

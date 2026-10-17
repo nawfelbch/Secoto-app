@@ -56,3 +56,22 @@ test("un lien client SECOTO est distingué des liens de navigation", () => {
     },
   );
 });
+test("2.3.6 : retour Klarna / Satispay reconnu et remis au SDK Stripe, jamais traité comme une navigation", async () => {
+  const { STRIPE_RETURN_URL, isStripeReturnUrl } = await import("../src/lib/deepLinks.js");
+  assert.equal(STRIPE_RETURN_URL, "secoto://stripe-redirect");
+  assert.equal(isStripeReturnUrl("secoto://stripe-redirect?payment_intent=pi_1&redirect_status=succeeded"), true);
+  assert.equal(isStripeReturnUrl("secoto://app?ecran=courses"), false);
+  assert.equal(isStripeReturnUrl("https://app.secoto-transport.fr/?ecran=courses"), false);
+  assert.equal(isStripeReturnUrl(null), false);
+});
+
+test("2.3.6 : la feuille de paiement reçoit l'adresse de retour, la liste verticale et les coordonnées", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../src/lib/payments.js", import.meta.url), "utf8");
+  assert.match(src, /returnURL: STRIPE_RETURN_URL/);
+  assert.match(src, /paymentMethodLayout: "vertical"/);
+  assert.match(src, /defaultBillingDetails: intent\.billing/);
+  assert.match(src, /feuilleKlarna: true/);
+  const runtime = readFileSync(new URL("../src/platform/runtime.js", import.meta.url), "utf8");
+  assert.match(runtime, /isStripeReturnUrl\(rawUrl\)[\s\S]{0,200}handleURLCallback/);
+});
