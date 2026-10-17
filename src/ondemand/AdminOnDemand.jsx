@@ -73,6 +73,8 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
         subscriptions: () => Promise.all([admin.eligibilityList(), admin.subscriptions()]).then(([applications, subscriptions]) => ({ applications, subscriptions })),
         journal: () => admin.audit(),
       };
+      // Onglets autonomes (ex. « Offres ») : ils chargent leurs propres données.
+      if (typeof map[which] !== "function") return;
       const result = await map[which]();
       setData((d) => ({ ...d, [which]: result }));
     } catch (e) {
