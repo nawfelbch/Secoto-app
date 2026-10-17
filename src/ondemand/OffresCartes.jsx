@@ -22,7 +22,7 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false 
   if (!offres?.length) return null;
   return (
     <fieldset className="od-offres" disabled={disabled}>
-      <legend className="od-offres-titre">Vous ne payez qu’une fois votre transporteur confirmé</legend>
+      <legend className="sr-only">Choisissez votre offre</legend>
       <div className="od-offres-grille" role="radiogroup" aria-label="Choisissez votre offre">
         {offres.map((o) => {
           const actif = choix === o.cle;
