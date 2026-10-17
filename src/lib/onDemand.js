@@ -52,15 +52,22 @@ export const MANUAL_REASONS = {
 };
 
 export * from "./orderCopy";
-import { OFFER_WINDOW_HOURS, ORDER_STATUS_LABEL } from "./orderCopy";
+import { OFFER_WINDOW_HOURS, ORDER_STATUS_LABEL, isDiffereOrder } from "./orderCopy";
 
 // Étape suivante lisible par le client, sans jamais annoncer ce qui n'est pas acquis.
 export function orderHeadline(order) {
   if (!order) return "";
   if (order.status === "awaiting_payment") return order.funding === "subscription" ? "Réservation du forfait en cours" : "Validez votre moyen de paiement pour diffuser la demande";
   if (order.status === "searching_partner" || order.status === "partner_locked") {
+    if (isDiffereOrder(order) && order.payment_status !== "capture_failed") {
+      if (order.status === "partner_locked") return "Un transporteur confirme : débit en cours";
+      const n = Number(order.transporteurs_sollicites) || 0;
+      return n > 0
+        ? `Demande envoyée à ${n} transporteur${n > 1 ? "s" : ""} vérifié${n > 1 ? "s" : ""}`
+        : "Demande envoyée aux transporteurs vérifiés";
+    }
     return order.payment_status === "capture_failed"
-      ? "L’encaissement a échoué : mettez à jour votre moyen de paiement"
+      ? "Le débit n’a pas abouti : mettez à jour votre moyen de paiement"
       : order.payment_circuit === "direct"
         ? `Votre demande est proposée aux transporteurs indépendants vérifiés (${OFFER_WINDOW_HOURS} h)`
         : `Votre demande est proposée à tous nos transporteurs compatibles (${OFFER_WINDOW_HOURS} h)`;
@@ -203,6 +210,11 @@ export const myQuotes = () => rpc("secoto_my_quotes", {});
 export const myOrders = () => rpc("secoto_od_my_orders", {});
 export const bookQuote = (quoteId, useSubscription = false) =>
   rpc("secoto_od_book_quote", { p_quote_id: quoteId, p_use_subscription: useSubscription, p_idempotency_key: randomIdempotencyKey() });
+// 099 : réserver une offre (Express, Standard, Éco) ; relancer une demande expirée.
+export const bookQuoteOffre = (quoteId, offre) =>
+  rpc("secoto_od_book_offre", { p_quote_id: quoteId, p_offre: offre, p_idempotency_key: randomIdempotencyKey() });
+export const reproposerCommande = (orderId) => rpc("secoto_od_reproposer", { p_order_id: orderId });
+export const setAccepteDelaiLong = (accepte) => rpc("secoto_set_accepte_delai_long", { p_accepte: Boolean(accepte) });
 export const cancelOrder = (orderId) => rpc("secoto_od_cancel_order", { p_order_id: orderId, p_idempotency_key: randomIdempotencyKey() });
 export const cancelPreview = (orderId) => rpc("secoto_od_cancel_quote_preview", { p_order_id: orderId });
 
@@ -295,6 +307,10 @@ export async function uploadEligibilityFile({ businessId, applicationId, file, k
 
 // ---- Administration ----------------------------------------------------------
 export const admin = {
+  // 099 : réglages des trois offres et mesure par offre.
+  troisOffres: () => rpc("secoto_admin_trois_offres", {}),
+  setTroisOffres: (reglages) => rpc("secoto_admin_set_trois_offres", { p_reglages: reglages }),
+  offresStats: (jours = 30) => rpc("secoto_admin_offres_stats", { p_jours: jours }),
   setFlag: (key, enabled) => rpc("secoto_admin_set_feature_flag", { p_key: key, p_enabled: enabled }),
   orders: (status = null) => rpc("secoto_admin_od_orders", { p_status: status }),
   // Écran admin : seulement les devis utiles (à établir + tarifés valides),

@@ -2,11 +2,13 @@ import { humanizeError } from "../lib/humanError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import DecompositionPrix from "./DecompositionPrix";
 import ReassuranceReservation from "./ReassuranceReservation";
+import OffresCartes, { OffreDecomposition } from "./OffresCartes";
+import { memoriserOffre, offreParDefaut } from "../lib/offres";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
   OFFER_WINDOW_HOURS, TVA_MENTION,
-  bookQuote, cancellationPolicy, formatCents, formatDateTime, paymentExplanation, publicQuote,
+  bookQuote, bookQuoteOffre, cancellationPolicy, fenetreLibelle, transporteursLibelle, formatCents, formatDateTime, paymentExplanation, publicQuote,
   rememberAnonQuote, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
@@ -86,6 +88,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   });
   const [quote, setQuote] = useState(initialQuote);
   const [order, setOrder] = useState(null);
+  // 099 : offre choisie (Express, Standard, Éco) quand le devis en propose.
+  const [offre, setOffre] = useState(() => offreParDefaut(initialQuote?.offres, initialQuote?.id));
   const [payment, setPayment] = useState(null);
   const [waiver, setWaiver] = useState(false); // jamais pré-cochée
   const [useSubscription, setUseSubscription] = useState(false);
@@ -203,6 +207,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       if (leContact) { memoriserContact(leContact); setContactEnvoye(leContact); }
       if (anonyme) rememberAnonQuote(result.token);
       setQuote(result.quote);
+      setOffre(offreParDefaut(result.quote?.offres, result.quote?.id));
       // 088 : prix vu par le visiteur (mesure, avec son accord seulement).
       if (result.quote?.client_price_cents != null) evenement("prix_affiche", { service: payload.mode || "" }, { eventId: `prix-${result.quote.id}` });
       setStep(4);
@@ -228,7 +233,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
     setBusy(true);
     setError("");
     try {
-      const result = await bookQuote(quote.id, useSubscription);
+      const result = offres && !useSubscription
+        ? await bookQuoteOffre(quote.id, offre || offreParDefaut(offres, quote.id))
+        : await bookQuote(quote.id, useSubscription);
       setOrder(result.order);
       if (result.order.payment_id) {
         setPayment(await fetchPayment(result.order.payment_id));
@@ -263,12 +270,17 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const direct = order?.payment_circuit === "direct";
   // 081 : le devis plateau annonce déjà le circuit direct (interrupteur allumé).
   const devisDirect = quote?.payment_circuit === "direct";
+  // 099 : trois offres -> carte enregistrée, débit à la confirmation (compte SECOTO).
+  const offres = quote?.offres?.length && ["priced"].includes(quote.status) ? quote.offres : null;
+  const offreChoisie = offres ? offres.find((o) => o.cle === offre) || null : null;
+  const differe = order?.debit_a_confirmation === true;
+  const choisirOffre = (cle) => { setOffre(cle); memoriserOffre(quote?.id, cle); };
 
   return (
     <div className={`panel panel-full${anonyme ? " od-anonyme" : ""}`}>
       <h2 className="od-titre">Transport à la demande</h2>
       <p className="muted od-intro">
-        {direct || devisDirect
+        {direct || devisDirect || differe || offres
           ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
           : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
       </p>
@@ -426,14 +438,21 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           {quote.distance_km && <p className="muted">Itinéraire routier : {quote.distance_km} km{quote.duration_min ? ` · environ ${Math.round(quote.duration_min / 60)} h ${String(Math.round(quote.duration_min % 60)).padStart(2, "0")}` : ""}</p>}
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>
-              <div className="od-price">
-                <span>Prix total du transport</span>
-                <strong>{formatCents(quote.client_price_cents)}</strong>
-              </div>
-              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} />}
+              {offres ? (
+                <OffresCartes offres={offres} choix={offre} onChoix={choisirOffre} disabled={busy} />
+              ) : (
+                <div className="od-price">
+                  <span>Prix total du transport</span>
+                  <strong>{formatCents(quote.client_price_cents)}</strong>
+                </div>
+              )}
+              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} libelle={offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}
+              {anonyme && offreChoisie && <OffreDecomposition offre={offreChoisie} />}
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
-                {devisDirect
+                {offres
+                  ? "Tout compris, réglé en une seule fois, au moment où un transporteur confirme. "
+                  : devisDirect
                   ? "Tout compris, réglé en une seule fois, directement au transporteur qui accepte votre transport. "
                   : "Tout compris, réglé en une seule fois à SECOTO. "}
                 {TVA_MENTION}
@@ -445,16 +464,16 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   {" "}par rapport à {quote.vehicles.length} transports commandés séparément.
                 </p>
               )}
-              {quote.lines?.length > 0 && (
+              {!offres && quote.lines?.length > 0 && (
                 <ul className="od-lines">{quote.lines.map((l, i) => <li key={i}><span>{l.label}</span><span>{Number(l.eur).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</span></li>)}</ul>
               )}
               <div className="od-two">
                 <div><strong>Inclus</strong><ul>{(quote.included || []).map((x) => <li key={x}>{x}</li>)}</ul></div>
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
-              <ReassuranceReservation mode={quote.mode} circuit={quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
+              <ReassuranceReservation mode={quote.mode} circuit={offres ? "direct" : quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
-              <p className="muted">{cancellationPolicy(order)}</p>
+              <p className="muted">{cancellationPolicy(order || (offres ? { debit_a_confirmation: true } : null))}</p>
               {subscriptionActive && (
                 <label className="od-checks"><input type="checkbox" checked={useSubscription} onChange={(e) => setUseSubscription(e.target.checked)} /> Utiliser mon forfait (si ce trajet est couvert)</label>
               )}
@@ -492,16 +511,25 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
-                {busy ? "Validation en cours…" : direct
+                {busy ? "Validation en cours…" : direct || differe
                   ? "Valider ma carte — aucun débit maintenant"
                   : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
-              {direct && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
-              <ReassuranceReservation mode={order.mode} circuit={order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
+              {(direct || differe) && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
+              <ReassuranceReservation mode={order.mode} circuit={differe ? "direct" : order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
-          {guaranteed && (
+          {guaranteed && differe && (
+            <div className="alert success">
+              <strong>Demande envoyée{offreChoisie ? ` aux transporteurs vérifiés (${transporteursLibelle(offreChoisie.transporteurs)})` : " aux transporteurs vérifiés"}.</strong>{" "}
+              Carte enregistrée, rien n’a été débité. Fenêtre de prise en charge{order.fenetre_fin ? ` jusqu’au ${formatDateTime(order.fenetre_fin)}` : offreChoisie ? ` ${fenetreLibelle(offreChoisie.fenetre_h)}` : ""}.
+              {" "}Vous ne serez débité de {formatCents(order.client_price_cents ?? order.collect_cents)} qu’au moment où un transporteur confirme ; sans confirmation dans la fenêtre, aucun débit et la demande est annulée automatiquement.
+              {" "}Vous êtes notifié dès qu’il confirme{flags?.mise_en_relation_v2 ? " : son entreprise et ses coordonnées s’affichent alors dans votre commande." : "."}
+              <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
+            </div>
+          )}
+          {guaranteed && !differe && (
             <div className="alert success">
               {order.funding === "subscription" ? "Forfait réservé." : direct
                 ? `Carte validée, rien n’a été débité. Vous serez débité de ${formatCents(order.client_price_cents ?? order.collect_cents)} au nom du transporteur qui accepte la mission.`
@@ -532,7 +560,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (
           <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription)} onClick={book}>
-            {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait" : "Réserver et passer au paiement"}
+            {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait"
+              : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver et passer au paiement"}
           </button>
         )}
         {step === 4 && quote && !["priced", "manual_priced"].includes(quote.status) && (
@@ -540,6 +569,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         )}
         {stepError && step < 4 && <small className="muted" aria-live="polite">{stepError}</small>}
       </div>
+      {step === 4 && offreChoisie && !anonyme && !useSubscription && <OffreDecomposition offre={offreChoisie} />}
       {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !flags?.od_payments && !useSubscription && (
         <p className="muted">Le paiement en ligne n’est pas encore ouvert : contactez SECOTO pour confirmer ce devis.</p>
       )}

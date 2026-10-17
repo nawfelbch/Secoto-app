@@ -13,7 +13,7 @@ import { consentementPub, evenement } from "../lib/consentement";
 import { getAuthRedirectUrl, getPlatform, openExternal } from "../platform/runtime";
 import { humanizeError } from "../lib/humanError";
 
-export default function ReserverExpress({ onConnexion }) {
+export default function ReserverExpress({ onConnexion, libelle = "Réserver" }) {
   const memo = contactMemorise();
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState(() => memo?.email || "");
@@ -99,7 +99,7 @@ export default function ReserverExpress({ onConnexion }) {
       )}
       {erreur && <p className="alert error" role="alert">{erreur}</p>}
       <button className="btn primary od-compte-btn" type="submit" disabled={etat !== "saisie"}>
-        {etat === "envoi" ? "Réservation…" : etat === "ouverture" ? "Ouverture du paiement…" : "Réserver"}
+        {etat === "envoi" ? "Réservation…" : etat === "ouverture" ? "Ouverture du paiement…" : libelle}
       </button>
       <button className="linklike od-compte-connexion" type="button" onClick={() => onConnexion?.()}>
         Déjà client ? Me connecter

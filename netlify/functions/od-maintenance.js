@@ -23,9 +23,10 @@ export async function runMaintenance({ admin, stripe }) {
   for (const lock of tick.expired_locks || []) {
     // 074 : en paiement direct, la décision se prend toujours chez Stripe
     // (débit éventuellement déjà passé, validation bancaire en attente…).
-    if (isDirect(lock) && lock.funding === "card") {
+    // 099 : débit à la confirmation -> même logique (validation bancaire en attente, délai).
+    if ((isDirect(lock) || lock.differe === true) && lock.funding === "card") {
       const outcome = await captureForOrder({ admin, stripe, orderId: lock.order_id, paymentId: lock.payment_id });
-      report.locks.push({ order: lock.order_id, outcome: outcome?.result, circuit: "direct" });
+      report.locks.push({ order: lock.order_id, outcome: outcome?.result, circuit: isDirect(lock) ? "direct" : "differe" });
       continue;
     }
     if (lock.funding !== "card" || !lock.intent_id) {

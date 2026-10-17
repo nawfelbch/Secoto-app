@@ -5,7 +5,14 @@ import {
   VEHICLE_CLASSES, VEHICLE_CONSTRAINTS, SLOTS,
   acceptOffer, carrierDirectStatus, declineOffer, formatCents, formatDateTime,
   getOffer, markOfferSeen, myDispatchPreferences, myOffers, updateDispatchPreferences,
+  OFFRE_LIBELLE, setAccepteDelaiLong,
 } from "../lib/onDemand";
+
+// 099 : offre de la mission (Express, Standard, Éco) — jamais le prix client.
+function OffreBadge({ offre }) {
+  if (!offre) return null;
+  return <span className={`od-pill od-offre-pill is-${offre}`}>{offre === "express" ? "Express · prioritaire" : offre === "eco" ? "Éco · délai long" : OFFRE_LIBELLE[offre] || offre}</span>;
+}
 import { randomIdempotencyKey } from "../lib/fileSafety";
 
 const EQUIPMENT = [
@@ -77,6 +84,19 @@ export function DispatchPreferencesPanel({ transporterType }) {
           <span><strong>Notifications application fermée</strong><small>Recevoir une notification quand l’application est fermée ou que vous êtes déconnecté (autorisation du téléphone requise).</small></span>
         </label>
       </div>
+      {transporterType === "pl" && (
+        <div className="od-choice" style={{ marginTop: 12 }}>
+          <label className={prefs.accepte_delai_long ? "is-selected" : ""}>
+            <input type="checkbox" checked={Boolean(prefs.accepte_delai_long)} disabled={busy} onChange={async (e) => {
+              const v = e.target.checked;
+              setBusy(true); setError(""); setMessage("");
+              try { await setAccepteDelaiLong(v); setPrefs((p) => ({ ...p, accepte_delai_long: v })); setMessage("Préférences enregistrées."); }
+              catch (err) { setError(humanizeError(err)); } finally { setBusy(false); }
+            }} />
+            <span><strong>J’accepte les missions à délai long / groupage</strong><small>Missions « Éco » : voitures à charger sur porte-voitures, prise en charge dans une fenêtre de plusieurs jours, rémunération fixe par véhicule.</small></span>
+          </label>
+        </div>
+      )}
       <h3 style={{ marginTop: 18 }}>Écran verrouillé</h3>
       <div className="od-choice">
         <label className={prefs.lockscreen_privacy === "masked" ? "is-selected" : ""}>
@@ -181,6 +201,9 @@ export function OfferDetail({ offerId, onClose, onConfirmed, onOpenBank }) {
       <h3 id={`offer-${offer.id}`}>{offer.mode === "plateau" ? "Transport plateau" : "Convoyage"} · {offer.vehicle?.model}</h3>
       <p className="od-offer-pay">{formatCents(offer.partner_pay_cents)}</p>
       <p className="muted">Votre rémunération pour cette mission.</p>
+      {offer.offre && (
+        <p><OffreBadge offre={offer.offre} />{offer.fenetre_fin ? ` Fenêtre de prise en charge : du ${formatDateTime(offer.pickup_at)} au ${formatDateTime(offer.fenetre_fin)}.` : ""}</p>
+      )}
       <div className="od-route">
         <div><strong>Prise en charge</strong><br />{offer.pickup.label}<br /><small className="muted">{formatDateTime(offer.pickup_at)} · {SLOTS.find((s) => s.value === offer.schedule?.slot)?.label}{offer.schedule?.flexibility_days ? ` · souplesse ± ${offer.schedule.flexibility_days} j` : ""}</small></div>
         <div><strong>Livraison</strong><br />{offer.delivery.label}</div>
@@ -232,7 +255,9 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
   useEffect(() => { queueMicrotask(load); const id = setInterval(() => document.visibilityState === "visible" && load(), 20000); return () => clearInterval(id); }, [load]);
   useEffect(() => { if (focusOfferId) queueMicrotask(() => setOpen(focusOfferId)); }, [focusOfferId]);
 
-  const available = (offers || []).filter((o) => o.state === "available" || o.state === "pending_capture");
+  // 099 : les missions Express sont mises en avant (en tête de liste).
+  const available = (offers || []).filter((o) => o.state === "available" || o.state === "pending_capture")
+    .sort((a, b) => (b.offre === "express") - (a.offre === "express"));
   const past = (offers || []).filter((o) => !available.includes(o));
   return (
     <div className="panel panel-full">
@@ -249,7 +274,7 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
       <div className="cards">
         {available.map((o) => (
           <article className="mission-card" key={o.id}>
-            <div className="card-top"><span className="badge">{o.mode === "plateau" ? "Plateau" : "Convoyage"}</span><strong>{formatCents(o.partner_pay_cents)}</strong></div>
+            <div className="card-top"><span className="badge">{o.mode === "plateau" ? "Plateau" : "Convoyage"}</span>{o.offre && <OffreBadge offre={o.offre} />}<strong>{formatCents(o.partner_pay_cents)}</strong></div>
             <h3>{o.pickup.city} → {o.delivery.city}</h3>
             <p>{o.vehicle?.model} · {formatDateTime(o.pickup_at)}{o.distance_km ? ` · ${o.distance_km} km` : ""}</p>
             <div className="actions-row"><button className="btn primary small" type="button" onClick={() => setOpen(o.id)}>Voir la mission</button></div>

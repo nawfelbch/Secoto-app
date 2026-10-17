@@ -10,14 +10,17 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { UUID_PATTERN, authenticatedUserId, bearer, json, parseBody, serviceClient, userClient, withCors } from "../lib/secoto-server.js";
 import { chargeDirect, isDirect } from "../lib/paiement-direct.js";
+import { chargeDiffere, isDiffere } from "../lib/paiement-differe.js";
 import { envoyerConversionsMeta } from "../lib/conversions.js";
 
 const DECLINE_CODES = new Set(["card_declined", "expired_card", "insufficient_funds", "payment_intent_unexpected_state", "authentication_required"]);
 
 export async function captureForOrder({ admin, stripe, orderId, paymentId }) {
-  const { data: payment } = await admin.from("payments").select("id,provider_intent_id,status,payment_circuit").eq("id", paymentId).single();
+  const { data: payment } = await admin.from("payments").select("id,provider_intent_id,status,payment_circuit,debit_a_confirmation").eq("id", paymentId).single();
   // 074 : plateau en paiement direct -> débit sur le compte du transporteur.
   if (isDirect(payment)) return chargeDirect({ admin, stripe, orderId });
+  // 099 : offre choisie (Express, Standard, Éco) -> débit à la confirmation, compte SECOTO.
+  if (isDiffere(payment)) return chargeDiffere({ admin, stripe, orderId });
   if (!payment?.provider_intent_id) {
     await admin.rpc("secoto_od_capture_result", { p_order_id: orderId, p_success: false, p_error: "intent_absent" });
     return { result: "capture_failed" };

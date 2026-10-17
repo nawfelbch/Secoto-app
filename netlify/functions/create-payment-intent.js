@@ -108,16 +108,18 @@ const handler = async (event) => {
 
   const { data: payment, error: paymentError } = await admin
     .from("payments")
-    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at")
+    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at,debit_a_confirmation")
     .eq("id", paymentId)
     .single();
   if (paymentError || !payment) return response(404, { error: "payment_not_found" });
   if (payment.account_id !== userId) return response(403, { error: "forbidden" });
   if (payment.status === "paid") return response(409, { error: "already_paid" });
   const direct = payment.payment_circuit === "direct";
+  // 099 : offre choisie -> carte enregistrée, débit à la confirmation (compte SECOTO).
+  const differe = !direct && payment.debit_a_confirmation === true;
   // 074 : en paiement direct, la carte peut être (re)validée tant qu'aucun
   // transporteur n'a été débité, et la validation bancaire peut être demandée.
-  const payableStatuses = direct
+  const payableStatuses = direct || differe
     ? ["pending", "processing", "failed", "capture_failed", "requires_capture"]
     : ["pending", "processing"];
   if (!payableStatuses.includes(payment.status)) {
@@ -174,9 +176,9 @@ const handler = async (event) => {
     secoto_purpose: payment.purpose,
   };
 
-  if (direct) {
+  if (direct || differe) {
     try {
-      return await directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery });
+      return await directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe });
     } catch (error) {
       await admin.from("payments").update({
         last_error: String(error?.message || "stripe_error").slice(0, 500),
@@ -346,7 +348,10 @@ const handler = async (event) => {
 //  · Si sa banque exige une validation au moment du débit : page de paiement
 //    Stripe ouverte SUR LE COMPTE DU TRANSPORTEUR, commission SECOTO comprise.
 // ---------------------------------------------------------------------------
-export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, now = Date.now() }) {
+export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe = false, now = Date.now() }) {
+  // 099 : même parcours pour le débit à la confirmation, mais tout se passe sur
+  // le compte SECOTO (aucun compte transporteur, aucune commission séparée).
+  const circuit = differe ? "differe" : "direct";
   const { data: order } = await admin
     .from("transport_orders")
     .select("id,status,public_ref,lock_expires_at")
@@ -358,7 +363,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     secoto_payment_id: payment.id,
     secoto_order_id: payment.order_id || "",
     secoto_purpose: payment.purpose,
-    secoto_circuit: "direct",
+    secoto_circuit: circuit,
   };
   const retourOk = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=ok`;
   const retourAnnule = `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}&paiement=annule`;
@@ -369,6 +374,31 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
 
   // Validation bancaire demandée au moment du débit.
   if (order.status === "partner_locked" && payment.direct_action_required_at && payment.status === "requires_capture") {
+    if (differe) {
+      const { data: ctx } = await admin.rpc("secoto_differe_charge_context", { p_order_id: order.id });
+      if (!ctx || ctx.error) return response(409, { error: "payment_not_payable" });
+      const lockMs = order.lock_expires_at ? Date.parse(order.lock_expires_at) : 0;
+      const expiresAt = Math.floor(Math.min(Math.max(now + 31 * 60 * 1000, lockMs), now + 23 * 3600 * 1000) / 1000);
+      const description = `Transport de véhicule — commande ${order.public_ref}`;
+      const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+        {
+          ...managed,
+          mode: "payment",
+          customer: customerId,
+          line_items: [{
+            price_data: { currency: ctx.currency || "eur", unit_amount: ctx.amount_cents, product_data: { name: description } },
+            quantity: 1,
+          }],
+          payment_intent_data: { description, metadata },
+          expires_at: expiresAt,
+          metadata,
+          success_url: retourOkAppli,
+          cancel_url: retourAnnuleAppli,
+        },
+        { idempotencyKey: idempotencyKey("secoto-differe-checkout", payment.id, { amount: ctx.amount_cents, expiresAt, managed, platform, offer: ctx.lock_offer_id || "" }) },
+      ));
+      return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: ctx.amount_cents, currency: ctx.currency || "eur", circuit });
+    }
     const { data: ctx } = await admin.rpc("secoto_direct_charge_context", { p_order_id: order.id });
     if (!ctx || ctx.error || !ctx.connected_account_id) return response(409, { error: "payment_not_payable" });
     const lockMs = order.lock_expires_at ? Date.parse(order.lock_expires_at) : 0;
@@ -422,12 +452,12 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         success_url: retourOk,
         cancel_url: retourAnnule,
       },
-      { idempotencyKey: idempotencyKey("secoto-direct-setup-web", payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed }) },
+      { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup-web`, payment.id, { customerId, status: payment.status, returnScreen, returnQuery, managed }) },
     ));
     if (["pending", "failed"].includes(payment.status)) {
       await admin.from("payments").update({ status: "processing", updated_at: new Date(now).toISOString() }).eq("id", payment.id);
     }
-    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit: "direct", setup: true });
+    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit, setup: true });
   }
 
   let setupIntent = null;
@@ -444,7 +474,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         description: `Validation de carte — commande ${order.public_ref}`,
         metadata,
       },
-      { idempotencyKey: idempotencyKey("secoto-direct-setup", payment.id, { customerId, status: payment.status, previous: payment.setup_intent_id || "" }) },
+      { idempotencyKey: idempotencyKey(`secoto-${circuit}-setup`, payment.id, { customerId, status: payment.status, previous: payment.setup_intent_id || "" }) },
     );
   }
   await admin.from("payments").update({
@@ -467,7 +497,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     ephemeralKey,
     amountCents: payment.amount_cents,
     currency: payment.currency || "eur",
-    circuit: "direct",
+    circuit,
     returnUrl: `${SECOTO_APP_URL}/?ecran=${returnScreen}&${returnQuery}`,
   });
 }

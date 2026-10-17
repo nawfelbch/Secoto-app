@@ -114,3 +114,24 @@ label.od-checks {
   .od-steps-inline { grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
   .od-steps-inline li { padding: 8px 10px; font-size: .82rem; line-height: 1.3; }
 }
+
+/* 099 — Trois offres (Express, Standard, Éco) : côte à côte sur ordinateur, empilées sur téléphone. */
+.od-offres { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.od-offres-titre { font-family: var(--font-display); font-size: 1.15rem; margin-bottom: 10px; padding: 0; color: var(--text); }
+.od-offres-grille { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.od-offre { position: relative; display: grid; gap: 4px; align-content: start; padding: 18px 16px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--surface, rgba(255,255,255,.03)); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; min-height: 44px; }
+.od-offre:hover { border-color: var(--accent); }
+.od-offre input { position: absolute; opacity: 0; pointer-events: none; }
+.od-offre:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.od-offre.is-actif { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px var(--accent-glow); }
+.od-offre-badge { position: absolute; top: -10px; right: 12px; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; letter-spacing: .02em; color: var(--accent-ink); background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.od-offre-nom { font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text); }
+.od-offre-prix { font-family: var(--font-display); font-size: 1.8rem; line-height: 1.1; color: var(--text); }
+.od-offre.is-actif .od-offre-prix { color: var(--accent); }
+.od-offre-fenetre { font-weight: 600; color: var(--text); }
+.od-offre-detail { font-size: .85rem; color: var(--text-soft); }
+.od-offre-transporteurs { font-size: .8rem; color: var(--muted); }
+.od-offre-decompo { font-size: .82rem; line-height: 1.45; margin-top: 8px; opacity: .85; display: grid; gap: 2px; }
+@media (max-width: 560px) { .od-offres-grille { grid-template-columns: 1fr; } .od-offre { padding: 16px 14px 14px; } }
+.od-offre-pill { margin: 0 6px; }
+.od-offre-pill.is-express { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-ink); border-color: transparent; }

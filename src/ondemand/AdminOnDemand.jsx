@@ -1,4 +1,5 @@
 import { humanizeError } from "../lib/humanError";
+import AdminOffres from "./AdminOffres";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 import { telephoneLisible } from "../lib/contactDevis";
@@ -9,6 +10,7 @@ const TABS = [
   { key: "orders", label: "Commandes" },
   { key: "quotes", label: "Devis à établir" },
   { key: "grids", label: "Barèmes & réglages" },
+  { key: "offres", label: "Offres" },
   { key: "partners", label: "Partenaires" },
   { key: "payouts", label: "Versements" },
   { key: "subscriptions", label: "Abonnements" },
@@ -22,6 +24,7 @@ const FLAG_LABEL = {
   dispatch_notifications: "Diffusion automatique aux partenaires",
   live_tracking: "Suivi de position pendant la mission",
   adresses_internationales: "Adresses hors de France (Europe et monde)",
+  trois_offres: "Trois offres Express / Standard / Éco (débit à la confirmation)",
 };
 
 // 090 : coordonnées du client (compte, ou laissées avant le prix) en un geste.
@@ -105,6 +108,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
 
       {tab === "orders" && <AdminOrders orders={data.orders} busy={busy} run={run} transporters={transporters} relation={Boolean(flags?.mise_en_relation_v2)} />}
       {tab === "quotes" && <AdminQuotes quotes={data.quotes} busy={busy} run={run} />}
+      {tab === "offres" && <AdminOffres flags={flags} onFlagsChange={onFlagsChange} />}
       {tab === "grids" && <AdminGrids grids={data.grids} flags={flags} busy={busy} run={run} onFlagsChange={onFlagsChange} />}
       {tab === "partners" && <AdminPartners partners={data.partners} busy={busy} run={run} />}
       {tab === "payouts" && <AdminPayouts payouts={data.payouts} busy={busy} run={run} />}

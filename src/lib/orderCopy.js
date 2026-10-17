@@ -54,6 +54,26 @@ export function isDirectOrder(order) {
   return order?.payment_circuit === "direct";
 }
 
+// ---- 099 : trois offres (Express, Standard, Éco) ------------------------------
+// Commande passée sur une offre : carte enregistrée, débit à la confirmation
+// d'un transporteur, sur le compte SECOTO.
+export function isDiffereOrder(order) {
+  return order?.debit_a_confirmation === true;
+}
+export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco" };
+// « Prise en charge sous 48 h » / « sous 5 jours » : une fenêtre, jamais un délai garanti.
+export function fenetreLibelle(heures) {
+  const h = Number(heures);
+  if (!Number.isFinite(h) || h <= 0) return "";
+  if (h <= 72) return `sous ${Math.round(h)} h`;
+  const j = Math.round(h / 24);
+  return `sous ${j} jour${j > 1 ? "s" : ""}`;
+}
+export function transporteursLibelle(n) {
+  const k = Number(n) || 0;
+  return `${k} transporteur${k > 1 ? "s" : ""} vérifié${k > 1 ? "s" : ""} couvre${k > 1 ? "nt" : ""} ce trajet`;
+}
+
 // 081 : décomposition affichée au client (plateau en paiement direct) :
 // prix réservé au transporteur + commission de mise en relation SECOTO.
 export function decompositionPrix(totalCents, commissionCents) {
@@ -65,6 +85,8 @@ export function decompositionPrix(totalCents, commissionCents) {
 }
 
 export function paymentStateLabel(order) {
+  if (isDiffereOrder(order) && order?.payment_status === "requires_capture") return "Carte enregistrée (non débitée)";
+  if (isDiffereOrder(order) && order?.payment_status === "cancelled") return "Aucun débit";
   const labels = isDirectOrder(order) ? DIRECT_PAYMENT_STATE_LABEL : PAYMENT_STATE_LABEL;
   return labels[order?.payment_status] || order?.payment_status || "";
 }
@@ -101,6 +123,11 @@ export function paymentExplanation(order) {
     return "Mission incluse dans votre forfait : aucun paiement supplémentaire. Le droit est réservé et vous est restitué si aucun transporteur ne confirme.";
   }
   const amount = formatCents(order.client_price_cents ?? order.collect_cents);
+  if (isDiffereOrder(order)) {
+    return `Vous enregistrez votre carte maintenant, sans aucun débit. Vous n’êtes débité de ${amount} `
+      + `qu’au moment où un transporteur professionnel indépendant confirme votre transport. `
+      + `Si aucun transporteur ne confirme dans la fenêtre choisie, aucun débit : la demande est annulée automatiquement.`;
+  }
   if (isDirectOrder(order)) {
     return `Vous validez votre carte maintenant, sans aucun débit. Vous n’êtes débité de ${amount} `
       + `que lorsqu’un transporteur indépendant accepte votre transport, directement sur son compte. `
@@ -113,6 +140,10 @@ export function paymentExplanation(order) {
 
 // Règle d'annulation, écrite exactement comme elle est appliquée en base.
 export function cancellationPolicy(order) {
+  if (isDiffereOrder(order)) {
+    return `Annulation : sans frais tant qu’aucun transporteur n’a confirmé. Ensuite, remboursement intégral `
+      + `jusqu’à ${FREE_CANCEL_HOURS} h avant la prise en charge ; au-delà, ${LATE_CANCEL_RETAINED_PCT} % sont retenus.`;
+  }
   if (isDirectOrder(order)) {
     return `Annulation : sans frais tant qu’aucun transporteur n’a accepté. Ensuite, remboursement intégral `
       + `jusqu’à ${FREE_CANCEL_HOURS} h avant la prise en charge, ${LATE_CANCEL_RETAINED_PCT} % retenus entre `

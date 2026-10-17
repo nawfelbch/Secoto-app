@@ -108,7 +108,8 @@ export async function handleDirectSetup(admin, stripeEvent) {
     const { data } = await admin.from("payments").select("id").eq("setup_intent_id", si.id).maybeSingle();
     paymentId = data?.id || null;
   }
-  if (!paymentId || si.metadata?.secoto_circuit !== "direct") {
+  // 099 : même chemin pour le débit à la confirmation (carte enregistrée chez SECOTO).
+  if (!paymentId || !["direct", "differe"].includes(si.metadata?.secoto_circuit)) {
     return response(200, { ignored: stripeEvent.type });
   }
   const paymentMethod = typeof si.payment_method === "string" ? si.payment_method : si.payment_method?.id || null;

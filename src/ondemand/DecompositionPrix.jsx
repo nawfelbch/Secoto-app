@@ -16,7 +16,7 @@ export default function DecompositionPrix({ totalCents, commissionCents }) {
     <div className="muted od-decomposition" style={{ fontSize: "0.82rem", lineHeight: 1.45, marginTop: 8, opacity: 0.85 }}>
       <div>Dont prix réservé au transporteur : {formatCents(parts.transport)}</div>
       <div>Commission de mise en relation SECOTO : {formatCents(parts.commission)}</div>
-      <div>SECOTO agit en tant qu’intermédiaire ; le transport est assuré par un transporteur indépendant.</div>
+      <div>SECOTO agit en tant qu’intermédiaire ; le transport est exécuté par un transporteur professionnel indépendant.</div>
     </div>
   );
 }
