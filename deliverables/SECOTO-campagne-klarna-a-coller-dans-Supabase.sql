@@ -1,25 +1,26 @@
 -- ============================================================================
--- SECOTO — Campagne e-mail « paiement en plusieurs fois » (octobre 2026)
+-- SECOTO — Relance des devis encore réservables + paiement en plusieurs fois
+-- (octobre 2026)
 -- ----------------------------------------------------------------------------
--- Destinataires :
---   · les clients inscrits (comptes « client » actifs) ;
---   · toutes les personnes qui ont laissé leur e-mail en demandant un prix.
+-- Destinataires : UNIQUEMENT les personnes (clients inscrits ou demandes de
+-- prix sans compte) qui ont un devis ENCORE RÉSERVABLE : prix fixé, prise en
+-- charge dans plus de 12 h, pas encore commandé, pas supprimé.
+-- Personne d'autre ne reçoit rien.
 -- Jamais : transporteurs, administrateurs, comptes supprimés, adresses de test,
--- adresses listées dans EXCLUSIONS (personnes ayant répondu STOP).
+-- adresses listées dans v_exclusions (personnes ayant répondu STOP).
 --
--- Deux messages :
---   A. devis encore réservable (date de prise en charge à venir) : trajet, prix
---      et LIEN DE PAIEMENT PERSONNEL (le lien existant est réutilisé, sinon il
---      est créé exactement comme le bouton « Lien de paiement » de l'admin) ;
---   B. tous les autres : annonce du paiement en plusieurs fois + lien du site.
+-- Message : trajet, date, prix annoncé et LIEN DE PAIEMENT PERSONNEL (le lien
+-- existant est réutilisé, sinon il est créé exactement comme le bouton
+-- « Lien de paiement » de l'admin), avec l'annonce du paiement en plusieurs
+-- fois avec Klarna.
 --
 -- MODE D'EMPLOI (Supabase → SQL Editor, coller TOUT le fichier) :
 --   1. Laisser la dernière ligne sur 'apercu' → Run. Rien n'est modifié :
 --      vous lisez chaque destinataire, son objet et son message.
---   2. Remplacer par 'test' → Run : UN message A et UN message B partent vers
+--   2. Remplacer par 'test' → Run : UN exemple de message part vers
 --      contact.secoto@gmail.com uniquement (vérifiez la mise en page, cliquez
 --      le lien SANS payer).
---   3. Remplacer par 'envoi' → Run : la campagne part (≈ 20 e-mails toutes les
+--   3. Remplacer par 'envoi' → Run : la relance part (≈ 20 e-mails toutes les
 --      2 minutes). Rejouable sans risque : une adresse ne reçoit jamais deux
 --      fois cette campagne.
 -- La fonction est temporaire (pg_temp) : elle disparaît à la fin de l'exécution.
@@ -38,7 +39,7 @@ declare
   v_cle constant text := 'campagne-klarna-2026-10';
   v_pied constant text :=
     E'\n\n* Sous réserve d''acceptation de votre demande par Klarna.\n'
-    || E'\nVous recevez ce message car vous avez un compte SECOTO ou avez demandé un prix de transport sur SECOTO.'
+    || E'\nVous recevez ce message car vous avez demandé un prix de transport sur SECOTO.'
     || E'\nPour ne plus recevoir nos messages, répondez simplement « STOP ».';
   r record;
   q record;
@@ -50,8 +51,6 @@ declare
   v_nb int;
   v_depart text;
   v_arrivee text;
-  v_test_a boolean := false;
-  v_test_b boolean := false;
   v_inseres int;
 begin
   if p_mode not in ('apercu', 'test', 'envoi') then
@@ -132,33 +131,22 @@ begin
       v_token := null;
     end loop;
 
-    if v_nb > 0 then
-      segment := 'A — devis réservable';
-      v_objet := case when v_nb = 1
-        then format('Votre transport %s → %s est toujours disponible', coalesce(v_depart, ''), coalesce(v_arrivee, ''))
-        else 'Vos transports sont toujours disponibles' end;
-      v_corps := 'Bonjour' || coalesce(' ' || r.prenom, '') || E',\n\n'
-        || case when v_nb = 1 then E'Votre demande de transport est toujours disponible, au prix qui vous a été annoncé :\n'
-                else E'Vos demandes de transport sont toujours disponibles, aux prix qui vous ont été annoncés :\n' end
-        || v_lignes
-        || E'\nNOUVEAU : payez en plusieurs fois avec Klarna*.\n'
-        || E'Sur la page de paiement sécurisée, choisissez simplement « Klarna ». Carte bancaire et Apple Pay restent bien sûr disponibles.\n'
-        || E'\nLe lien reste valable jusqu''à la date de prise en charge. Une question, un changement de date ? Répondez à cet e-mail, nous vous répondons rapidement.\n'
-        || E'\nÀ très vite,\nL''équipe SECOTO\n' || v_site
-        || v_pied;
-    else
-      segment := 'B — annonce';
-      v_objet := 'Nouveau chez SECOTO : payez votre transport en plusieurs fois';
-      v_corps := 'Bonjour' || coalesce(' ' || r.prenom, '') || E',\n\n'
-        || E'Bonne nouvelle : vous pouvez désormais payer votre transport de véhicule en plusieurs fois avec Klarna*.\n'
-        || E'\nC''est simple :\n'
-        || '1. Obtenez votre prix en 1 minute sur ' || v_site || E'\n'
-        || E'2. Au moment du paiement, choisissez « Klarna ».\n'
-        || E'\nTransport sur plateau ou convoyage, avec des transporteurs vérifiés. Carte bancaire et Apple Pay restent bien sûr disponibles.\n'
-        || E'\nUne question ? Répondez à cet e-mail, nous vous répondons rapidement.\n'
-        || E'\nÀ très vite,\nL''équipe SECOTO\n' || v_site
-        || v_pied;
-    end if;
+    -- Aucun devis réservable : cette personne ne reçoit rien.
+    continue when v_nb = 0;
+
+    segment := 'devis réservable';
+    v_objet := case when v_nb = 1
+      then format('Votre transport %s → %s est toujours disponible', coalesce(v_depart, ''), coalesce(v_arrivee, ''))
+      else 'Vos transports sont toujours disponibles' end;
+    v_corps := 'Bonjour' || coalesce(' ' || r.prenom, '') || E',\n\n'
+      || case when v_nb = 1 then E'Votre demande de transport est toujours disponible, au prix qui vous a été annoncé :\n'
+              else E'Vos demandes de transport sont toujours disponibles, aux prix qui vous ont été annoncés :\n' end
+      || v_lignes
+      || E'\nNOUVEAU : payez en plusieurs fois avec Klarna*.\n'
+      || E'Sur la page de paiement sécurisée, choisissez simplement « Klarna ». Carte bancaire et Apple Pay restent bien sûr disponibles.\n'
+      || E'\nLe lien reste valable jusqu''à la date de prise en charge. Une question, un changement de date ? Répondez à cet e-mail, nous vous répondons rapidement.\n'
+      || E'\nÀ très vite,\nL''équipe SECOTO\n' || v_site
+      || v_pied;
 
     destinataire := r.email;
     objet := v_objet;
@@ -169,17 +157,14 @@ begin
                      then 'déjà envoyé (sera ignoré)' else 'à envoyer' end;
       return next;
     elsif p_mode = 'test' then
-      -- Un exemplaire de chaque message, vers l'adresse de test seulement.
-      if (v_nb > 0 and not v_test_a) or (v_nb = 0 and not v_test_b) then
-        insert into public.email_outbox (to_email, subject, body_text, event_key)
-        values (p_test_email, '[TEST] ' || v_objet, v_corps,
-                v_cle || ':test:' || left(segment, 1) || ':' || extract(epoch from clock_timestamp())::bigint);
-        if v_nb > 0 then v_test_a := true; else v_test_b := true; end if;
-        destinataire := p_test_email || ' (exemple de ' || r.email || ')';
-        statut := 'test en file d''envoi';
-        return next;
-      end if;
-      exit when v_test_a and v_test_b;
+      -- Un seul exemplaire, vers l'adresse de test seulement.
+      insert into public.email_outbox (to_email, subject, body_text, event_key)
+      values (p_test_email, '[TEST] ' || v_objet, v_corps,
+              v_cle || ':test:' || extract(epoch from clock_timestamp())::bigint);
+      destinataire := p_test_email || ' (exemple de ' || r.email || ')';
+      statut := 'test en file d''envoi';
+      return next;
+      exit;
     else
       insert into public.email_outbox (account_id, to_email, subject, body_text, event_key)
       values (r.account_id, r.email, v_objet, v_corps, v_cle || ':' || r.email)
