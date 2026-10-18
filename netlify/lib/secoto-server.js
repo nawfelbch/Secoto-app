@@ -56,6 +56,7 @@ export async function authenticatedUserId(accessToken, env = process.env) {
 // Itinéraire routier. Fournisseurs pris en charge :
 //   ROUTING_PROVIDER=ors   + ORS_API_KEY        (openrouteservice, HeiGIT)
 //   ROUTING_PROVIDER=osrm  + OSRM_URL           (instance OSRM auto-hébergée)
+// En secours (101) : Geoapify, puis le serveur OSRM public (France seulement).
 // L'ancienne adresse api.openrouteservice.org a été coupée le 24 août 2026 :
 // la base par défaut est api.heigit.org/openrouteservice, surchargeable par
 // ORS_BASE_URL si HeiGIT la fait encore évoluer. La clé API est inchangée.
@@ -80,55 +81,108 @@ export function estInternational(from, to) {
 export async function computeRoute(from, to, { env = process.env, fetchImpl = fetch, profile = "car" } = {}) {
   if (!validCoordinate(from) || !validCoordinate(to)) return null;
   const provider = String(env.ROUTING_PROVIDER || "").toLowerCase();
+  if (!["ors", "osrm"].includes(provider)) return null;
+  const international = estInternational(from, to);
+  // 101 : fournisseur principal, puis secours si celui-ci est en panne ou
+  // hors quota (le 18/10/2026, ORS a refusé tous les trajets à partir de
+  // 20 h 29 : chaque demande partait en devis manuel).
+  //   1. fournisseur configuré (ORS ou OSRM auto-hébergé) ;
+  //   2. Geoapify (GEOAPIFY_API_KEY, déjà utilisée pour les adresses), sans ferry hors de France ;
+  //   3. France uniquement : serveur OSRM public (OSRM_SECOURS_URL, « off » pour le couper).
+  // Toujours une vraie distance routière, jamais de vol d'oiseau.
+  const essais = [];
+  if (provider === "ors" && env.ORS_API_KEY) essais.push(() => routeOrs(from, to, { env, fetchImpl, profile, international }));
+  if (provider === "osrm" && env.OSRM_URL) essais.push(() => routeOsrm(from, to, { fetchImpl, base: env.OSRM_URL, nom: "osrm" }));
+  if (env.GEOAPIFY_API_KEY) essais.push(() => routeGeoapify(from, to, { env, fetchImpl, profile, international }));
+  const secours = String(env.OSRM_SECOURS_URL ?? "https://router.project-osrm.org");
+  if (!international && secours && secours !== "off") essais.push(() => routeOsrm(from, to, { fetchImpl, base: secours, nom: "osrm-secours", delai: 3000 }));
+  for (const essai of essais) {
+    const route = await essai();
+    if (route) return route;
+  }
+  return null;
+}
+
+// Appel limité dans le temps : une panne ne bloque jamais le devis.
+async function appelRoute(nom, delai, appel) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), delai);
   try {
-    if (provider === "ors" && env.ORS_API_KEY) {
-      const orsProfile = profile === "hgv" ? "driving-hgv" : "driving-car";
-      const base = String(env.ORS_BASE_URL || "https://api.heigit.org/openrouteservice").replace(/\/+$/, "");
-      // 089 : trajet avec une adresse hors de France → itinéraire SANS ferry.
-      // Une traversée en bateau ne donne jamais de prix automatique : sans
-      // route terrestre, ORS répond en erreur, donc devis établi par SECOTO.
-      if (estInternational(from, to)) {
-        const res = await fetchImpl(`${base}/v2/directions/${orsProfile}`, {
-          method: "POST",
-          headers: { Authorization: env.ORS_API_KEY, Accept: "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({
-            coordinates: [[Number(from.lng), Number(from.lat)], [Number(to.lng), Number(to.lat)]],
-            options: { avoid_features: ["ferries"] },
-          }),
-          signal: controller.signal,
-        });
-        if (!res.ok) return null;
-        const body = await res.json();
-        const summary = body?.routes?.[0]?.summary;
-        if (!summary || !(summary.distance > 0)) return null;
-        return { distance_km: Math.round(summary.distance / 100) / 10, duration_min: Math.round(summary.duration / 60), provider: `ors-${orsProfile}-sans-ferry` };
-      }
-      const url = `${base}/v2/directions/${orsProfile}?start=${Number(from.lng)},${Number(from.lat)}&end=${Number(to.lng)},${Number(to.lat)}`;
-      const res = await fetchImpl(url, { headers: { Authorization: env.ORS_API_KEY, Accept: "application/geo+json" }, signal: controller.signal });
-      if (!res.ok) return null;
-      const body = await res.json();
-      const summary = body?.features?.[0]?.properties?.summary;
-      if (!summary || !(summary.distance > 0)) return null;
-      return { distance_km: Math.round(summary.distance / 100) / 10, duration_min: Math.round(summary.duration / 60), provider: `ors-${orsProfile}` };
-    }
-    if (provider === "osrm" && env.OSRM_URL) {
-      const base = String(env.OSRM_URL).replace(/\/+$/, "");
-      const url = `${base}/route/v1/driving/${Number(from.lng)},${Number(from.lat)};${Number(to.lng)},${Number(to.lat)}?overview=false`;
-      const res = await fetchImpl(url, { signal: controller.signal });
-      if (!res.ok) return null;
-      const body = await res.json();
-      const route = body?.routes?.[0];
-      if (body?.code !== "Ok" || !(route?.distance > 0)) return null;
-      return { distance_km: Math.round(route.distance / 100) / 10, duration_min: Math.round(route.duration / 60), provider: "osrm" };
-    }
-    return null;
-  } catch {
+    const route = await appel(controller.signal);
+    if (!route) console.warn(`[itinéraire] ${nom} : pas de trajet`);
+    return route;
+  } catch (e) {
+    console.warn(`[itinéraire] ${nom} : ${e?.name === "AbortError" ? "délai dépassé" : String(e?.message || e).slice(0, 120)}`);
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function routeKm(metres, secondes, provider) {
+  if (!(Number(metres) > 0)) return null;
+  return { distance_km: Math.round(Number(metres) / 100) / 10, duration_min: Math.round(Number(secondes || 0) / 60), provider };
+}
+
+async function lireErreur(nom, res) {
+  let detail = "";
+  try { detail = (await res.text()).slice(0, 160); } catch { /* corps illisible */ }
+  console.warn(`[itinéraire] ${nom} : HTTP ${res.status} ${detail}`);
+  return null;
+}
+
+function routeOrs(from, to, { env, fetchImpl, profile, international }) {
+  const orsProfile = profile === "hgv" ? "driving-hgv" : "driving-car";
+  const base = String(env.ORS_BASE_URL || "https://api.heigit.org/openrouteservice").replace(/\/+$/, "");
+  const nom = `ors-${orsProfile}${international ? "-sans-ferry" : ""}`;
+  return appelRoute(nom, 5000, async (signal) => {
+    // 089 : trajet avec une adresse hors de France → itinéraire SANS ferry.
+    // Une traversée en bateau ne donne jamais de prix automatique : sans
+    // route terrestre, ORS répond en erreur, donc devis établi par SECOTO.
+    if (international) {
+      const res = await fetchImpl(`${base}/v2/directions/${orsProfile}`, {
+        method: "POST",
+        headers: { Authorization: env.ORS_API_KEY, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coordinates: [[Number(from.lng), Number(from.lat)], [Number(to.lng), Number(to.lat)]],
+          options: { avoid_features: ["ferries"] },
+        }),
+        signal,
+      });
+      if (!res.ok) return lireErreur(nom, res);
+      const summary = (await res.json())?.routes?.[0]?.summary;
+      return routeKm(summary?.distance, summary?.duration, nom);
+    }
+    const url = `${base}/v2/directions/${orsProfile}?start=${Number(from.lng)},${Number(from.lat)}&end=${Number(to.lng)},${Number(to.lat)}`;
+    const res = await fetchImpl(url, { headers: { Authorization: env.ORS_API_KEY, Accept: "application/geo+json" }, signal });
+    if (!res.ok) return lireErreur(nom, res);
+    const summary = (await res.json())?.features?.[0]?.properties?.summary;
+    return routeKm(summary?.distance, summary?.duration, nom);
+  });
+}
+
+function routeOsrm(from, to, { fetchImpl, base, nom, delai = 5000 }) {
+  return appelRoute(nom, delai, async (signal) => {
+    const url = `${String(base).replace(/\/+$/, "")}/route/v1/driving/${Number(from.lng)},${Number(from.lat)};${Number(to.lng)},${Number(to.lat)}?overview=false`;
+    const res = await fetchImpl(url, { headers: { "User-Agent": "SECOTO/1.0 (+https://app.secoto-transport.fr)" }, signal });
+    if (!res.ok) return lireErreur(nom, res);
+    const body = await res.json();
+    const route = body?.routes?.[0];
+    return body?.code === "Ok" ? routeKm(route?.distance, route?.duration, nom) : null;
+  });
+}
+
+function routeGeoapify(from, to, { env, fetchImpl, profile, international }) {
+  const mode = profile === "hgv" ? "truck" : "drive";
+  const nom = `geoapify-${mode}${international ? "-sans-ferry" : ""}`;
+  return appelRoute(nom, 3000, async (signal) => {
+    const url = `https://api.geoapify.com/v1/routing?waypoints=${Number(from.lat)},${Number(from.lng)}|${Number(to.lat)},${Number(to.lng)}`
+      + `&mode=${mode}${international ? "&avoid=ferries" : ""}&format=json&apiKey=${encodeURIComponent(env.GEOAPIFY_API_KEY)}`;
+    const res = await fetchImpl(url, { signal });
+    if (!res.ok) return lireErreur(nom, res);
+    const r = (await res.json())?.results?.[0];
+    return routeKm(r?.distance, r?.time, nom);
+  });
 }
 
 // Géocodage d'une adresse française (Base Adresse Nationale, sans clé).
