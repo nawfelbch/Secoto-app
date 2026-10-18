@@ -135,3 +135,27 @@ label.od-checks {
 @media (max-width: 560px) { .od-offres-grille { grid-template-columns: 1fr; } .od-offre { padding: 16px 14px 14px; } }
 .od-offre-pill { margin: 0 6px; }
 .od-offre-pill.is-express { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-ink); border-color: transparent; }
+
+/* 100 — Règlement à l'arrivée : « 0 € prélevé aujourd'hui » en gros, choix du mode. */
+.od-zero { display: grid; gap: 4px; margin: 12px 0; padding: 16px 18px; border-radius: var(--radius-md); border: 1px solid var(--success); background: var(--success-soft); }
+.od-zero-montant { font-family: var(--font-display); font-size: 2rem; line-height: 1.1; color: var(--success); }
+.od-zero span { color: var(--text); }
+.od-reglement { border: 0; padding: 0; margin: 12px 0; min-width: 0; }
+.od-reglement-titre { font-family: var(--font-display); font-size: 1.05rem; margin-bottom: 10px; padding: 0; color: var(--text); }
+.od-reglement-grille { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.od-reglement-choix { position: relative; display: grid; gap: 4px; align-content: start; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-strong); background: var(--surface, rgba(255,255,255,.03)); cursor: pointer; transition: border-color .15s, box-shadow .15s; min-height: 44px; }
+.od-reglement-choix:hover { border-color: var(--accent); }
+.od-reglement-choix input { position: absolute; opacity: 0; pointer-events: none; }
+.od-reglement-choix:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.od-reglement-choix.is-actif { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.od-reglement-nom { font-weight: 700; color: var(--text); }
+.od-reglement-choix.is-klarna .od-reglement-nom::after { content: "Plusieurs fois"; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700; color: #17120f; background: #ffb3c7; }
+.od-reglement-detail { font-size: .84rem; color: var(--text-soft); }
+fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .75; }
+.od-reglement-livraison p { margin: 0 0 8px; }
+.od-virement { display: grid; gap: 4px; margin: 8px 0; }
+.od-virement div { display: flex; gap: 8px; flex-wrap: wrap; }
+.od-virement dt { min-width: 84px; color: var(--muted); }
+.od-virement dd { margin: 0; overflow-wrap: anywhere; }
+.od-commission-montant { font-family: var(--font-display); font-size: 1.4rem; color: var(--danger); }
+@media (max-width: 560px) { .od-reglement-grille { grid-template-columns: 1fr; } .od-zero-montant { font-size: 1.7rem; } }

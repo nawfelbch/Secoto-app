@@ -13,6 +13,9 @@
 // Même parcours quand le moyen enregistré n'est pas une carte (Klarna,
 // Satispay, Amazon Pay…) : il ne se débite pas hors session, le client paie
 // lui-même sur la page Stripe (Klarna en plusieurs fois compris).
+// 100 : règlement à l'arrivée (debit_a_livraison) -> aucune opération Stripe
+// ici, la mission est confirmée et le règlement a lieu à la livraison
+// (netlify/lib/reglement-livraison.js).
 // Toutes les opérations Stripe portent une clé d'idempotence stable.
 import { debitableHorsSession, moyenNonDebitable, needsCustomerAction } from "./paiement-direct.js";
 
@@ -60,6 +63,15 @@ export async function chargeDiffere({ admin, stripe, orderId, now = Date.now() }
   if (ctx.error) return captureResult(admin, orderId, false, ctx.error);
   if (ctx.order_status !== "partner_locked") return { result: ctx.order_status === "partner_confirmed" ? "confirmed" : "unavailable" };
   if (ctx.payment_status === "paid") return captureResult(admin, orderId, true, null);
+
+  // 100 : règlement à l'arrivée -> rien n'est prélevé à la confirmation ; la
+  // carte enregistrée sert de garantie, le débit a lieu à la livraison.
+  if (ctx.debit_a_livraison === true) {
+    const { data, error: errConfirm } = await admin.rpc("secoto_reglement_confirmer", { p_order_id: orderId });
+    if (errConfirm || !data) return { result: "pending_capture", retry: true };
+    if (data.result === "capture_failed") return captureResult(admin, orderId, false, data.reason || "carte_absente");
+    return data;
+  }
   if (!ctx.payment_method_id || !ctx.customer_id) return captureResult(admin, orderId, false, "carte_absente");
 
   // Validation bancaire demandée : on attend le paiement du client (webhook).

@@ -5,8 +5,9 @@ import {
   VEHICLE_CLASSES, VEHICLE_CONSTRAINTS, SLOTS,
   acceptOffer, carrierDirectStatus, declineOffer, formatCents, formatDateTime,
   getOffer, markOfferSeen, myDispatchPreferences, myOffers, updateDispatchPreferences,
-  OFFRE_LIBELLE, setAccepteDelaiLong,
+  OFFRE_LIBELLE, setAccepteDelaiLong, mesReglements, declarerEspeces,
 } from "../lib/onDemand";
+import { payCommission } from "../lib/payments";
 
 // 099 : offre de la mission (Express, Standard, Éco) — jamais le prix client.
 function OffreBadge({ offre }) {
@@ -14,6 +15,87 @@ function OffreBadge({ offre }) {
   return <span className={`od-pill od-offre-pill is-${offre}`}>{offre === "express" ? "Express · prioritaire" : offre === "eco" ? "Éco · délai long" : OFFRE_LIBELLE[offre] || offre}</span>;
 }
 import { randomIdempotencyKey } from "../lib/fileSafety";
+
+// 100 : règlement en espèces à la livraison — ce que le transporteur encaisse et reverse.
+function EspecesInfo({ offer }) {
+  if (offer?.mode_reglement !== "especes") return null;
+  return (
+    <div className="alert" role="note">
+      <strong>Règlement en espèces à la livraison.</strong> Vous encaissez {formatCents(offer.especes_a_encaisser_cents)} auprès du client,
+      dont {formatCents(offer.commission_a_reverser_cents)} de marge SECOTO à reverser sous 7 jours (carte ou virement, depuis l’application).
+      Votre rémunération reste de {formatCents(offer.partner_pay_cents)}.
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 100 : règlements en espèces à confirmer et marges SECOTO dues.
+// ---------------------------------------------------------------------------
+export function ReglementsPanel() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const load = useCallback(() => mesReglements().then((d) => { setData(d); }).catch(() => setData(null)), []);
+  useEffect(() => { queueMicrotask(load); }, [load]);
+
+  if (!data || (!data.especes_a_declarer?.length && !data.commissions?.length && !data.bloque)) return null;
+
+  async function declarer(item, recu) {
+    const question = recu
+      ? `Confirmez-vous avoir reçu ${formatCents(item.montant_cents)} en espèces pour la commande ${item.public_ref} ?`
+      : `Confirmez-vous ne PAS avoir reçu le paiement de la commande ${item.public_ref} ? La carte du client sera prélevée.`;
+    if (!window.confirm(question)) return;
+    setBusy(item.order_id); setError(""); setMessage("");
+    try {
+      const r = await declarerEspeces(item.order_id, recu);
+      setMessage(r?.result === "recu"
+        ? `Merci. Marge SECOTO à régler : ${formatCents(r.commission_cents)}.`
+        : "C’est noté : SECOTO s’occupe du paiement du client. Votre versement suit dès l’encaissement.");
+      await load();
+    } catch (e) { setError(humanizeError(e)); } finally { setBusy(null); }
+  }
+
+  async function payer(c) {
+    setBusy(c.id); setError("");
+    try { await payCommission(c.id); } catch (e) { setError(humanizeError(e)); setBusy(null); }
+  }
+
+  return (
+    <div className="panel panel-full od-reglements">
+      <h2>Règlements</h2>
+      {data.bloque && (
+        <div className="alert error" role="alert">
+          Une marge SECOTO est en retard : les nouvelles missions sont suspendues jusqu’au paiement. Elle sera aussi retenue sur votre prochain versement.
+        </div>
+      )}
+      {error && <div className="alert error">{error}</div>}
+      {message && <div className="alert success">{message}</div>}
+      {data.especes_a_declarer?.map((x) => (
+        <article className="mission-card" key={x.order_id}>
+          <div className="card-top"><span className="badge">{x.public_ref}</span><span className="od-pill is-warn">Espèces à confirmer</span></div>
+          <p>Le client devait vous régler <strong>{formatCents(x.montant_cents)}</strong> en espèces à la livraison.</p>
+          <div className="actions-row">
+            <button className="btn primary small" type="button" disabled={busy === x.order_id} onClick={() => declarer(x, true)}>J’ai reçu {formatCents(x.montant_cents)}</button>
+            <button className="btn ghost small" type="button" disabled={busy === x.order_id} onClick={() => declarer(x, false)}>Je n’ai pas été payé</button>
+          </div>
+        </article>
+      ))}
+      {data.commissions?.map((c) => (
+        <article className="mission-card od-commission-due" key={c.id}>
+          <div className="card-top"><span className="badge">{c.public_ref}</span><strong className="od-commission-montant">−{formatCents(c.reste_cents)}</strong></div>
+          <p>Dû à SECOTO (marge de la course réglée en espèces){c.due_at ? ` · avant le ${formatDateTime(c.due_at)}` : ""}.</p>
+          <div className="actions-row">
+            <button className="btn primary small" type="button" disabled={busy === c.id} onClick={() => payer(c)}>{busy === c.id ? "Ouverture…" : `Payer ${formatCents(c.reste_cents)}`}</button>
+          </div>
+          {data.virement && (
+            <p className="muted">Ou par virement : {data.virement.titulaire} · IBAN <code>{data.virement.iban}</code>{data.virement.bic ? ` · BIC ${data.virement.bic}` : ""} · référence <code>{c.reference}</code>.</p>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
 
 const EQUIPMENT = [
   { value: "treuil", label: "Treuil (véhicules non roulants)" },
@@ -201,6 +283,7 @@ export function OfferDetail({ offerId, onClose, onConfirmed, onOpenBank }) {
       <h3 id={`offer-${offer.id}`}>{offer.mode === "plateau" ? "Transport plateau" : "Convoyage"} · {offer.vehicle?.model}</h3>
       <p className="od-offer-pay">{formatCents(offer.partner_pay_cents)}</p>
       <p className="muted">Votre rémunération pour cette mission.</p>
+      <EspecesInfo offer={offer} />
       {offer.offre && (
         <p><OffreBadge offre={offer.offre} />{offer.fenetre_fin ? ` Fenêtre de prise en charge : du ${formatDateTime(offer.pickup_at)} au ${formatDateTime(offer.fenetre_fin)}.` : ""}</p>
       )}
@@ -260,6 +343,8 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
     .sort((a, b) => (b.offre === "express") - (a.offre === "express"));
   const past = (offers || []).filter((o) => !available.includes(o));
   return (
+    <>
+    <ReglementsPanel />
     <div className="panel panel-full">
       <h2>Missions disponibles</h2>
       {error && <div className="alert error">{error}</div>}
@@ -274,7 +359,7 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
       <div className="cards">
         {available.map((o) => (
           <article className="mission-card" key={o.id}>
-            <div className="card-top"><span className="badge">{o.mode === "plateau" ? "Plateau" : "Convoyage"}</span>{o.offre && <OffreBadge offre={o.offre} />}<strong>{formatCents(o.partner_pay_cents)}</strong></div>
+            <div className="card-top"><span className="badge">{o.mode === "plateau" ? "Plateau" : "Convoyage"}</span>{o.offre && <OffreBadge offre={o.offre} />}{o.mode_reglement === "especes" && <span className="od-pill is-warn">Espèces</span>}<strong>{formatCents(o.partner_pay_cents)}</strong></div>
             <h3>{o.pickup.city} → {o.delivery.city}</h3>
             <p>{o.vehicle?.model} · {formatDateTime(o.pickup_at)}{o.distance_km ? ` · ${o.distance_km} km` : ""}</p>
             <div className="actions-row"><button className="btn primary small" type="button" onClick={() => setOpen(o.id)}>Voir la mission</button></div>
@@ -295,6 +380,7 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
         </div>
       )}
     </div>
+    </>
   );
 }
 

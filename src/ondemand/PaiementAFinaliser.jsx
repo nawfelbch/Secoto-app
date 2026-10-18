@@ -62,6 +62,8 @@ export default function PaiementAFinaliser({ onPaid }) {
   const montant = formatCents(commande.client_price_cents ?? commande.collect_cents);
   // 074/081 : plateau en paiement direct — validation de carte, aucun débit.
   const direct = commande.payment_circuit === "direct";
+  // 100 : règlement à l'arrivée — la carte est seulement enregistrée (0 €).
+  const arrivee = commande.debit_a_livraison === true;
   const renonciationRequise = paiement.waiverRequired && !paiement.waiverAccepted;
 
   async function payer() {
@@ -87,7 +89,8 @@ export default function PaiementAFinaliser({ onPaid }) {
   return (
     <div className="panel panel-full" style={{ borderColor: "var(--accent, #e8622a)", marginBottom: 14 }}>
       <h2 style={{ marginTop: 0 }}>
-        {direct ? "Votre transport est réservé — il reste à valider votre carte" : "Votre transport est réservé — il ne reste qu’à régler"}
+        {arrivee ? "Votre transport est réservé — enregistrez votre carte (0 € prélevé)"
+          : direct ? "Votre transport est réservé — il reste à valider votre carte" : "Votre transport est réservé — il ne reste qu’à régler"}
       </h2>
       <p className="muted" style={{ marginTop: 0 }}>
         {commande.pickup?.city || "Départ"} → {commande.delivery?.city || "Arrivée"}
@@ -108,9 +111,14 @@ export default function PaiementAFinaliser({ onPaid }) {
         onClick={payer}
         style={{ minHeight: 56, fontSize: "1.02rem" }}
       >
-        {busy ? "Ouverture du paiement…" : direct ? "Valider ma carte — aucun débit maintenant" : `Payer ${montant}`}
+        {busy ? "Ouverture du paiement…" : arrivee ? "Enregistrer ma carte — 0 € prélevé" : direct ? "Valider ma carte — aucun débit maintenant" : `Payer ${montant}`}
       </button>
-      {direct ? (
+      {arrivee ? (
+        <p className="muted" style={{ marginTop: 10 }}>
+          Vous réglez {montant} à l’arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces (choix dans votre commande).
+          Sans transporteur, rien n’est prélevé et la demande est annulée.
+        </p>
+      ) : direct ? (
         <>
           <DecompositionPrix totalCents={commande.client_price_cents ?? commande.collect_cents} commissionCents={commande.commission_cents} />
           <p className="muted" style={{ marginTop: 6, fontSize: "0.82rem", opacity: 0.85 }}>

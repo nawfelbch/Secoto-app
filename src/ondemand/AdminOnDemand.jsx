@@ -13,6 +13,7 @@ const TABS = [
   { key: "offres", label: "Offres" },
   { key: "partners", label: "Partenaires" },
   { key: "payouts", label: "Versements" },
+  { key: "reglements", label: "Règlements à l’arrivée" },
   { key: "subscriptions", label: "Abonnements" },
   { key: "journal", label: "Journal & export" },
 ];
@@ -25,6 +26,7 @@ const FLAG_LABEL = {
   live_tracking: "Suivi de position pendant la mission",
   adresses_internationales: "Adresses hors de France (Europe et monde)",
   trois_offres: "Trois offres Express / Standard / Éco (débit à la confirmation)",
+  reglement_arrivee: "Règlement à l’arrivée : carte enregistrée (0 €), puis carte, Klarna, virement ou espèces à la livraison",
 };
 
 // 090 : coordonnées du client (compte, ou laissées avant le prix) en un geste.
@@ -70,6 +72,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
         grids: () => admin.grids(),
         partners: () => admin.compliance(),
         payouts: () => admin.payouts("to_pay"),
+        reglements: () => admin.reglements(),
         subscriptions: () => Promise.all([admin.eligibilityList(), admin.subscriptions()]).then(([applications, subscriptions]) => ({ applications, subscriptions })),
         journal: () => admin.audit(),
       };
@@ -114,6 +117,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
       {tab === "grids" && <AdminGrids grids={data.grids} flags={flags} busy={busy} run={run} onFlagsChange={onFlagsChange} />}
       {tab === "partners" && <AdminPartners partners={data.partners} busy={busy} run={run} />}
       {tab === "payouts" && <AdminPayouts payouts={data.payouts} busy={busy} run={run} />}
+      {tab === "reglements" && <AdminReglements data={data.reglements} busy={busy} run={run} />}
       {tab === "subscriptions" && <AdminSubscriptions data={data.subscriptions} busy={busy} run={run} />}
       {tab === "journal" && <AdminJournal entries={data.journal} />}
     </div>
@@ -579,6 +583,62 @@ const PAYOUT_STATE_LABEL = {
   paid: "Réglé",
   cancelled: "Annulé",
 };
+
+// 100 : règlement à l'arrivée — ce qui reste à encaisser après livraison, et
+// les marges SECOTO dues par les transporteurs payés en espèces.
+const MODE_LIBELLE_ADMIN = { carte: "Carte", virement: "Virement", klarna: "Klarna", especes: "Espèces" };
+function AdminReglements({ data, busy, run }) {
+  if (!data) return <p className="muted">Chargement…</p>;
+  return (
+    <>
+      {!data.actif && <div className="alert">Interrupteur éteint (onglet « Barèmes & réglages ») : les nouvelles commandes restent en paiement immédiat.</div>}
+      <h3>À encaisser après livraison</h3>
+      {!data.a_regler?.length ? <p className="muted">Rien à encaisser.</p> : (
+        <div className="od-scroll">
+          <table className="od-table">
+            <thead><tr><th>Commande</th><th>Client</th><th>Mode</th><th>Montant</th><th>Échéance carte</th><th>État</th><th /></tr></thead>
+            <tbody>
+              {data.a_regler.map((r) => (
+                <tr key={r.order_id}>
+                  <td>{r.public_ref}</td>
+                  <td>{r.client || "—"}</td>
+                  <td>{MODE_LIBELLE_ADMIN[r.mode] || r.mode}{r.especes_statut === "non_recu" ? " · non reçu" : ""}</td>
+                  <td>{formatCents(r.montant_cents)}</td>
+                  <td>{r.mode === "especes" && !r.especes_statut ? "Attente du transporteur" : formatDateTime(r.echeance)}</td>
+                  <td title={r.erreur || ""}>{r.statut === "capture_failed" ? `Refusé (${r.tentatives})` : "En attente"}</td>
+                  <td>{r.mode === "virement" && (
+                    <button className="btn ghost small" type="button" disabled={busy}
+                      onClick={() => window.confirm(`Virement de ${formatCents(r.montant_cents)} bien reçu pour ${r.public_ref} ?`) && run(() => admin.virementRecu(r.order_id), "Virement enregistré : la commande est réglée.")}>Virement reçu</button>
+                  )}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <h3 style={{ marginTop: 18 }}>Marges dues par les transporteurs (espèces)</h3>
+      {!data.commissions?.length ? <p className="muted">Aucune marge due.</p> : (
+        <div className="od-scroll">
+          <table className="od-table">
+            <thead><tr><th>Commande</th><th>Transporteur</th><th>Reste dû</th><th>Échéance</th><th /></tr></thead>
+            <tbody>
+              {data.commissions.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.public_ref}</td>
+                  <td>{c.transporteur || "—"}</td>
+                  <td>{formatCents(c.montant_cents - (c.retenue_cents || 0))}</td>
+                  <td>{formatDateTime(c.due_at)}{c.en_retard ? " · en retard (missions suspendues)" : ""}</td>
+                  <td><button className="btn ghost small" type="button" disabled={busy}
+                    onClick={() => window.confirm(`Virement de la marge reçu pour ${c.public_ref} ?`) && run(() => admin.commissionReglee(c.id), "Marge enregistrée comme réglée.")}>Virement reçu</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 
 function AdminPayouts({ payouts, busy, run }) {
   if (!payouts) return <p className="muted">Chargement…</p>;

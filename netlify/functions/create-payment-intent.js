@@ -120,7 +120,7 @@ const handler = async (event) => {
 
   const { data: payment, error: paymentError } = await admin
     .from("payments")
-    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at,debit_a_confirmation")
+    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at,debit_a_confirmation,debit_a_livraison,reglement_tentatives")
     .eq("id", paymentId)
     .single();
   if (paymentError || !payment) return response(404, { error: "payment_not_found" });
@@ -367,10 +367,14 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
   const circuit = differe ? "differe" : "direct";
   const { data: order } = await admin
     .from("transport_orders")
-    .select("id,status,public_ref,lock_expires_at")
+    .select("id,status,public_ref,lock_expires_at,mode_reglement")
     .eq("id", payment.order_id)
     .single();
   if (!order) return response(404, { error: "payment_not_found" });
+  // 100 : règlement à l'arrivée -> la carte enregistrée doit pouvoir être
+  // prélevée hors session à la livraison : carte seule (Apple Pay et Google Pay
+  // compris). Klarna et les autres moyens se règlent à la livraison.
+  const carteSeule = payment.debit_a_livraison === true;
 
   const metadata = {
     secoto_payment_id: payment.id,
@@ -384,6 +388,64 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
   // fin du parcours renvoie dans l'application (passerelle /retour-app.html).
   const retourOkAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=ok`, platform);
   const retourAnnuleAppli = urlRetour(SECOTO_APP_URL, `ecran=${returnScreen}&${returnQuery}&paiement=annule`, platform);
+
+  // 100 : véhicule livré, règlement à faire par le client lui-même (Klarna,
+  // carte refusée, espèces non reçues, ou simplement payer sans attendre).
+  if (carteSeule && order.status === "delivered" && ["requires_capture", "capture_failed"].includes(payment.status)) {
+    const description = `Transport de véhicule — commande ${order.public_ref}`;
+    const livraison = { ...metadata, secoto_circuit: "livraison" };
+    if (feuilleKlarna) {
+      const intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
+        {
+          ...managed,
+          amount: payment.amount_cents,
+          currency: payment.currency || "eur",
+          customer: customerId,
+          description,
+          automatic_payment_methods: { enabled: true },
+          metadata: livraison,
+        },
+        { idempotencyKey: idempotencyKey("secoto-livraison-sheet", payment.id, { amount: payment.amount_cents, customerId, managed, tentative: payment.reglement_tentatives || 0 }) },
+      ));
+      const ephemeralKey = await stripe.ephemeralKeys
+        .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
+        .then((key) => key.secret)
+        .catch(() => null);
+      return response(200, {
+        mode: "payment_sheet",
+        clientSecret: intent.client_secret,
+        publishableKey: STRIPE_PUBLISHABLE_KEY || null,
+        customerId,
+        ephemeralKey,
+        amountCents: payment.amount_cents,
+        currency: payment.currency || "eur",
+        circuit: "livraison",
+        billing: billingPrefill(account),
+      });
+    }
+    // Page Stripe valable 23 h ; la clé change chaque heure pour ne jamais
+    // renvoyer une session expirée.
+    const heure = Math.floor(now / 3600000);
+    const expiresAt = Math.floor((heure * 3600000 + 24 * 3600000 - 60000) / 1000);
+    const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+      {
+        ...managed,
+        mode: "payment",
+        customer: customerId,
+        line_items: [{
+          price_data: { currency: payment.currency || "eur", unit_amount: payment.amount_cents, product_data: { name: description } },
+          quantity: 1,
+        }],
+        payment_intent_data: { description, metadata: livraison },
+        expires_at: expiresAt,
+        metadata: livraison,
+        success_url: platform === "web" ? retourOk : retourOkAppli,
+        cancel_url: platform === "web" ? retourAnnule : retourAnnuleAppli,
+      },
+      { idempotencyKey: idempotencyKey("secoto-livraison-checkout", payment.id, { amount: payment.amount_cents, expiresAt, managed, platform, tentative: payment.reglement_tentatives || 0 }) },
+    ));
+    return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit: "livraison" });
+  }
 
   // Validation bancaire demandée au moment du débit.
   if (order.status === "partner_locked" && payment.direct_action_required_at && payment.status === "requires_capture") {
@@ -496,7 +558,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         {
           customer: customerId,
           usage: "off_session",
-          automatic_payment_methods: { enabled: true },
+          ...(carteSeule ? { payment_method_types: ["card"] } : { automatic_payment_methods: { enabled: true } }),
           description: `Validation de carte — commande ${order.public_ref}`,
           metadata,
         },
@@ -542,6 +604,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       mode: "setup",
       customer: customerId,
       currency: payment.currency || "eur",
+      ...(carteSeule ? { payment_method_types: ["card"] } : {}),
       setup_intent_data: { metadata, description: `Validation de carte — commande ${order.public_ref}` },
       metadata,
       success_url: natif ? retourOkAppli : retourOk,

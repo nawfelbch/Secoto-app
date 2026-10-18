@@ -52,15 +52,19 @@ export const MANUAL_REASONS = {
 };
 
 export * from "./orderCopy";
-import { OFFER_WINDOW_HOURS, ORDER_STATUS_LABEL, isDiffereOrder } from "./orderCopy";
+import { OFFER_WINDOW_HOURS, ORDER_STATUS_LABEL, isDiffereOrder, isReglementArrivee } from "./orderCopy";
 
 // Étape suivante lisible par le client, sans jamais annoncer ce qui n'est pas acquis.
 export function orderHeadline(order) {
   if (!order) return "";
-  if (order.status === "awaiting_payment") return order.funding === "subscription" ? "Réservation du forfait en cours" : "Validez votre moyen de paiement pour diffuser la demande";
+  if (order.status === "awaiting_payment") return order.funding === "subscription" ? "Réservation du forfait en cours"
+    : isReglementArrivee(order) ? "Enregistrez votre carte (0 € prélevé) pour diffuser la demande"
+    : "Validez votre moyen de paiement pour diffuser la demande";
+  // 100 : véhicule livré, règlement encore attendu.
+  if (order.status === "delivered" && order.reglement_a_payer) return "Véhicule livré : règlement à effectuer";
   if (order.status === "searching_partner" || order.status === "partner_locked") {
     if (isDiffereOrder(order) && order.payment_status !== "capture_failed") {
-      if (order.status === "partner_locked") return "Un transporteur confirme : débit en cours";
+      if (order.status === "partner_locked") return isReglementArrivee(order) ? "Un transporteur confirme votre transport" : "Un transporteur confirme : débit en cours";
       const n = Number(order.transporteurs_sollicites) || 0;
       return n > 0
         ? `Demande envoyée à ${n} transporteur${n > 1 ? "s" : ""} vérifié${n > 1 ? "s" : ""}`
@@ -217,6 +221,11 @@ export const reproposerCommande = (orderId) => rpc("secoto_od_reproposer", { p_o
 export const setAccepteDelaiLong = (accepte) => rpc("secoto_set_accepte_delai_long", { p_accepte: Boolean(accepte) });
 export const cancelOrder = (orderId) => rpc("secoto_od_cancel_order", { p_order_id: orderId, p_idempotency_key: randomIdempotencyKey() });
 export const cancelPreview = (orderId) => rpc("secoto_od_cancel_quote_preview", { p_order_id: orderId });
+// 100 : règlement à l'arrivée — mode choisi par le client (avant confirmation du transporteur).
+export const choisirReglement = (orderId, mode) => rpc("secoto_od_choisir_reglement", { p_order_id: orderId, p_mode: mode });
+// 100 : transporteur — règlements en espèces à confirmer et marges SECOTO dues.
+export const mesReglements = () => rpc("secoto_mes_reglements", {});
+export const declarerEspeces = (orderId, recu) => rpc("secoto_reglement_especes", { p_order_id: orderId, p_recu: Boolean(recu) });
 
 // ---- Partenaire ------------------------------------------------------------
 export const myDispatchPreferences = () => rpc("secoto_my_dispatch_preferences", {});
@@ -311,6 +320,10 @@ export const admin = {
   troisOffres: () => rpc("secoto_admin_trois_offres", {}),
   setTroisOffres: (reglages) => rpc("secoto_admin_set_trois_offres", { p_reglages: reglages }),
   offresStats: (jours = 30) => rpc("secoto_admin_offres_stats", { p_jours: jours }),
+  // 100 : règlement à l'arrivée — virements à confirmer, marges dues.
+  reglements: () => rpc("secoto_admin_reglements", {}),
+  virementRecu: (orderId) => rpc("secoto_admin_virement_recu", { p_order_id: orderId }),
+  commissionReglee: (id) => rpc("secoto_admin_commission_reglee", { p_commission_id: id }),
   setFlag: (key, enabled) => rpc("secoto_admin_set_feature_flag", { p_key: key, p_enabled: enabled }),
   orders: (status = null) => rpc("secoto_admin_od_orders", { p_status: status }),
   // Écran admin : seulement les devis utiles (à établir + tarifés valides),

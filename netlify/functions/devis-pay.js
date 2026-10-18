@@ -11,7 +11,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { createWithManagedPaymentsFallback, idempotencyKey } from "../lib/secoto-server.js";
-import { sessionDirecte } from "../lib/devis-direct.js";
+import { sessionCarteArrivee, sessionDirecte } from "../lib/devis-direct.js";
 
 const {
   STRIPE_SECRET_KEY,
@@ -152,6 +152,13 @@ const handler = async (event) => {
       "ok",
     ));
   }
+  if (retour === "carte_arrivee") {
+    return html(200, page(
+      "Merci, votre carte est enregistrée",
+      "0 € prélevé. Votre demande part aux transporteurs vérifiés. Vous réglez à l'arrivée du véhicule : par carte, virement, Klarna (en plusieurs fois) ou espèces, au choix dans votre espace SECOTO. Vous recevez une confirmation par e-mail à chaque étape.",
+      "ok",
+    ));
+  }
   if (retour === "annule") {
     return html(200, page(
       "Paiement interrompu",
@@ -250,6 +257,20 @@ const handler = async (event) => {
       return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
     } catch {
       return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+    }
+  }
+
+  // 100 : règlement à l'arrivée (interrupteur allumé) -> carte enregistrée, 0 € prélevé.
+  if (data.payment_id) {
+    const { data: reglement } = await admin.from("payments").select("debit_a_livraison").eq("id", data.payment_id).maybeSingle();
+    if (reglement?.debit_a_livraison) {
+      try {
+        const session = await sessionCarteArrivee({ admin, stripe, data, token, description });
+        if (!session?.url) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+        return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
+      } catch {
+        return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      }
     }
   }
 

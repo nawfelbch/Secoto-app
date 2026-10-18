@@ -61,6 +61,41 @@ export function isDiffereOrder(order) {
   return order?.debit_a_confirmation === true;
 }
 export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco" };
+
+// ---- 100 : règlement à l'arrivée du véhicule ----------------------------------
+// Carte enregistrée à la réservation (0 € prélevé), règlement à la livraison
+// selon le mode choisi. Délais alignés sur app_settings['reglement_arrivee'].
+export const PLAFOND_ESPECES_EUR = 1000;
+export const DELAI_KLARNA_H = 24;
+export const DELAI_VIREMENT_H = 48;
+export function isReglementArrivee(order) {
+  return order?.debit_a_livraison === true;
+}
+export const MODES_REGLEMENT = [
+  { cle: "carte", libelle: "Carte bancaire", detail: "Prélevée automatiquement à l’arrivée du véhicule." },
+  { cle: "klarna", libelle: "Klarna — en plusieurs fois", detail: `À l’arrivée, vous réglez en plusieurs fois avec Klarna (sous réserve d’acceptation). Sans paiement sous ${DELAI_KLARNA_H} h, la carte est prélevée.` },
+  { cle: "virement", libelle: "Virement bancaire", detail: `À l’arrivée, vous virez à SECOTO (IBAN et référence envoyés par e-mail). Sans virement reçu sous ${DELAI_VIREMENT_H} h, la carte est prélevée.` },
+  { cle: "especes", libelle: "Espèces", detail: `Vous payez le transporteur en main propre à l’arrivée (${PLAFOND_ESPECES_EUR.toLocaleString("fr-FR")} € maximum). La carte n’est prélevée que si le paiement n’est pas fait.` },
+];
+export const MODE_REGLEMENT_LIBELLE = Object.fromEntries(MODES_REGLEMENT.map((m) => [m.cle, m.libelle]));
+// Modes proposés pour cette commande : espèces dans la limite légale, virement si l'IBAN SECOTO est renseigné.
+export function modesReglementPossibles(order) {
+  return MODES_REGLEMENT.filter((m) => (m.cle !== "especes" || order?.especes_possible !== false)
+    && (m.cle !== "virement" || order?.virement_possible !== false));
+}
+// Ce que le client doit faire une fois le véhicule livré.
+export function reglementLivraisonTexte(order) {
+  if (!isReglementArrivee(order) || order?.status !== "delivered") return "";
+  const montant = formatCents(order.client_price_cents ?? order.collect_cents);
+  if (order.payment_status === "paid") return `${montant} réglés. Merci !`;
+  if (order.mode_reglement === "especes" && order.especes_statut === "recu") return `${montant} réglés en espèces au transporteur. Rien n’a été prélevé sur votre carte.`;
+  if (order.mode_reglement === "especes" && order.especes_statut !== "non_recu") return `Réglez ${montant} en espèces au transporteur. Rien n’est prélevé sur votre carte tant qu’il confirme votre paiement.`;
+  if (order.mode_reglement === "especes") return `Le transporteur indique ne pas avoir reçu votre paiement : votre carte sera prélevée de ${montant}${order.reglement_echeance ? ` le ${formatDateTime(order.reglement_echeance)}` : ""}. Déjà payé ? Contactez SECOTO.`;
+  if (order.payment_status === "capture_failed") return `Le prélèvement de ${montant} n’a pas abouti. Réglez maintenant (carte ou Klarna en plusieurs fois).`;
+  if (order.mode_reglement === "klarna") return `Réglez ${montant} en plusieurs fois avec Klarna${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
+  if (order.mode_reglement === "virement") return `Virez ${montant} à SECOTO${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
+  return `${montant} vont être prélevés sur votre carte enregistrée.`;
+}
 // « Prise en charge sous 48 h » / « sous 5 jours » : une fenêtre, jamais un délai garanti.
 export function fenetreLibelle(heures) {
   const h = Number(heures);
@@ -85,6 +120,13 @@ export function decompositionPrix(totalCents, commissionCents) {
 }
 
 export function paymentStateLabel(order) {
+  if (isReglementArrivee(order)) {
+    if (order?.payment_status === "paid") return "Payé";
+    if (order?.especes_statut === "recu") return "Réglé en espèces";
+    if (order?.payment_status === "capture_failed") return "Paiement à régler";
+    if (order?.payment_status === "requires_capture") return order?.status === "delivered" ? "Règlement à l’arrivée en cours" : "Carte enregistrée — 0 € prélevé";
+    if (order?.payment_status === "cancelled") return "Aucun débit";
+  }
   if (isDiffereOrder(order) && order?.payment_status === "requires_capture") return "Carte enregistrée (non débitée)";
   if (isDiffereOrder(order) && order?.payment_status === "cancelled") return "Aucun débit";
   const labels = isDirectOrder(order) ? DIRECT_PAYMENT_STATE_LABEL : PAYMENT_STATE_LABEL;
@@ -123,6 +165,10 @@ export function paymentExplanation(order) {
     return "Mission incluse dans votre forfait : aucun paiement supplémentaire. Le droit est réservé et vous est restitué si aucun transporteur ne confirme.";
   }
   const amount = formatCents(order.client_price_cents ?? order.collect_cents);
+  if (isReglementArrivee(order)) {
+    return `0 € prélevé aujourd’hui. Vous enregistrez votre carte bancaire en garantie et vous réglez ${amount} `
+      + `à l’arrivée du véhicule, avec le mode de votre choix : carte, Klarna en plusieurs fois, virement ou espèces.`;
+  }
   if (isDiffereOrder(order)) {
     return `Vous enregistrez votre carte maintenant, sans aucun débit. Vous n’êtes débité de ${amount} `
       + `qu’au moment où un transporteur professionnel indépendant confirme votre transport. `
@@ -140,6 +186,9 @@ export function paymentExplanation(order) {
 
 // Règle d'annulation, écrite exactement comme elle est appliquée en base.
 export function cancellationPolicy(order) {
+  if (isReglementArrivee(order)) {
+    return "Annulation sans frais tant que le véhicule n’est pas pris en charge : rien n’est prélevé avant son arrivée.";
+  }
   if (isDiffereOrder(order)) {
     return `Annulation : sans frais tant qu’aucun transporteur n’a confirmé. Ensuite, remboursement intégral `
       + `jusqu’à ${FREE_CANCEL_HOURS} h avant la prise en charge ; au-delà, ${LATE_CANCEL_RETAINED_PCT} % sont retenus.`;
@@ -153,9 +202,11 @@ export function cancellationPolicy(order) {
     + `même si un transporteur a confirmé. Au-delà, ${LATE_CANCEL_RETAINED_PCT} % sont retenus.`;
 }
 
-export function cancellationNotice(preview) {
+export function cancellationNotice(preview, order = null) {
   if (!preview) return "";
   if (!preview.cancellable) return "Cette commande ne peut plus être annulée depuis l’application.";
+  // 100 : rien n'a été prélevé avant l'arrivée du véhicule.
+  if (isReglementArrivee(order)) return "Rien n’a été prélevé : annulation sans frais.";
   if (preview.circuit === "direct") {
     if (!preview.charged) return "Votre carte n’a pas été débitée : annulation sans frais.";
     if (preview.last_minute) {

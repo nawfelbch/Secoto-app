@@ -27,6 +27,55 @@ export function messageDecomposition(data) {
     + "SECOTO agit en tant qu'intermédiaire ; le transport est assuré par un transporteur indépendant.";
 }
 
+// Client Stripe du compte SECOTO (créé une seule fois).
+async function clientStripe({ admin, stripe, accountId }) {
+  const { data: compte } = await admin.from("accounts")
+    .select("id,email,full_name,stripe_customer_id").eq("id", accountId).single();
+  if (!compte) throw new Error("compte_introuvable");
+  if (compte.stripe_customer_id) return compte.stripe_customer_id;
+  const customer = await stripe.customers.create(
+    { email: compte.email || undefined, name: compte.full_name || undefined, metadata: { secoto_account_id: compte.id } },
+    { idempotencyKey: `secoto-customer-${compte.id}` },
+  );
+  await admin.from("accounts").update({ stripe_customer_id: customer.id }).eq("id", compte.id);
+  return customer.id;
+}
+
+/**
+ * 100 — Règlement à l'arrivée : depuis un lien de devis, la carte bancaire est
+ * seulement enregistrée (0 € prélevé). Carte seule : elle doit pouvoir être
+ * prélevée hors session à la livraison. Le client choisit ensuite, dans
+ * l'application, de régler par carte, virement, Klarna ou espèces.
+ */
+export async function sessionCarteArrivee({ admin, stripe, data, token, description }) {
+  const customerId = await clientStripe({ admin, stripe, accountId: data.account_id });
+  const metadata = {
+    secoto_payment_id: data.payment_id,
+    secoto_purpose: data.purpose || "",
+    secoto_reference: data.reference || "",
+    secoto_circuit: "differe",
+  };
+  const retour = (code) => `${SECOTO_APP_URL}/.netlify/functions/devis-pay?t=${token}&retour=${code}`;
+  const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
+    {
+      ...managed,
+      mode: "setup",
+      customer: customerId,
+      currency: data.currency || "eur",
+      payment_method_types: ["card"],
+      setup_intent_data: { metadata, description: `Carte enregistrée — ${description}`.slice(0, 250) },
+      custom_text: { submit: { message: `0 € prélevé aujourd'hui. Vous réglez ${eur(data.amount_cents)} à l'arrivée du véhicule : par carte, virement, Klarna (plusieurs fois) ou espèces. La carte sert de garantie.` } },
+      metadata,
+      success_url: retour("carte_arrivee"),
+      cancel_url: retour("annule"),
+    },
+    { idempotencyKey: idempotencyKey("secoto-devis-arrivee-setup", data.payment_id, { customerId, managed }) },
+  ));
+  await admin.from("payments").update({ status: "processing", updated_at: new Date().toISOString() })
+    .eq("id", data.payment_id).in("status", ["pending", "failed"]);
+  return session;
+}
+
 export async function sessionDirecte({ admin, stripe, data, token, description }) {
   const decompo = messageDecomposition(data);
   const texte = (suite) => ({ custom_text: { submit: { message: [decompo, suite].filter(Boolean).join(" ").slice(0, 1200) } } });
@@ -64,18 +113,7 @@ export async function sessionDirecte({ admin, stripe, data, token, description }
 
   // Devis du transport à la demande : la carte est enregistrée chez SECOTO
   // (client Stripe du compte), puis recopiée chez le transporteur au débit.
-  const { data: compte } = await admin.from("accounts")
-    .select("id,email,full_name,stripe_customer_id").eq("id", data.account_id).single();
-  if (!compte) throw new Error("compte_introuvable");
-  let customerId = compte.stripe_customer_id || null;
-  if (!customerId) {
-    const customer = await stripe.customers.create(
-      { email: compte.email || undefined, name: compte.full_name || undefined, metadata: { secoto_account_id: compte.id } },
-      { idempotencyKey: `secoto-customer-${compte.id}` },
-    );
-    customerId = customer.id;
-    await admin.from("accounts").update({ stripe_customer_id: customerId }).eq("id", compte.id);
-  }
+  const customerId = await clientStripe({ admin, stripe, accountId: data.account_id });
   const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
     {
       ...managed,

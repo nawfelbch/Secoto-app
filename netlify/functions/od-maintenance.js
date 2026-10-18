@@ -6,13 +6,15 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 //  • libération des autorisations et remboursements intégraux demandés ;
 //  • abonnements : suspension après délai de grâce ;
 //  • versements transporteurs dus : Stripe Transfer vers le compte Connect
-//    (migration 036, interrupteur connect_payouts).
+//    (migration 036, interrupteur connect_payouts) ;
+//  • 100 : règlement à l'arrivée (prélèvement à la livraison, marges dues).
 import Stripe from "stripe";
 import { json, majCompteStripe, serviceClient } from "../lib/secoto-server.js";
 import { captureForOrder } from "./offer-accept.js";
 import { connectStatusFromAccount } from "./connect-onboarding.js";
 import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
 import { envoyerConversionsMeta } from "../lib/conversions.js";
+import { processReglements } from "../lib/reglement-livraison.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -108,6 +110,9 @@ export async function runMaintenance({ admin, stripe }) {
   } catch (erreur) {
     report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
   }
+  // 100 : règlement à l'arrivée — prélèvements arrivés à échéance et retenues
+  // de marge AVANT les versements, pour que la retenue porte sur ce passage.
+  report.reglements = await processReglements({ admin, stripe });
   report.payouts = await processPayouts({ admin, stripe });
   // 076 : virements bancaires déclenchés par SECOTO depuis le solde du
   // transporteur (circuit direct, et Transfers reçus par un compte en

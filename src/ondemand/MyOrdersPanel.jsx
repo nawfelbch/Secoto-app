@@ -9,9 +9,10 @@ import {
   MANUAL_REASONS, MILESTONES, NO_PARTNER_REFUND_HOURS, ORDER_STATUS_LABEL, paymentStateLabel,
   cancelOrder, cancelPreview, cancellationNotice, cancellationPolicy,
   formatCents, formatDateTime, myOrders, myQuotes, orderHeadline, paymentExplanation,
-  OFFRE_LIBELLE, isDiffereOrder, reproposerCommande,
+  OFFRE_LIBELLE, isDiffereOrder, isReglementArrivee, MODE_REGLEMENT_LIBELLE, reproposerCommande,
 } from "../lib/onDemand";
 import { memoriserOffre } from "../lib/offres";
+import { ChoixReglement, ReglementLivraison } from "./ReglementArrivee";
 
 // 099 : temps restant dans la fenêtre de prise en charge, en clair.
 function resteFenetre(fin) {
@@ -124,6 +125,19 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                 <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />
               )}
               {order.funding === "subscription" && <p><span className="od-pill is-ok">Inclus dans votre forfait</span></p>}
+              {/* 100 : règlement à l'arrivée — mode choisi (modifiable avant confirmation), puis règlement à la livraison. */}
+              {isReglementArrivee(order) && order.mode_reglement && !["searching_partner", "awaiting_payment"].includes(order.status) && order.status !== "delivered" && (
+                <p className="muted">Règlement à l’arrivée : {MODE_REGLEMENT_LIBELLE[order.mode_reglement] || order.mode_reglement}.</p>
+              )}
+              {isReglementArrivee(order) && ["searching_partner", "awaiting_payment"].includes(order.status) && (
+                <ChoixReglement order={order} onChange={(o) => setOrders((list) => (list || []).map((x) => (x.id === o.id ? o : x)))} />
+              )}
+              {isReglementArrivee(order) && order.status === "delivered" && (
+                <ReglementLivraison order={order} busy={busyId === order.id} onPayer={async () => {
+                  setBusyId(order.id);
+                  try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
+                }} />
+              )}
               {order.partner_contact
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
                 : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
@@ -163,12 +177,14 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                     try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                   }}>Valider le paiement</button>
                 )}
-                {order.funding === "card" && (order.status === "awaiting_payment" || order.payment_status === "capture_failed" || order.payment_status === "failed") && order.status !== "cancelled" && (
+                {order.funding === "card" && (order.status === "awaiting_payment" || order.payment_status === "capture_failed" || order.payment_status === "failed") && order.status !== "cancelled"
+                  && !(isReglementArrivee(order) && order.status === "delivered") && (
                   <button className="btn primary small" type="button" disabled={busyId === order.id} onClick={async () => {
                     setBusyId(order.id);
                     try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                   }}>{order.payment_status === "capture_failed"
                     ? (order.payment_circuit === "direct" ? "Mettre à jour ma carte" : "Mettre à jour le paiement")
+                    : isReglementArrivee(order) ? "Enregistrer ma carte — 0 € prélevé"
                     : order.payment_circuit === "direct" ? "Valider ma carte" : "Valider le paiement"}</button>
                 )}
                 {order.status === "no_partner" && order.offre && flags?.trois_offres && (
@@ -187,7 +203,7 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                       // On annonce le montant exact AVANT de demander confirmation :
                       // c'est le serveur qui calcule la retenue, jamais l'écran.
                       const preview = await cancelPreview(order.id);
-                      if (!window.confirm(`${cancellationNotice(preview)}\n\nConfirmer l’annulation ?`)) return;
+                      if (!window.confirm(`${cancellationNotice(preview, order)}\n\nConfirmer l’annulation ?`)) return;
                       await cancelOrder(order.id);
                     } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                   }}>Annuler</button>

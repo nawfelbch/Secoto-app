@@ -28,27 +28,31 @@ const APPAREIL_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3
 
 export default function ReassuranceReservation({ mode = "plateau", circuit = null, relation = false, compact = false }) {
   const direct = circuit === "direct";
+  // 100 : règlement à l'arrivée du véhicule (0 € prélevé à la réservation).
+  const arrivee = circuit === "arrivee";
   const plateau = mode === "plateau";
   const garanties = [
     { icone: BOUCLIER, titre: plateau ? "Transporteurs vérifiés" : "Convoyeurs vérifiés", texte: plateau ? "Registre des transporteurs et assurance contrôlés" : "Identité, permis et assurance contrôlés" },
     { icone: CADENAS, titre: "Paiement sécurisé", texte: "Par Stripe, votre carte n’est jamais vue par SECOTO" },
-    direct
+    arrivee
+      ? { icone: CARTE, titre: "0 € avant l’arrivée", texte: "Vous réglez à la livraison : carte, Klarna, virement ou espèces" }
+      : direct
       ? { icone: CARTE, titre: "Aucun débit avant acceptation", texte: "Rien n’est prélevé tant qu’aucun transporteur n’accepte" }
       : { icone: CARTE, titre: "Remboursé si personne n’accepte", texte: `Intégralement, sous ${NO_PARTNER_REFUND_HOURS} h` },
     { icone: APPAREIL_PHOTO, titre: "État des lieux photo", texte: "Au départ et à l’arrivée, preuve en cas de litige" },
   ];
   const etapes = plateau
     ? [
-      direct ? "Vous réservez : votre carte est validée, rien n’est débité." : "Vous réservez et réglez en ligne, en toute sécurité.",
-      direct ? "Un transporteur professionnel accepte : vous êtes débité à ce moment-là, en son nom." : "Un transporteur professionnel accepte votre transport.",
+      arrivee ? "Vous réservez : votre carte est enregistrée, 0 € prélevé." : direct ? "Vous réservez : votre carte est validée, rien n’est débité." : "Vous réservez et réglez en ligne, en toute sécurité.",
+      direct && !arrivee ? "Un transporteur professionnel accepte : vous êtes débité à ce moment-là, en son nom." : "Un transporteur professionnel accepte votre transport.",
       relation ? "Vous recevez ses coordonnées et échangez directement avec lui." : "Vous suivez chaque étape dans l’application.",
-      "Enlèvement et livraison, avec état des lieux photo au départ et à l’arrivée.",
+      arrivee ? "Enlèvement et livraison avec état des lieux photo ; vous réglez à l’arrivée." : "Enlèvement et livraison, avec état des lieux photo au départ et à l’arrivée.",
     ]
     : [
-      "Vous réservez et réglez en ligne, en toute sécurité.",
+      arrivee ? "Vous réservez : votre carte est enregistrée, 0 € prélevé." : "Vous réservez et réglez en ligne, en toute sécurité.",
       "Un convoyeur vérifié est désigné pour votre véhicule.",
       "Il conduit votre véhicule jusqu’à destination.",
-      "État des lieux photo au départ et à l’arrivée.",
+      arrivee ? "État des lieux photo au départ et à l’arrivée ; vous réglez à l’arrivée." : "État des lieux photo au départ et à l’arrivée.",
     ];
 
   return (

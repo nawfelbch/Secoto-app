@@ -240,6 +240,28 @@ export async function payNow(paymentId) {
     : "Le paiement n'a pas abouti. Aucun montant n'a été prélevé.");
 }
 
+/**
+ * 100 — Le transporteur règle la marge SECOTO d'une course payée en espèces.
+ * Le montant est relu côté serveur ; le paiement n'est acté que par le webhook.
+ */
+export async function payCommission(commissionId) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) throw new Error("Session expirée. Reconnectez-vous puis réessayez.");
+  const result = await fetch(getServerFunctionUrl("commission-pay"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ commissionId, platform: platform() }),
+  });
+  const body = await result.json().catch(() => ({}));
+  if (result.status === 409) return { ok: true, alreadyPaid: true };
+  if (!result.ok || !body.checkoutUrl) {
+    throw new Error(result.status === 404 ? "Cette marge est déjà réglée ou introuvable. Rechargez la page." : "Le paiement n’a pas pu être préparé. Réessayez dans un instant.");
+  }
+  window.location.assign(body.checkoutUrl);
+  return { ok: true, pending: true };
+}
+
 function explain(error) {
   return humanizeError(error, "Le paiement est momentanément indisponible. Réessayez dans un instant.");
 }

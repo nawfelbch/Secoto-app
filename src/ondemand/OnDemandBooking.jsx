@@ -3,11 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import DecompositionPrix from "./DecompositionPrix";
 import ReassuranceReservation from "./ReassuranceReservation";
 import OffresCartes, { OffreDecomposition } from "./OffresCartes";
+import { ChoixReglement, ZeroPreleve } from "./ReglementArrivee";
 import { memoriserOffre, offreParDefaut } from "../lib/offres";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
-  OFFER_WINDOW_HOURS, TVA_MENTION,
+  OFFER_WINDOW_HOURS, TVA_MENTION, MODE_REGLEMENT_LIBELLE,
   bookQuote, bookQuoteOffre, cancellationPolicy, fenetreLibelle, transporteursLibelle, formatCents, formatDateTime, paymentExplanation, publicQuote,
   rememberAnonQuote, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
@@ -274,13 +275,17 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const offres = quote?.offres?.length && ["priced"].includes(quote.status) ? quote.offres : null;
   const offreChoisie = offres ? offres.find((o) => o.cle === offre) || null : null;
   const differe = order?.debit_a_confirmation === true;
+  // 100 : règlement à l'arrivée -> 0 € aujourd'hui, carte enregistrée en garantie.
+  const arrivee = order ? order.debit_a_livraison === true : Boolean(flags?.reglement_arrivee) && !devisDirect && !useSubscription;
   const choisirOffre = (cle) => { setOffre(cle); memoriserOffre(quote?.id, cle); };
 
   return (
     <div className={`panel panel-full${anonyme ? " od-anonyme" : ""}`}>
       <h2 className="od-titre">Transport à la demande</h2>
       <p className="muted od-intro">
-        {direct || devisDirect || differe || offres
+        {arrivee
+          ? "Prix calculé sur l’itinéraire réel. 0 € aujourd’hui : vous réglez à l’arrivée du véhicule, par carte, Klarna en plusieurs fois, virement ou espèces."
+          : direct || devisDirect || differe || offres
           ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
           : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
       </p>
@@ -446,11 +451,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   <strong>{formatCents(quote.client_price_cents)}</strong>
                 </div>
               )}
-              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} libelle={offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}
+              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} libelle={arrivee ? "Réserver – 0 € aujourd’hui" : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}
               {anonyme && offreChoisie && <OffreDecomposition offre={offreChoisie} />}
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
-                {offres
+                {arrivee
+                  ? "Tout compris : 0 € aujourd’hui, réglé à l’arrivée du véhicule (carte, Klarna en plusieurs fois, virement ou espèces jusqu’à 1 000 €). "
+                  : offres
                   ? "Tout compris, réglé en une seule fois, au moment où un transporteur confirme. "
                   : devisDirect
                   ? "Tout compris, réglé en une seule fois, directement au transporteur qui accepte votre transport. "
@@ -471,9 +478,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <div><strong>Inclus</strong><ul>{(quote.included || []).map((x) => <li key={x}>{x}</li>)}</ul></div>
                 <div><strong>Non inclus</strong><ul>{(quote.excluded || []).length ? quote.excluded.map((x) => <li key={x}>{x}</li>) : <li>Aucun frais supplémentaire annoncé</li>}</ul></div>
               </div>
-              <ReassuranceReservation mode={quote.mode} circuit={offres ? "direct" : quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
+              <ReassuranceReservation mode={quote.mode} circuit={arrivee ? "arrivee" : offres ? "direct" : quote.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} />
               <p className="muted">Devis valable jusqu’au {formatDateTime(quote.valid_until)} · barème v{quote.grid_version || "—"}.</p>
-              <p className="muted">{cancellationPolicy(order || (offres ? { debit_a_confirmation: true } : null))}</p>
+              <p className="muted">{cancellationPolicy(order || (arrivee ? { debit_a_livraison: true } : offres ? { debit_a_confirmation: true } : null))}</p>
               {subscriptionActive && (
                 <label className="od-checks"><input type="checkbox" checked={useSubscription} onChange={(e) => setUseSubscription(e.target.checked)} /> Utiliser mon forfait (si ce trajet est couvert)</label>
               )}
@@ -500,7 +507,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       {step === 5 && order && (
         <div>
           <p><strong>Commande {order.public_ref}</strong></p>
+          {arrivee && !guaranteed && <ZeroPreleve montantCents={order.client_price_cents ?? order.collect_cents} />}
           <p>{paymentExplanation(order)}</p>
+          {arrivee && !guaranteed && <ChoixReglement order={order} onChange={setOrder} disabled={busy} />}
           {order.funding === "card" && payment && !guaranteed && (
             <>
               {payment.waiverRequired && !payment.waiverAccepted && (
@@ -511,16 +520,28 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
-                {busy ? "Validation en cours…" : direct || differe
+                {busy ? "Validation en cours…" : arrivee
+                  ? "Enregistrer ma carte — 0 € prélevé"
+                  : direct || differe
                   ? "Valider ma carte — aucun débit maintenant"
                   : `Payer ${formatCents(order.client_price_cents ?? order.collect_cents)}`}
               </button>
               {(direct || differe) && <DecompositionPrix totalCents={order.client_price_cents ?? order.collect_cents} commissionCents={order.commission_cents} />}
-              <ReassuranceReservation mode={order.mode} circuit={differe ? "direct" : order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
+              <ReassuranceReservation mode={order.mode} circuit={arrivee ? "arrivee" : differe ? "direct" : order.payment_circuit} relation={Boolean(flags?.mise_en_relation_v2)} compact />
               {payment.status === "processing" && <p className="muted">En attente de la confirmation de votre banque…</p>}
             </>
           )}
-          {guaranteed && differe && (
+          {guaranteed && arrivee && (
+            <div className="alert success">
+              <strong>Demande envoyée aux transporteurs vérifiés.</strong>{" "}
+              Carte enregistrée : 0 € prélevé. Vous réglez {formatCents(order.client_price_cents ?? order.collect_cents)} à l’arrivée du véhicule
+              {order.mode_reglement ? ` — ${MODE_REGLEMENT_LIBELLE[order.mode_reglement] || order.mode_reglement}` : ""}.
+              {" "}Vous êtes notifié dès qu’un transporteur confirme{flags?.mise_en_relation_v2 ? " : son entreprise et ses coordonnées s’affichent alors dans votre commande." : "."}
+              <ChoixReglement order={order} onChange={setOrder} />
+              <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
+            </div>
+          )}
+          {guaranteed && differe && !arrivee && (
             <div className="alert success">
               <strong>Demande envoyée{offreChoisie ? ` aux transporteurs vérifiés (${transporteursLibelle(offreChoisie.transporteurs)})` : " aux transporteurs vérifiés"}.</strong>{" "}
               Carte enregistrée, rien n’a été débité. Fenêtre de prise en charge{order.fenetre_fin ? ` jusqu’au ${formatDateTime(order.fenetre_fin)}` : offreChoisie ? ` ${fenetreLibelle(offreChoisie.fenetre_h)}` : ""}.
@@ -529,7 +550,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               <div className="actions-row"><button className="btn primary small" type="button" onClick={() => onBooked?.(order)}>Suivre ma commande</button></div>
             </div>
           )}
-          {guaranteed && !differe && (
+          {guaranteed && !differe && !arrivee && (
             <div className="alert success">
               {order.funding === "subscription" ? "Forfait réservé." : direct
                 ? `Carte validée, rien n’a été débité. Vous serez débité de ${formatCents(order.client_price_cents ?? order.collect_cents)} au nom du transporteur qui accepte la mission.`
@@ -561,6 +582,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (
           <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription)} onClick={book}>
             {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait"
+              : arrivee ? "Réserver – 0 € aujourd’hui"
               : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver et passer au paiement"}
           </button>
         )}

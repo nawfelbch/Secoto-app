@@ -123,6 +123,21 @@ export async function handleDirectSetup(admin, stripeEvent) {
   return response(200, { ok: true, result: data });
 }
 
+// 100 — Marge SECOTO d'une course payée en espèces, réglée par le transporteur.
+export async function handleCommission(admin, stripeEvent) {
+  if (stripeEvent.type !== "payment_intent.succeeded") return null;
+  const object = stripeEvent.data?.object || {};
+  const commissionId = object.metadata?.secoto_commission_id;
+  if (!commissionId) return null;
+  const { data, error } = await admin.rpc("secoto_commission_payee", {
+    p_commission_id: commissionId,
+    p_intent_id: object.id || null,
+    p_montant_cents: Number(object.amount_received ?? object.amount ?? 0),
+  });
+  if (error) return response(500, { error: "settle_failed" });
+  return response(200, { ok: true, result: data });
+}
+
 const handler = async (event) => {
   if (event.httpMethod !== "POST") return response(405, { error: "method_not_allowed" });
   if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -147,6 +162,10 @@ const handler = async (event) => {
 
   // 074 : carte validée pour un paiement direct (plateau) — aucun encaissement.
   if (stripeEvent.type === "setup_intent.succeeded") return handleDirectSetup(admin, stripeEvent);
+
+  // 100 : marge SECOTO réglée par le transporteur (course payée en espèces).
+  const commission = await handleCommission(admin, stripeEvent);
+  if (commission) return commission;
 
   // Migration 030-031 : commandes à la demande, extensions, abonnements.
   const handled = await handleNewFlows(admin, stripeEvent);
