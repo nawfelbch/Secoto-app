@@ -171,6 +171,16 @@ export async function adressesEtrangeres(q, { signal } = {}) {
 }
 
 export const featureFlags = () => rpc("secoto_feature_flags", {});
+// 100 : page d'accueil publique — le règlement à l'arrivée est-il ouvert ?
+// Fonction absente (base pas encore migrée) ou réseau coupé : textes habituels.
+export async function reglementArriveeActif() {
+  try {
+    const { data, error } = await supabase.rpc("secoto_reglement_arrivee_actif");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
 
 // ---- Client ----------------------------------------------------------------
 // 088 : chaque devis emporte la provenance du visiteur et son choix de cookies.

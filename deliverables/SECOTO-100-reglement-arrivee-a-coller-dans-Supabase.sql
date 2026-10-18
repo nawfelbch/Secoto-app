@@ -737,4 +737,14 @@ select secoto_private.mig074_patch('secoto_private.offer_partner_json(public.tra
     'especes_a_encaisser_cents', case when o.mode_reglement = 'especes' then o.client_price_cents end,
     'commission_a_reverser_cents', case when o.mode_reglement = 'especes' then greatest(o.client_price_cents - o.partner_pay_cents, 0) end,$n$);
 
+-- 13. PAGE D'ACCUEIL PUBLIQUE ----------------------------------------------------------
+-- Le visiteur sans compte doit lire, dès la première page, qu'il ne règle qu'à
+-- l'arrivée : seul l'état de cet interrupteur est exposé, rien d'autre.
+create or replace function public.secoto_reglement_arrivee_actif()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select secoto_private.flag('reglement_arrivee');
+$$;
+revoke all on function public.secoto_reglement_arrivee_actif() from public;
+grant execute on function public.secoto_reglement_arrivee_actif() to anon, authenticated;
+
 notify pgrst, 'reload schema';

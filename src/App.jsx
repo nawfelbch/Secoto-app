@@ -141,7 +141,7 @@ import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
 import PaiementDirectPanel from "./ondemand/PaiementDirectPanel";
-import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -1470,6 +1470,14 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
     try { sessionStorage.setItem("secoto:od-prefill", JSON.stringify(prefill)); } catch { /* navigation privée */ }
   }, [prefill]);
 
+  // 100 : règlement à l'arrivée — le visiteur doit le lire dès le premier écran.
+  const [arrivee, setArrivee] = useState(false);
+  useEffect(() => {
+    let actif = true;
+    reglementArriveeActif().then((v) => { if (actif) setArrivee(v); });
+    return () => { actif = false; };
+  }, []);
+
   return (
     <main className="app-shell landing-public">
       <header className="app-header">
@@ -1482,16 +1490,34 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
 
       <section className="hero">
         <span className="hero-badge">Auto • Moto • Utilitaire • France &amp; Europe</span>
-        <h2 className="hero-title">Votre prix en une minute. Vous payez, on s’occupe du reste.</h2>
-        <p className="hero-sub">
-          Renseignez le départ, l’arrivée et le véhicule : le prix s’affiche immédiatement.
-          Vous réglez en ligne, et la mission part à tous nos transporteurs vérifiés.
-        </p>
-        <div className="hero-points">
-          <span>✓ Prix ferme, affiché avant de payer</span>
-          <span>✓ Transporteurs vérifiés et assurés</span>
-          <span>✓ Remboursé si personne n’est disponible</span>
-        </div>
+        {arrivee ? (
+          <>
+            <h2 className="hero-title">Votre prix en une minute. Vous ne payez qu’à l’arrivée du véhicule.</h2>
+            <p className="hero-zero"><strong>0 € aujourd’hui</strong> · réglez à la livraison : carte, Klarna en plusieurs fois, virement ou espèces</p>
+            <p className="hero-sub">
+              Renseignez le départ, l’arrivée et le véhicule : le prix s’affiche immédiatement.
+              Vous réservez sans rien payer, la mission part à nos transporteurs vérifiés, et vous réglez une fois votre véhicule livré.
+            </p>
+            <div className="hero-points">
+              <span>✓ Rien à payer avant l’arrivée</span>
+              <span>✓ Prix ferme, affiché tout de suite</span>
+              <span>✓ Transporteurs vérifiés et assurés</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="hero-title">Votre prix en une minute. Vous payez, on s’occupe du reste.</h2>
+            <p className="hero-sub">
+              Renseignez le départ, l’arrivée et le véhicule : le prix s’affiche immédiatement.
+              Vous réglez en ligne, et la mission part à tous nos transporteurs vérifiés.
+            </p>
+            <div className="hero-points">
+              <span>✓ Prix ferme, affiché avant de payer</span>
+              <span>✓ Transporteurs vérifiés et assurés</span>
+              <span>✓ Remboursé si personne n’est disponible</span>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="layout">
@@ -1501,24 +1527,26 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
             <p className="muted">Votre trajet {prefill.from || "—"} → {prefill.to || "—"} est conservé pour l’étape suivante.</p>
           )}
           <p className="muted landing-intro" style={{ marginBottom: 18 }}>
-            Le prix s’affiche tout de suite, sans compte et sans engagement.
+            Le prix s’affiche tout de suite, sans compte et sans engagement.{arrivee ? " Vous ne réglez qu’à l’arrivée du véhicule." : ""}
           </p>
           {/* Le prix AVANT le compte : c'est la promesse de la publicite, et
               c'est ce que le visiteur obtient ici, sans donner son nom. */}
           <OnDemandBooking
             anonyme
-            flags={{ od_payments: true }}
+            flags={{ od_payments: true, reglement_arrivee: arrivee }}
             onNeedAccount={onNeedAccount}
           />
           <ul className="od-steps-inline">
             <li>1. Trajet et véhicule</li>
             <li>2. Prix affiché immédiatement</li>
             <li>3. Réservation en 1 minute, sans mot de passe</li>
-            <li>4. Paiement, puis diffusion à nos transporteurs vérifiés</li>
+            <li>{arrivee ? "4. Diffusion à nos transporteurs vérifiés, 0 € prélevé" : "4. Paiement, puis diffusion à nos transporteurs vérifiés"}</li>
+            {arrivee && <li>5. Vous réglez à l’arrivée du véhicule</li>}
           </ul>
           <p className="muted" style={{ marginTop: 14 }}>
-            Le paiement est encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte.
-            Si aucun ne se rend disponible, vous êtes remboursé intégralement sous 24 h.
+            {arrivee
+              ? "Rien n’est prélevé à la réservation : votre carte est seulement enregistrée, en garantie. Vous réglez à l’arrivée du véhicule, par carte, Klarna en plusieurs fois, virement ou espèces (jusqu’à 1 000 €). "
+              : "Le paiement est encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte. Si aucun ne se rend disponible, vous êtes remboursé intégralement sous 24 h. "}
             TVA non applicable, article 293 B du CGI.
           </p>
         </div>
