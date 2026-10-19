@@ -181,16 +181,16 @@ export function DispatchPreferencesPanel({ transporterType }) {
       )}
       <h3 style={{ marginTop: 18 }}>Écran verrouillé</h3>
       <div className="od-choice">
+        <label className={prefs.lockscreen_privacy !== "masked" ? "is-selected" : ""}>
+          <input type="radio" name="od-privacy" checked={prefs.lockscreen_privacy !== "masked"} onChange={() => save({ lockscreen_privacy: "detailed" })} />
+          <span><strong>Aperçu détaillé (recommandé)</strong><small>Tout s’affiche téléphone verrouillé : trajet (communes), véhicule, rémunération, référence. Jamais les coordonnées du client.</small></span>
+        </label>
         <label className={prefs.lockscreen_privacy === "masked" ? "is-selected" : ""}>
           <input type="radio" name="od-privacy" checked={prefs.lockscreen_privacy === "masked"} onChange={() => save({ lockscreen_privacy: "masked" })} />
-          <span><strong>Aperçu masqué</strong><small>« Mission disponible » uniquement ; le détail s’affiche après ouverture de SECOTO.</small></span>
-        </label>
-        <label className={prefs.lockscreen_privacy === "detailed" ? "is-selected" : ""}>
-          <input type="radio" name="od-privacy" checked={prefs.lockscreen_privacy === "detailed"} onChange={() => save({ lockscreen_privacy: "detailed" })} />
-          <span><strong>Aperçu détaillé</strong><small>Départ et arrivée (commune), modèle, rémunération. Jamais les coordonnées du client.</small></span>
+          <span><strong>Aperçu masqué</strong><small>« SECOTO » uniquement ; le détail s’affiche après ouverture de l’application.</small></span>
         </label>
       </div>
-      <p className="muted">Sur iPhone, pour n’afficher le détail qu’après Face ID : Réglages › Notifications › Aperçus › « Si déverrouillé ».</p>
+      <p className="muted">Sur iPhone, le texte est caché tant que le téléphone est verrouillé si l’option est sur « Si déverrouillé ». Pour tout voir écran verrouillé : Réglages › Notifications › SECOTO › Afficher les aperçus › « Toujours ».</p>
       <div className="form-grid" style={{ marginTop: 14 }}>
         <p className="field-full muted" style={{ margin: 0 }}>Vous recevez les missions de toute la France, selon votre type de véhicule.</p>
         <fieldset className="field field-full"><span>Catégories de véhicules (aucune cochée = toutes)</span>

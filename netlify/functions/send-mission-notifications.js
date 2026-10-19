@@ -92,6 +92,17 @@ export function genericPushCopy(type) {
   };
 }
 
+// 102 : aperçu détaillé — le titre et le texte de la notification elle-même
+// (trajet, montant, référence…), visibles téléphone verrouillé. Texte absent :
+// message générique.
+export function detailedPushCopy(notification) {
+  const generic = genericPushCopy(notification?.type);
+  const title = String(notification?.title || "").trim().slice(0, 120);
+  const body = String(notification?.body || "").trim().slice(0, 400);
+  if (!title && !body) return generic;
+  return { title: title ? `SECOTO · ${title}` : generic.title, body: body || generic.body };
+}
+
 // ----------------------------------------------------------------------------
 // Son de caisse enregistreuse.
 // ----------------------------------------------------------------------------
@@ -417,7 +428,7 @@ export const dispatchMissionNotifications = async (event) => {
 
   const { data: notification, error: notificationError } = await admin
     .from("notifications")
-    .select("id,account_id,type,mission_id,push_screen,audience,ref_id,event_key")
+    .select("id,account_id,type,mission_id,push_screen,audience,ref_id,event_key,title,body")
     .eq("id", outbox.notification_id)
     .single();
   if (notificationError || !notification) {
@@ -430,14 +441,17 @@ export const dispatchMissionNotifications = async (event) => {
   }
 
   // Migration 030 : préférences de diffusion du partenaire.
-  let offerPrivacy = "masked";
+  // 102 : aperçu détaillé et notifications hors connexion par défaut — sans
+  // préférence enregistrée, le téléphone verrouillé affiche tout.
+  const { data: prefs } = await admin
+    .from("partner_dispatch_preferences")
+    .select("notify_offline,lockscreen_privacy")
+    .eq("account_id", notification.account_id)
+    .maybeSingle();
+  const privacy = prefs?.lockscreen_privacy === "masked" ? "masked" : "detailed";
+  let offerPrivacy = privacy;
   if (notification.type === "mission_offer") {
-    const { data: prefs } = await admin
-      .from("partner_dispatch_preferences")
-      .select("notify_offline,lockscreen_privacy")
-      .eq("account_id", notification.account_id)
-      .maybeSingle();
-    if (!prefs?.notify_offline) {
+    if (prefs && prefs.notify_offline === false) {
       // Réglage « notifications hors connexion » désactivé : la proposition
       // reste visible dans l'application (popup), sans notification push.
       await admin.rpc("secoto_complete_push_outbox", {
@@ -447,7 +461,7 @@ export const dispatchMissionNotifications = async (event) => {
       });
       return response(200, { sent: 0, skipped: "offline_push_disabled_by_partner" });
     }
-    offerPrivacy = prefs.lockscreen_privacy === "detailed" ? "detailed" : "masked";
+    offerPrivacy = privacy;
   }
 
   const { data: devices, error: deviceError } = await admin
@@ -537,7 +551,7 @@ export const dispatchMissionNotifications = async (event) => {
     return response(500, { error: "delivery_claim_failed" });
   }
 
-  let push = genericPushCopy(notification.type);
+  let push = privacy === "detailed" ? detailedPushCopy(notification) : genericPushCopy(notification.type);
   if (notification.type === "mission_offer" && offerPrivacy === "detailed" && notification.ref_id) {
     const offer = await loadOfferSummary(admin, notification.ref_id, notification.account_id);
     push = offerPushCopy(offer, offer ? "detailed" : "masked");

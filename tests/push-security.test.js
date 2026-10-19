@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
 import {
   genericPushCopy,
@@ -56,4 +57,17 @@ test("l'endpoint n'accepte plus cible, audience ou texte depuis le téléphone",
   ]) {
     assert.equal(source.includes(forbidden), false, forbidden);
   }
+});
+
+test("102 : aperçu détaillé par défaut — titre et texte de la notification, sinon message générique", async () => {
+  const { detailedPushCopy, genericPushCopy: generique } = await import("../netlify/functions/send-mission-notifications.js");
+  assert.deepEqual(detailedPushCopy({ type: "order_update", title: "Mission mise à jour", body: "MIS-2026-11EF8B9A : SECOTO a modifié adresses." }),
+    { title: "SECOTO · Mission mise à jour", body: "MIS-2026-11EF8B9A : SECOTO a modifié adresses." });
+  assert.deepEqual(detailedPushCopy({ type: "payment", title: "", body: "" }), generique("payment"));
+  const src = readFileSync(new URL("../netlify/functions/send-mission-notifications.js", import.meta.url), "utf8");
+  assert.match(src, /prefs\?\.lockscreen_privacy === "masked" \? "masked" : "detailed"/);
+  assert.match(src, /if \(prefs && prefs\.notify_offline === false\)/);
+  const sql = readFileSync(new URL("../supabase/migrations/202610190102_notifications_apercu_detaille.sql", import.meta.url), "utf8");
+  assert.match(sql, /alter column lockscreen_privacy set default 'detailed'/);
+  assert.match(sql, /alter column notify_offline set default true/);
 });
