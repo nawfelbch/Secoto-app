@@ -29,6 +29,8 @@ export const emptyMissionForm = {
   surchargeUrgent: false,
   surchargeWeekend: false,
   surchargeOversizePct: 0,
+  // 101 : pastille URGENT (sans effet sur le prix).
+  urgent: false,
   notes: "",
 };
 
@@ -134,6 +136,7 @@ export function missionFromDb(row) {
     carrierEmployeeId: row.carrier_employee_id || null,
     sourceRequestId: row.source_request_id,
     createdAt: row.created_at,
+    urgent: row.urgent === true,
   };
 }
 
@@ -154,6 +157,7 @@ export function publicMissionFromDb(row) {
     missionDate: row.mission_date ?? null,
     vehicleRolling: row.vehicle_rolling ?? null,
     carrierPay: row.carrier_pay ?? null,
+    urgent: row.urgent === true,
   };
 }
 
@@ -172,6 +176,8 @@ export function applicationFromDb(row) {
     pickupLatestAt: row.pickup_latest_at,
     deliveryEarliestAt: row.delivery_earliest_at,
     deliveryLatestAt: row.delivery_latest_at,
+    // 101 : une seule date proposée (plateau : avec un seul prix).
+    proposedDate: row.proposed_date || null,
     priceNote: row.price_note,
     status: row.status,
     createdAt: row.created_at,
