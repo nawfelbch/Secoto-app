@@ -2,7 +2,8 @@
 // ----------------------------------------------------------------------------
 // Il doit donner envie de payer tout de suite, sans jargon : le prix tout
 // compris, la date, le lien court en action unique, et ce qui rassure
-// (remboursement intégral si personne n'accepte). Pas de téléphone, pas d'emoji.
+// (100 : 0 € aujourd'hui, règlement à l'arrivée ; avant : remboursement
+// intégral si personne n'accepte). Pas de téléphone, pas d'emoji.
 
 // Lien court : /payer est réécrit vers la fonction devis-pay (netlify.toml).
 export function lienCourt(url) {
@@ -33,19 +34,42 @@ export function dateLisible(iso) {
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Paris" });
 }
 
-export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mode, vehicules = 1 }) {
+// Espèces : interdites au-delà de 1 000 € (article L112-6 du code monétaire).
+const PLAFOND_ESPECES_CENTS = 100000;
+
+export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mode, vehicules = 1, arrivee = true }) {
   const prenom = prenomClient(client);
   const prestation = mode === "convoyage" ? "convoyage" : "transport sur plateau";
   const quand = dateLisible(pickupAt);
-  // Une seule action : le lien, seul sur sa ligne, juste après le prix.
+  const prix = `${montantLisible(amountCents)} tout compris (carburant, péages, assurance)${quand ? `, prise en charge le ${quand}` : ""}.`;
+  const objet = `${prestation} ${trajet}${vehicules > 1 ? ` (${vehicules} véhicules)` : ""}`;
+  if (!arrivee) {
+    // Une seule action : le lien, seul sur sa ligne, juste après le prix.
+    return [
+      `Bonjour${prenom ? ` ${prenom}` : ""},`,
+      `Votre ${objet} est prêt : ${prix}`,
+      "",
+      "Réservez maintenant en 1 minute, paiement sécurisé :",
+      lienCourt(url),
+      "",
+      "Remboursé intégralement si aucun transporteur n'est disponible. Suivi de votre véhicule en direct dans l'app SECOTO. Le paiement vaut acceptation du devis.",
+      "SECOTO",
+    ].join("\n");
+  }
+  // 100 : rien à payer à la réservation. Le lien reste l'action unique.
+  const moyens = Number(amountCents || 0) <= PLAFOND_ESPECES_CENTS
+    ? "par carte, en plusieurs fois avec Klarna, par virement ou en espèces"
+    : "par carte, en plusieurs fois avec Klarna ou par virement";
   return [
     `Bonjour${prenom ? ` ${prenom}` : ""},`,
-    `Votre ${prestation} ${trajet}${vehicules > 1 ? ` (${vehicules} véhicules)` : ""} est prêt : ${montantLisible(amountCents)} tout compris (carburant, péages, assurance)${quand ? `, prise en charge le ${quand}` : ""}.`,
+    `Bonne nouvelle : votre ${objet} est prêt. ${prix}`,
     "",
-    "Réservez maintenant en 1 minute, paiement sécurisé :",
+    `0 € à payer aujourd'hui. Vous ne réglez qu'à l'arrivée de votre véhicule, ${moyens}.`,
+    "",
+    "Bloquez votre date en 1 minute :",
     lienCourt(url),
     "",
-    "Remboursé intégralement si aucun transporteur n'est disponible. Suivi de votre véhicule en direct dans l'app SECOTO. Le paiement vaut acceptation du devis.",
+    "Transporteur vérifié et assuré, état des lieux en photos au départ et à l'arrivée, suivi en direct dans l'app SECOTO. La réservation vaut acceptation du devis.",
     "SECOTO",
   ].join("\n");
 }
