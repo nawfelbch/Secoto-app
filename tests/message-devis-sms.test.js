@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { lienCourt, messageDevisSms, prenomClient } from "../src/lib/messageDevis.js";
+import { lienCourt, messageDevisSms, prenomClient, urgence } from "../src/lib/messageDevis.js";
 
 const URL_LONGUE = "https://app.secoto-transport.fr/.netlify/functions/devis-pay?t=e0dd6fc8560d43db8afc762c0b94b90ef386fac-da1e248f89687acf2efa40ecb";
 
@@ -49,10 +49,11 @@ test("centimes, convoyage, plusieurs véhicules, sans date", () => {
 
 test("100 : règlement à l'arrivée — 0 € aujourd'hui, moyens de paiement, plus de remboursement", async () => {
   const sms = messageDevisSms({ client: "Demande sans compte", trajet: "Rochefort → Quincy-sous-Sénart", amountCents: 69932,
-    url: URL_LONGUE, pickupAt: "2026-12-01T07:00:00Z", mode: "plateau" });
+    url: URL_LONGUE, pickupAt: "2026-12-01T07:00:00Z", mode: "plateau", validiteHeures: 48 });
   assert.match(sms, /^Bonjour,\nBonne nouvelle : votre transport sur plateau Rochefort → Quincy-sous-Sénart est prêt\. 699,32 € tout compris \(carburant, péages, assurance\), prise en charge le mardi 1 décembre\./);
   assert.match(sms, /0 € à payer aujourd'hui\. Vous ne réglez qu'à l'arrivée de votre véhicule, par carte, en plusieurs fois avec Klarna, par virement ou en espèces\./);
-  assert.match(sms, /Bloquez votre date en 1 minute :\nhttps:\/\/app\.secoto-transport\.fr\/payer\?t=[0-9a-f-]+\n/);
+  assert.match(sms, /Les places du mardi 1 décembre sont limitées : nos transporteurs organisent leurs tournées à l'avance\. Ce prix est garanti 48 h seulement\./);
+  assert.match(sms, /Bloquez votre date maintenant, en 1 minute :\nhttps:\/\/app\.secoto-transport\.fr\/payer\?t=[0-9a-f-]+\n/);
   assert.match(sms, /La réservation vaut acceptation du devis\./);
   assert.doesNotMatch(sms, /Rembours|paiement sécurisé/i);
   assert.equal((sms.match(/https:\/\//g) || []).length, 1);
@@ -67,4 +68,10 @@ test("100 : règlement à l'arrivée — 0 € aujourd'hui, moyens de paiement, 
   assert.match(page, /Continuer — 0 € aujourd'hui/);
   assert.doesNotMatch(page, /intégralement remboursé/);
   assert.match(pageRenonciation("abc123", 69932, ""), /Continuer vers le paiement/);
+});
+
+test("FOMO : seulement ce qui est vrai (validité réelle, date demandée)", () => {
+  assert.equal(urgence(0, ""), "Nos transporteurs organisent leurs tournées à l'avance : les premières réservations sont servies en premier.");
+  assert.match(urgence(168, "lundi 2 novembre"), /Ce prix est garanti 7 jours\.$/);
+  assert.doesNotMatch(urgence(0, "lundi 2 novembre"), /garanti/);
 });

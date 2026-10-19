@@ -37,7 +37,16 @@ export function dateLisible(iso) {
 // Espèces : interdites au-delà de 1 000 € (article L112-6 du code monétaire).
 const PLAFOND_ESPECES_CENTS = 100000;
 
-export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mode, vehicules = 1, arrivee = true }) {
+// FOMO honnête : la durée de validité réellement fixée sur le devis, et la date
+// demandée (un camion ne prend que quelques véhicules par tournée).
+export function urgence(validiteHeures, quand) {
+  const h = Math.round(Number(validiteHeures) || 0);
+  const garantie = h <= 0 ? "" : h <= 72 ? ` Ce prix est garanti ${h} h seulement.` : ` Ce prix est garanti ${Math.floor(h / 24)} jours.`;
+  const date = quand ? `Les places du ${quand} sont limitées : nos transporteurs organisent leurs tournées à l'avance.` : "Nos transporteurs organisent leurs tournées à l'avance : les premières réservations sont servies en premier.";
+  return `${date}${garantie}`;
+}
+
+export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mode, vehicules = 1, arrivee = true, validiteHeures = 0 }) {
   const prenom = prenomClient(client);
   const prestation = mode === "convoyage" ? "convoyage" : "transport sur plateau";
   const quand = dateLisible(pickupAt);
@@ -66,7 +75,9 @@ export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mo
     "",
     `0 € à payer aujourd'hui. Vous ne réglez qu'à l'arrivée de votre véhicule, ${moyens}.`,
     "",
-    "Bloquez votre date en 1 minute :",
+    urgence(validiteHeures, quand),
+    "",
+    "Bloquez votre date maintenant, en 1 minute :",
     lienCourt(url),
     "",
     "Transporteur vérifié et assuré, état des lieux en photos au départ et à l'arrivée, suivi en direct dans l'app SECOTO. La réservation vaut acceptation du devis.",

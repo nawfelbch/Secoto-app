@@ -339,6 +339,7 @@ function AdminQuotes({ quotes, busy, run, flags }) {
       pickupAt: quote.pickup_at || null,
       mode: quote.mode,
       vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
+      validiteHeures: Number(f.hours) || 0,
     });
     setCopie(false);
     return resultat;
