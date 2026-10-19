@@ -1125,6 +1125,22 @@ details.mission-card[open] { border-color: var(--border-strong); }
 }
 .application-row.is-best { border-color: var(--success); }
 
+/* 101 : pastille URGENT, modification d'une mission, propositions */
+.urgent-badge {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 8px;
+  padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em;
+  background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger);
+  animation: urgent-pulse 1.6s ease-in-out infinite;
+}
+@keyframes urgent-pulse { 50% { box-shadow: 0 0 0 4px rgba(240, 68, 56, 0.18); } }
+@media (prefers-reduced-motion: reduce) { .urgent-badge { animation: none; } }
+.urgent-toggle { flex-direction: row !important; align-items: center; gap: 8px; }
+.urgent-toggle span { margin: 0; font-weight: 700; }
+.mission-edit { margin-top: 10px; }
+.mission-edit h4 { margin: 0; }
+.proposition-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+.proposition-edit { display: grid; gap: 8px; margin-top: 8px; }
+
 /* ============================================================
    SIGNATURE ELECTRONIQUE + DOCUMENTS RECUS
 ============================================================ */

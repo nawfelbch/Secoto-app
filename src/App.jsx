@@ -137,6 +137,8 @@ import PaiementAFinaliser from "./ondemand/PaiementAFinaliser";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
+import { MissionEditPanel, PropositionAdmin, PropositionTransporteur, UrgentBadge } from "./MissionPropositions";
+import { modifierMissionAdmin } from "./lib/missionsPropositions";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
@@ -221,7 +223,7 @@ const MISSION_ADMIN_COLUMNS = [
   "surcharge_urgent", "surcharge_weekend", "surcharge_oversize_pct",
   "commission_amount", "transport_amount", "client_total_due",
   "payment_status", "commission_paid_at", "cancelled_at", "cancellation_reason",
-  "cancellation_fee",
+  "cancellation_fee", "urgent",
 ].join(",");
 // Vue compagnon réservée à l'administrateur : elle porte le pilotage manuel
 // sans toucher aux quatre vues cloisonnées existantes.
@@ -251,7 +253,7 @@ const MISSION_TRANSPORTER_COLUMNS = [
   // le transporteur ne voit que sa propre rémunération.
   "payment_status", "cancelled_at", "cancellation_reason",
   // Entreprise de transport : qui encaisse, et qui execute.
-  "carrier_company_id", "carrier_employee_id",
+  "carrier_company_id", "carrier_employee_id", "urgent",
 ].join(",");
 const PUBLIC_MISSION_BASE_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
@@ -261,24 +263,25 @@ const PUBLIC_MISSION_BASE_COLUMNS = [
 // du véhicule. Jamais le prix client ni la marge. Ces trois colonnes n'existent
 // qu'à partir de la migration 035 : tant qu'elle n'est pas appliquée, on retombe
 // sur les colonnes historiques plutôt que de casser le tableau des missions.
-const PUBLIC_MISSION_EXTRA_COLUMNS = ["mission_date", "vehicle_rolling", "carrier_pay"];
+const PUBLIC_MISSION_EXTRA_COLUMNS = ["mission_date", "vehicle_rolling", "carrier_pay", "urgent"];
 const PUBLIC_MISSION_COLUMNS = [...PUBLIC_MISSION_BASE_COLUMNS, ...PUBLIC_MISSION_EXTRA_COLUMNS].join(",");
 const PUBLIC_MISSION_COLUMNS_FALLBACK = PUBLIC_MISSION_BASE_COLUMNS.join(",");
 
 async function fetchPublicMissions(limit) {
   const query = (columns) => supabase.from("secoto_public_missions_v2").select(columns)
     .order("created_at", { ascending: false }).limit(limit);
+  const colonneAbsente = (r) => r.error && /column|colonne|42703/i.test(`${r.error.code} ${r.error.message}`);
   const result = await query(PUBLIC_MISSION_COLUMNS);
-  if (result.error && /column|colonne|42703/i.test(`${result.error.code} ${result.error.message}`)) {
-    return query(PUBLIC_MISSION_COLUMNS_FALLBACK);
-  }
-  return result;
+  if (!colonneAbsente(result)) return result;
+  // 101 pas encore appliquée : on garde la rémunération, sans la pastille URGENT.
+  const sansUrgent = await query(PUBLIC_MISSION_COLUMNS.replace(",urgent", ""));
+  return colonneAbsente(sansUrgent) ? query(PUBLIC_MISSION_COLUMNS_FALLBACK) : sansUrgent;
 }
 const APPLICATION_COLUMNS = [
   "id", "mission_id", "transporter_id", "transporter_name", "transporter_company",
   "transporter_status", "message", "proposed_price", "proposed_price_grouped",
   "pickup_earliest_at", "pickup_latest_at", "delivery_earliest_at", "delivery_latest_at",
-  "price_note", "status", "created_at",
+  "price_note", "status", "created_at", "proposed_date",
 ].join(",");
 const REQUEST_COLUMNS = [
   "id", "public_ref", "status", "requester_id", "requester_name", "requester_company",
@@ -567,6 +570,16 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
           <option value="especes">Espèces à la livraison</option>
         </select>
       </label>
+      {showPricing && (
+        <label className="field field-full urgent-toggle">
+          <input
+            type="checkbox"
+            checked={Boolean(form.urgent)}
+            onChange={(e) => setForm((prev) => ({ ...prev, urgent: e.target.checked }))}
+          />
+          <span>⚡ Mission URGENTE (pastille visible par les transporteurs)</span>
+        </label>
+      )}
       {showPricing && <BaremeBox form={form} />}
       <label className="field field-full">
         <span>Notes internes</span>
@@ -2931,6 +2944,11 @@ export default function App() {
         });
         if (error) throw error;
         const created = missionFromDb(Array.isArray(data) ? data[0] : data);
+        // 101 : la pastille URGENT est posée juste après la création.
+        if (missionForm.urgent) {
+          await modifierMissionAdmin(created.id, { urgent: true });
+          created.urgent = true;
+        }
         setMissions((prev) => [created, ...prev.filter((mission) => mission.id !== created.id)]);
 
         // Mission reçue par téléphone : elle est attribuée dans la foulée, avec
@@ -4133,6 +4151,7 @@ export default function App() {
       >
         <div className="card-top">
           <span className="badge">{mission.publicRef}</span>
+          <UrgentBadge mission={mission} />
           <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
         </div>
         <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
@@ -4166,6 +4185,15 @@ export default function App() {
                     </p>
                   )}
                   <ApplicationAvailabilitySummary application={application} />
+                  {isAdmin && (
+                    <PropositionAdmin
+                      mission={mission}
+                      application={application}
+                      onSaved={() => loadAllData(account, { silent: true })}
+                      onNotice={setNotice}
+                      onError={setError}
+                    />
+                  )}
                   {application.message && <p>{application.message}</p>}
                   <span className={`status status-${application.status}`}>{labelStatus(application.status)}</span>
                 </div>
@@ -4200,6 +4228,15 @@ export default function App() {
           </div>
         )}
         {options.showTracking && renderTrackingTimeline(mission)}
+        {isAdmin && options.showPrivate && (
+          <MissionEditPanel
+            key={`${mission.id}-${mission.status}`}
+            mission={mission}
+            onSaved={() => loadAllData(account, { silent: true })}
+            onNotice={setNotice}
+            onError={setError}
+          />
+        )}
         {isAdmin && options.showPrivate && (
           <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
             <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Accès client :</span>
@@ -5367,6 +5404,7 @@ export default function App() {
                     >
                       <div className="card-top">
                         <span className="badge">{mission.publicRef}</span>
+                        <UrgentBadge mission={mission} />
                         <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
                       </div>
                       <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
@@ -5398,33 +5436,19 @@ export default function App() {
                         </>
                       )}
                       {!isAdmin && !estConvoyeurSalarie && flags?.direct_accept && (
-                        <>
-                          {/* Rémunération fixée par SECOTO et affichée telle quelle.
-                              Le transporteur accepte ou refuse : rien d'autre. */}
-                          <p className="od-offer-pay">{formatCents(Math.round(Number(mission.carrierPay || 0) * 100))}</p>
-                          <p className="muted">
-                            Votre rémunération pour cette mission. Paiement déclenché sous 48 h après la livraison.
-                            Véhicule {mission.vehicleRolling === false ? "NON ROULANT" : "roulant"}.
-                          </p>
-                          <div className="actions-row">
-                            <button
-                              className="btn primary small"
-                              type="button"
-                              disabled={!account.isVerified || actionLoading}
-                              onClick={() => acceptMissionDirect(mission.id)}
-                            >
-                              Accepter
-                            </button>
-                            <button
-                              className="btn ghost small"
-                              type="button"
-                              disabled={actionLoading}
-                              onClick={() => declineMissionDirect(mission.id)}
-                            >
-                              Refuser
-                            </button>
-                          </div>
-                        </>
+                        // 101 : plateau = prix + date proposés ; convoyage = accepter
+                        // la date renseignée ou en proposer une autre.
+                        <PropositionTransporteur
+                          key={`${mission.id}-${mission.type}`}
+                          mission={mission}
+                          maProposition={applications.find((a) => a.missionId === mission.id && a.transporterId === account?.id) || null}
+                          disabled={!account.isVerified || actionLoading}
+                          onAccepter={() => acceptMissionDirect(mission.id)}
+                          onRefuser={() => declineMissionDirect(mission.id)}
+                          onEnvoyee={() => loadAllData(account, { silent: true })}
+                          onNotice={setNotice}
+                          onError={setError}
+                        />
                       )}
                       {!isAdmin && !estConvoyeurSalarie && !flags?.direct_accept && (
                         <>
