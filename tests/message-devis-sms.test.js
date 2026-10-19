@@ -28,7 +28,7 @@ test("le SMS donne le prix tout compris, la date, le lien court seul sur sa lign
     url: URL_LONGUE, pickupAt: "2026-10-21T06:00:00Z", mode: "plateau", arrivee: false });
   assert.match(sms, /^Bonjour,\n/);
   assert.match(sms, /Votre transport sur plateau Saint-Pol-sur-Ternoise → Illies est prêt : 115 € tout compris/);
-  assert.match(sms, /tout compris \(carburant, péages, assurance\), prise en charge le mercredi 21 octobre\./);
+  assert.match(sms, /tout compris \(carburant et péages\), prise en charge le mercredi 21 octobre\./);
   assert.match(sms, /Réservez maintenant en 1 minute, paiement sécurisé :\nhttps:\/\/app\.secoto-transport\.fr\/payer\?t=[0-9a-f-]+\n/);
   assert.match(sms, /Remboursé intégralement/);
   assert.match(sms, /Le paiement vaut acceptation du devis\./);
@@ -50,7 +50,7 @@ test("centimes, convoyage, plusieurs véhicules, sans date", () => {
 test("100 : règlement à l'arrivée — 0 € aujourd'hui, moyens de paiement, plus de remboursement", async () => {
   const sms = messageDevisSms({ client: "Demande sans compte", trajet: "Rochefort → Quincy-sous-Sénart", amountCents: 69932,
     url: URL_LONGUE, pickupAt: "2026-12-01T07:00:00Z", mode: "plateau", validiteHeures: 48 });
-  assert.match(sms, /^Bonjour,\nBonne nouvelle : votre transport sur plateau Rochefort → Quincy-sous-Sénart est prêt\. 699,32 € tout compris \(carburant, péages, assurance\), prise en charge le mardi 1 décembre\./);
+  assert.match(sms, /^Bonjour,\nBonne nouvelle : votre transport sur plateau Rochefort → Quincy-sous-Sénart est prêt\. 699,32 € tout compris \(carburant et péages\), prise en charge le mardi 1 décembre\./);
   assert.match(sms, /0 € à payer aujourd'hui\. Vous ne réglez qu'à l'arrivée de votre véhicule, par carte, en plusieurs fois avec Klarna, par virement ou en espèces\./);
   assert.match(sms, /Les places du mardi 1 décembre sont limitées : nos transporteurs organisent leurs tournées à l'avance\. Ce prix est garanti 48 h seulement\./);
   assert.match(sms, /Bloquez votre date maintenant, en 1 minute :\nhttps:\/\/app\.secoto-transport\.fr\/payer\?t=[0-9a-f-]+\n/);

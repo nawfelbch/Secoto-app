@@ -1157,6 +1157,10 @@ details.mission-card[open] { border-color: var(--border-strong); }
 .od-avance > summary { cursor: pointer; padding: 6px 0; }
 .distance-auto { justify-content: flex-end; }
 
+/* Accueil : explication de la promesse « Transporteurs validés par SECOTO » */
+.hero-verif { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted, #9aa4b2); line-height: 1.5; }
+.hero-verif a { color: var(--accent, #ff6a1a); font-weight: 700; white-space: nowrap; }
+
 /* ============================================================
    SIGNATURE ELECTRONIQUE + DOCUMENTS RECUS
 ============================================================ */

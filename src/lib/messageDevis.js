@@ -50,7 +50,7 @@ export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mo
   const prenom = prenomClient(client);
   const prestation = mode === "convoyage" ? "convoyage" : "transport sur plateau";
   const quand = dateLisible(pickupAt);
-  const prix = `${montantLisible(amountCents)} tout compris (carburant, péages, assurance)${quand ? `, prise en charge le ${quand}` : ""}.`;
+  const prix = `${montantLisible(amountCents)} tout compris (carburant et péages)${quand ? `, prise en charge le ${quand}` : ""}.`;
   const objet = `${prestation} ${trajet}${vehicules > 1 ? ` (${vehicules} véhicules)` : ""}`;
   if (!arrivee) {
     // Une seule action : le lien, seul sur sa ligne, juste après le prix.
@@ -80,7 +80,7 @@ export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mo
     "Bloquez votre date maintenant, en 1 minute :",
     lienCourt(url),
     "",
-    "Transporteur vérifié et assuré, état des lieux en photos au départ et à l'arrivée, suivi en direct dans l'app SECOTO. La réservation vaut acceptation du devis.",
+    "Transporteur validé par SECOTO, état des lieux en photos au départ et à l'arrivée, suivi en direct dans l'app SECOTO. La réservation vaut acceptation du devis.",
     "SECOTO",
   ].join("\n");
 }

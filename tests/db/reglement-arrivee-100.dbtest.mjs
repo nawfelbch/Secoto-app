@@ -382,3 +382,18 @@ test("relance : espèces non confirmées 48 h après la livraison", async () => 
   assert.equal(n.length, 1);
   assert.equal((await service("select public.secoto_reglement_relances() as r"))[0].r.relances, 0, "une seule relance");
 });
+
+test("104 : annulation tardive d'un règlement à la livraison — ni « retenue » ni « remboursement » annoncés, rien n'est prélevé", async () => {
+  await flag("reglement_arrivee", true);
+  const q = await quote(ids.client);
+  const o = await book(ids.client, q.id);
+  await cardSaved(o.payment_id);
+  assert.equal((await accept(ids.vl2, await offerFor(o.id, ids.vl2))).result, "pending_capture");
+  assert.equal((await confirmer(o.id)).result, "confirmed");
+  await sql("update public.transport_orders set pickup_at = now() + interval '3 hours' where id=$1", [o.id]);
+  await as(ids.client, "select public.secoto_od_cancel_order($1,$2)", [o.id, randomUUID()]);
+  const n = await sql("select body from public.notifications where account_id=$1 and event_key=$2", [ids.client, `od-cancel-client:${o.id}`]);
+  assert.match(n[0].body, /Rien n'avait été prélevé : aucun montant ne vous est débité\./);
+  const pay = await row("payments", o.payment_id);
+  assert.ok(!["paid", "refund_pending"].includes(pay.status), `aucun encaissement (${pay.status})`);
+});

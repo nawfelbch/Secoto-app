@@ -213,6 +213,10 @@ function describeAlert(row) {
 }
 
 const DATA_PAGE_SIZE = 200;
+// Page publique « Comprendre nos vérifications » (public/verifications.html).
+const VERIFICATIONS_URL = getPlatform() === "web" && typeof window !== "undefined"
+  ? `${window.location.origin}/verifications.html`
+  : "https://app.secoto-transport.fr/verifications.html";
 const MISSION_ADMIN_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "pickup_address", "delivery_address", "mission_date", "vehicle", "plate",
@@ -1542,7 +1546,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
             <div className="hero-points">
               <span>✓ Rien à payer avant l’arrivée</span>
               <span>✓ Prix ferme, affiché tout de suite</span>
-              <span>✓ Transporteurs vérifiés et assurés</span>
+              <span>✓ Transporteurs validés par SECOTO</span>
             </div>
           </>
         ) : (
@@ -1554,11 +1558,19 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
             </p>
             <div className="hero-points">
               <span>✓ Prix ferme, affiché avant de payer</span>
-              <span>✓ Transporteurs vérifiés et assurés</span>
+              <span>✓ Transporteurs validés par SECOTO</span>
               <span>✓ Remboursé si personne n’est disponible</span>
             </div>
           </>
         )}
+        {/* Promesse « validés » : ce qui est réellement contrôlé, sans plus. */}
+        <p className="hero-verif">
+          Chaque compte transporteur est examiné et validé à la main par SECOTO avant sa première mission.{" "}
+          <a href={VERIFICATIONS_URL} target="_blank" rel="noopener noreferrer"
+            onClick={(e) => { e.preventDefault(); openExternal(VERIFICATIONS_URL).catch(() => {}); }}>
+            Comprendre nos vérifications
+          </a>
+        </p>
       </section>
 
       <section className="layout">

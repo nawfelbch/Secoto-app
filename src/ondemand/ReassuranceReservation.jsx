@@ -32,7 +32,7 @@ export default function ReassuranceReservation({ mode = "plateau", circuit = nul
   const arrivee = circuit === "arrivee";
   const plateau = mode === "plateau";
   const garanties = [
-    { icone: BOUCLIER, titre: plateau ? "Transporteurs vérifiés" : "Convoyeurs vérifiés", texte: plateau ? "Registre des transporteurs et assurance contrôlés" : "Identité, permis et assurance contrôlés" },
+    { icone: BOUCLIER, titre: plateau ? "Transporteurs validés" : "Convoyeurs validés", texte: "Compte examiné et validé à la main par SECOTO avant toute mission" },
     { icone: CADENAS, titre: "Paiement sécurisé", texte: "Par Stripe, votre carte n’est jamais vue par SECOTO" },
     arrivee
       ? { icone: CARTE, titre: "0 € avant l’arrivée", texte: "Vous réglez à la livraison : carte, Klarna, virement ou espèces" }

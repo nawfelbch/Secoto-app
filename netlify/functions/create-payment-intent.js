@@ -120,7 +120,7 @@ const handler = async (event) => {
 
   const { data: payment, error: paymentError } = await admin
     .from("payments")
-    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at,debit_a_confirmation,debit_a_livraison,reglement_tentatives")
+    .select("id,mission_id,order_id,account_id,purpose,amount_cents,currency,status,provider_intent_id,waiver_required,waiver_accepted,capture_method,payment_circuit,setup_intent_id,direct_action_required_at,debit_a_confirmation,debit_a_livraison,reglement_tentatives,reglement_debit_tente_at")
     .eq("id", paymentId)
     .single();
   if (paymentError || !payment) return response(404, { error: "payment_not_found" });
@@ -392,6 +392,12 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
   // 100 : véhicule livré, règlement à faire par le client lui-même (Klarna,
   // carte refusée, espèces non reçues, ou simplement payer sans attendre).
   if (carteSeule && order.status === "delivered" && ["requires_capture", "capture_failed"].includes(payment.status)) {
+    // 104 : prélèvement automatique en cours sur la carte enregistrée — on
+    // n'ouvre pas un second paiement en parallèle.
+    if (payment.reglement_debit_tente_at && now - new Date(payment.reglement_debit_tente_at).getTime() < 2 * 60000) {
+      return response(409, { error: "debit_en_cours", message: "Le prélèvement de votre carte est en cours. Réessayez dans quelques minutes si besoin." });
+    }
+    const memoriser = (champs) => admin.from("payments").update({ ...champs, updated_at: new Date(now).toISOString() }).eq("id", payment.id);
     const description = `Transport de véhicule — commande ${order.public_ref}`;
     const livraison = { ...metadata, secoto_circuit: "livraison" };
     if (feuilleKlarna) {
@@ -411,6 +417,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         .create({ customer: customerId }, { apiVersion: STRIPE_MOBILE_API_VERSION })
         .then((key) => key.secret)
         .catch(() => null);
+      await memoriser({ reglement_client_intent_id: intent.id });
       return response(200, {
         mode: "payment_sheet",
         clientSecret: intent.client_secret,
@@ -444,6 +451,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       },
       { idempotencyKey: idempotencyKey("secoto-livraison-checkout", payment.id, { amount: payment.amount_cents, expiresAt, managed, platform, tentative: payment.reglement_tentatives || 0 }) },
     ));
+    await memoriser({ reglement_client_session_id: session.id });
     return response(200, { mode: "checkout", checkoutUrl: session.url, amountCents: payment.amount_cents, currency: payment.currency || "eur", circuit: "livraison" });
   }
 

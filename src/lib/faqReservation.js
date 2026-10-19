@@ -4,17 +4,21 @@ import { cancellationPolicy, OFFER_WINDOW_HOURS, NO_PARTNER_REFUND_HOURS } from 
 // ReassuranceReservation). Les réponses suivent le mode et le circuit réels.
 export function questionsReservation({ mode = "plateau", circuit = null, relation = false } = {}) {
   const direct = circuit === "direct";
+  // 100 : carte enregistrée à la réservation, règlement à la livraison.
+  const arrivee = circuit === "arrivee";
   const plateau = mode === "plateau";
   const faq = [];
   faq.push({
     q: "Qui est SECOTO ?",
     r: plateau
-      ? "SECOTO est une plateforme de mise en relation. Nous sélectionnons des transporteurs professionnels indépendants, vérifions leurs documents (inscription au registre des transporteurs, assurance) et vous mettons en relation avec celui qui accepte votre transport. Le transport est réalisé par ce transporteur, sous sa propre responsabilité."
-      : "SECOTO organise votre convoyage : un convoyeur professionnel vérifié conduit votre véhicule jusqu’à destination, avec un état des lieux photo au départ et à l’arrivée.",
+      ? "SECOTO est une plateforme de mise en relation avec des transporteurs professionnels indépendants. Chaque compte transporteur est examiné et validé manuellement par SECOTO avant de recevoir des missions. Le transport est réalisé par le transporteur qui accepte votre demande, sous sa propre responsabilité."
+      : "SECOTO organise votre convoyage : un convoyeur dont le compte a été validé par SECOTO conduit votre véhicule jusqu’à destination, avec un état des lieux photo au départ et à l’arrivée.",
   });
   faq.push({
     q: "Quand suis-je débité ?",
-    r: direct
+    r: arrivee
+      ? "À la livraison seulement. À la réservation, votre carte est enregistrée en garantie auprès de Stripe : 0 € prélevé, aussi quand un transporteur accepte. Une fois le véhicule livré, vous réglez avec le mode choisi : carte (prélevée automatiquement), Klarna, virement ou espèces. Sans transporteur, la demande est annulée et rien n’est prélevé."
+      : direct
       ? `Uniquement quand un transporteur accepte votre transport. À la réservation, votre carte est seulement validée : rien n’est prélevé. Si personne n’accepte sous ${OFFER_WINDOW_HOURS} h (ou avant la date d’enlèvement), votre demande est annulée sans aucun débit.`
       : `À la réservation, et le paiement reste en réserve. Si aucun transporteur n’accepte, vous êtes remboursé intégralement sous ${NO_PARTNER_REFUND_HOURS} h.`,
   });
@@ -25,10 +29,10 @@ export function questionsReservation({ mode = "plateau", circuit = null, relatio
       : "Oui. Le paiement passe par Stripe, l’un des leaders mondiaux du paiement en ligne : SECOTO ne voit jamais votre numéro de carte.",
   });
   faq.push({
-    q: "Mon véhicule est-il assuré ?",
+    q: "Que se passe-t-il en cas de dommage ?",
     r: plateau
-      ? "Oui. Chaque transporteur dispose de sa propre assurance professionnelle, vérifiée par SECOTO avant toute mission. Un état des lieux avec photos est fait au départ et à l’arrivée : en cas de dommage, il sert de preuve."
-      : "Oui. Le convoyeur est assuré et vérifié par SECOTO. Un état des lieux avec photos est fait au départ et à l’arrivée.",
+      ? "Le transport est exécuté sous la responsabilité du transporteur, avec ses propres assurances. SECOTO examine les attestations transmises par les transporteurs, mais ne garantit pas la couverture d’une mission précise. Un état des lieux avec photos est fait au départ et à l’arrivée : signalez tout dommage à la livraison, SECOTO vous accompagne dans la réclamation. Détails : « Comprendre nos vérifications »."
+      : "Un état des lieux avec photos est fait au départ et à l’arrivée : signalez tout dommage à la livraison, SECOTO vous accompagne dans la réclamation. Détails : « Comprendre nos vérifications ».",
   });
   faq.push({
     q: "Qui sera mon interlocuteur ?",
@@ -42,7 +46,7 @@ export function questionsReservation({ mode = "plateau", circuit = null, relatio
     q: "Combien de temps pour trouver un transporteur ?",
     r: "Votre demande est envoyée en même temps à tous les transporteurs compatibles de votre secteur. Vous êtes prévenu immédiatement dès que l’un d’eux accepte, par notification et par e-mail.",
   });
-  faq.push({ q: "Puis-je annuler ?", r: cancellationPolicy({ payment_circuit: circuit }) });
+  faq.push({ q: "Puis-je annuler ?", r: cancellationPolicy(arrivee ? { debit_a_livraison: true } : { payment_circuit: circuit }) });
   faq.push({
     q: "Que comprend le prix ?",
     r: direct

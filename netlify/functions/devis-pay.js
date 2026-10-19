@@ -34,7 +34,8 @@ const MOTIFS = {
   compte_introuvable: "Paiement momentanément indisponible. Contactez SECOTO.",
   // 077 : paiement direct au transporteur.
   transporteur_non_pret: "Le paiement de cette course s'ouvrira dès que votre transporteur aura finalisé son compte de paiement. SECOTO vous renvoie le lien très vite ; rien n'a été débité.",
-  carte_deja_validee: "Votre carte est déjà enregistrée et votre demande est transmise aux transporteurs. Vous ne serez débité que lorsqu'un transporteur acceptera.",
+  // Vrai pour les deux circuits (débit à l'acceptation ou règlement à la livraison).
+  carte_deja_validee: "Votre carte est déjà enregistrée et votre demande est transmise aux transporteurs.",
 };
 
 export function page(titre, message, ton = "info") {

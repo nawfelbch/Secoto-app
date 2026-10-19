@@ -37,11 +37,52 @@ async function cancelQuietly(stripe, intentId) {
   }
 }
 
+/**
+ * 104 : « Payer maintenant » ouvert par le client (feuille de paiement ou page
+ * Stripe). Avant tout prélèvement automatique, on le ferme — ou on constate
+ * qu'il a abouti. Renvoie { paye: intentId } | { attente: true } | {}.
+ */
+export async function fermerPaiementClient(stripe, ligne) {
+  if (ligne.client_session_id) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(ligne.client_session_id);
+      if (session.payment_status === "paid") return { paye: session.payment_intent || null };
+      if (session.status === "open") await stripe.checkout.sessions.expire(ligne.client_session_id);
+    } catch {
+      // Expiration refusée (client en train de payer) ou Stripe indisponible : on réessaie plus tard.
+      return { attente: true };
+    }
+  }
+  if (ligne.client_intent_id) {
+    try {
+      const intent = await stripe.paymentIntents.retrieve(ligne.client_intent_id);
+      if (intent.status === "succeeded") return { paye: intent.id };
+      if (intent.status === "processing" || intent.status === "requires_capture") return { attente: true };
+      if (intent.status !== "canceled") {
+        try {
+          await stripe.paymentIntents.cancel(ligne.client_intent_id);
+        } catch {
+          const apres = await stripe.paymentIntents.retrieve(ligne.client_intent_id);
+          if (apres.status === "succeeded") return { paye: apres.id };
+          if (apres.status !== "canceled") return { attente: true };
+        }
+      }
+    } catch {
+      return { attente: true };
+    }
+  }
+  return {};
+}
+
 /** Prélève une ligne réservée par secoto_reglements_a_debiter. */
 export async function debiterLivraison({ admin, stripe, ligne }) {
   if (!ligne.customer_id || !ligne.payment_method_id) {
     return resultat(admin, ligne.payment_id, "refuse", null, "carte_absente");
   }
+  // 104 : un seul encaissement — le paiement lancé par le client passe d'abord.
+  const client = await fermerPaiementClient(stripe, ligne);
+  if (client.paye) return resultat(admin, ligne.payment_id, "reussi", client.paye, null);
+  if (client.attente) return "pending";
   // Déjà prélevé (webhook perdu, coupure après le débit) : on le constate, on ne redébite pas.
   if (ligne.provider_intent_id) {
     try {
