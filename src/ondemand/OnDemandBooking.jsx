@@ -451,7 +451,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   <strong>{formatCents(quote.client_price_cents)}</strong>
                 </div>
               )}
-              {anonyme && <ReserverExpress onConnexion={() => onNeedAccount?.(quote, "login")} libelle={arrivee ? "Réserver – 0 € aujourd’hui" : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}
+              {anonyme && <ReserverExpress arrivee={arrivee} onConnexion={() => onNeedAccount?.(quote, "login")} libelle={arrivee ? "Réserver – 0 € aujourd’hui" : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}
               {anonyme && offreChoisie && <OffreDecomposition offre={offreChoisie} />}
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}

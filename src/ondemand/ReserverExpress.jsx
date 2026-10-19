@@ -12,8 +12,9 @@ import { attributionPourEnvoi } from "../lib/attribution";
 import { consentementPub, evenement } from "../lib/consentement";
 import { getAuthRedirectUrl, getPlatform, openExternal } from "../platform/runtime";
 import { humanizeError } from "../lib/humanError";
+import { reglementArriveeActif } from "../lib/onDemand";
 
-export default function ReserverExpress({ onConnexion, libelle = "Réserver" }) {
+export default function ReserverExpress({ onConnexion, libelle = "Réserver", arrivee: arriveeConnu }) {
   const memo = contactMemorise();
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState(() => memo?.email || "");
@@ -21,6 +22,16 @@ export default function ReserverExpress({ onConnexion, libelle = "Réserver" }) 
   const [coche, setCoche] = useState(false);
   const [etat, setEtat] = useState("saisie"); // saisie | envoi | ouverture | confirmation
   const [erreur, setErreur] = useState("");
+  // 100 : règlement à l'arrivée — plus de paiement à la réservation.
+  const [arriveeLu, setArriveeLu] = useState(false);
+  const arrivee = arriveeConnu ?? arriveeLu;
+
+  useEffect(() => {
+    if (arriveeConnu !== undefined) return undefined;
+    let vivant = true;
+    reglementArriveeActif().then((v) => { if (vivant) setArriveeLu(v); });
+    return () => { vivant = false; };
+  }, [arriveeConnu]);
 
   useEffect(() => {
     let vivant = true;
@@ -79,8 +90,17 @@ export default function ReserverExpress({ onConnexion, libelle = "Réserver" }) 
       <strong className="od-compte-titre">Réservez ce prix en 1 minute</strong>
       <ul>
         <li>Pas de mot de passe à créer</li>
-        <li>Le paiement s’ouvre juste après, au prix affiché</li>
-        <li>Remboursé intégralement si aucun transporteur n’accepte</li>
+        {arrivee ? (
+          <>
+            <li>0 € aujourd’hui : votre carte est seulement enregistrée, en garantie</li>
+            <li>Vous réglez à l’arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces</li>
+          </>
+        ) : (
+          <>
+            <li>Le paiement s’ouvre juste après, au prix affiché</li>
+            <li>Remboursé intégralement si aucun transporteur n’accepte</li>
+          </>
+        )}
       </ul>
       <label className="field">
         <span>Votre nom</span>

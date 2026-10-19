@@ -112,7 +112,7 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] 
       {message && <div className="alert success" role="status">{message}</div>}
 
       {tab === "orders" && <AdminOrders orders={data.orders} busy={busy} run={run} transporters={transporters} relation={Boolean(flags?.mise_en_relation_v2)} />}
-      {tab === "quotes" && <AdminQuotes quotes={data.quotes} busy={busy} run={run} />}
+      {tab === "quotes" && <AdminQuotes flags={flags} quotes={data.quotes} busy={busy} run={run} />}
       {tab === "offres" && <AdminOffres flags={flags} onFlagsChange={onFlagsChange} />}
       {tab === "grids" && <AdminGrids grids={data.grids} flags={flags} busy={busy} run={run} onFlagsChange={onFlagsChange} />}
       {tab === "partners" && <AdminPartners partners={data.partners} busy={busy} run={run} />}
@@ -310,7 +310,7 @@ function DevisSupprimes({ busy, run }) {
   );
 }
 
-function AdminQuotes({ quotes, busy, run }) {
+function AdminQuotes({ quotes, busy, run, flags }) {
   const [form, setForm] = useState({});
   // Dernier lien fabrique : la carte disparait des que le devis est tarife,
   // le lien doit donc survivre a sa disparition.
@@ -339,13 +339,14 @@ function AdminQuotes({ quotes, busy, run }) {
       pickupAt: quote.pickup_at || null,
       mode: quote.mode,
       vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
+      validiteHeures: Number(f.hours) || 0,
     });
     setCopie(false);
     return resultat;
   }
 
   // SMS au client : voir src/lib/messageDevis.js.
-  const messageSms = (l) => messageDevisSms(l);
+  const messageSms = (l) => messageDevisSms({ ...l, arrivee: flags?.reglement_arrivee !== false });
   if (!quotes) return <p className="muted">Chargement…</p>;
   const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
   // Un devis deja tarife quittait cette liste : si le lien n'avait pas pu etre

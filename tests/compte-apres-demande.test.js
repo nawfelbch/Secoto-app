@@ -21,7 +21,7 @@ test("bloc compte sous le prix ET sous chaque demande en devis personnalisé", (
   assert.match(BOOKING, /function CompteCta\(\{ prix, onCompte \}\)/);
   // Prix affiché : réservation express (nom + e-mail), sans formulaire d'inscription.
   // 099 : même bloc ; seul le libellé du bouton change quand des offres sont affichées.
-  assert.match(BOOKING, /\{anonyme && <ReserverExpress onConnexion=\{\(\) => onNeedAccount\?\.\(quote, "login"\)\}( libelle=\{[^}]+\})? \/>\}/);
+  assert.match(BOOKING, /\{anonyme && <ReserverExpress( arrivee=\{arrivee\})? onConnexion=\{\(\) => onNeedAccount\?\.\(quote, "login"\)\}( libelle=\{[^}]+\})? \/>\}/);
   assert.match(BOOKING, /<CompteCta prix=\{false\} onCompte=/);
   assert.match(BOOKING, /onCompte\("signup"\)/);
   assert.match(BOOKING, /onCompte\("login"\)/);

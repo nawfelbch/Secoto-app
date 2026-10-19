@@ -81,6 +81,8 @@ export function liensConditions(conditions, base = SECOTO_APP_URL) {
 export function pageRenonciation(token, montantCents, trajet, options = {}) {
   const avecRenonciation = options.renonciation !== false;
   const conditions = options.conditions || null;
+  // 100 : règlement à l'arrivée — la carte est seulement enregistrée.
+  const arrivee = options.arrivee === true;
   const montant = (Number(montantCents || 0) / 100).toFixed(2).replace(".", ",");
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -89,7 +91,11 @@ export function pageRenonciation(token, montantCents, trajet, options = {}) {
 <div style="max-width:560px;margin:8vh auto;padding:32px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(16,24,40,.08)">
 <p style="letter-spacing:.32em;font-weight:700;color:#e8622a;margin:0 0 18px">S E C O T O</p>
 <h1 style="font-size:20px;margin:0 0 6px">Transport de véhicule${trajet ? ` — ${trajet}` : ""}</h1>
-<p style="font-size:26px;font-weight:700;margin:0 0 20px">${montant} €</p>
+<p style="font-size:26px;font-weight:700;margin:0 0 ${arrivee ? "8px" : "20px"}">${montant} €</p>
+${arrivee ? `<p style="margin:0 0 20px;padding:12px 14px;border-radius:10px;background:#ecfdf3;color:#05603a;line-height:1.5">
+<strong style="font-size:18px">0 € prélevé aujourd'hui</strong><br>
+Vous réglez à l'arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces.
+</p>` : ""}
 <form method="post" action="?t=${token}">
 ${conditions ? `<input type="hidden" name="version" value="${echapper(conditions.version)}">
 <label style="display:flex;gap:12px;align-items:flex-start;line-height:1.5;margin-bottom:18px">
@@ -102,12 +108,14 @@ ${avecRenonciation ? `<label style="display:flex;gap:12px;align-items:flex-start
 et je reconnais perdre ce droit une fois le transport intégralement exécuté.</span>
 </label>` : ""}
 <button type="submit" style="width:100%;padding:16px;border:0;border-radius:10px;background:#e8622a;color:#fff;font-size:16px;font-weight:700">
-Continuer vers le paiement
+${arrivee ? "Continuer — 0 € aujourd'hui" : "Continuer vers le paiement"}
 </button>
 </form>
 <p style="font-size:12px;color:#667085;margin:18px 0 0;line-height:1.5">
-Paiement sécurisé par Stripe. Le règlement vaut acceptation du devis. En cas d'annulation plus de
-24 h avant l'enlèvement, vous êtes intégralement remboursé.
+${arrivee
+    ? "Carte enregistrée de façon sécurisée par Stripe, en garantie : rien n'est prélevé avant l'arrivée du véhicule. La réservation vaut acceptation du devis. Annulation sans frais tant que le véhicule n'est pas pris en charge."
+    : `Paiement sécurisé par Stripe. Le règlement vaut acceptation du devis. En cas d'annulation plus de
+24 h avant l'enlèvement, vous êtes intégralement remboursé.`}
 </p>
 </div></body></html>`;
 }
@@ -236,10 +244,17 @@ const handler = async (event) => {
   // (075) : acceptées une fois, sur la même page, avant Stripe.
   const conditions = await etatConditions();
   const conditionsAFaire = conditions && !conditions.accepted ? conditions : null;
+  // 100 : règlement à l'arrivée (interrupteur allumé) -> carte enregistrée, 0 € prélevé.
+  let arrivee = false;
+  if (data.payment_id && data.circuit !== "direct") {
+    const { data: reglement } = await admin.from("payments").select("debit_a_livraison").eq("id", data.payment_id).maybeSingle();
+    arrivee = reglement?.debit_a_livraison === true;
+  }
   if (data.waiver_required || conditionsAFaire) {
     return html(200, pageRenonciation(token, data.amount_cents, trajet, {
       renonciation: Boolean(data.waiver_required),
       conditions: conditionsAFaire,
+      arrivee,
     }));
   }
   const description = ["SECOTO — transport de véhicule", trajet, data.vehicule]
@@ -260,17 +275,13 @@ const handler = async (event) => {
     }
   }
 
-  // 100 : règlement à l'arrivée (interrupteur allumé) -> carte enregistrée, 0 € prélevé.
-  if (data.payment_id) {
-    const { data: reglement } = await admin.from("payments").select("debit_a_livraison").eq("id", data.payment_id).maybeSingle();
-    if (reglement?.debit_a_livraison) {
-      try {
-        const session = await sessionCarteArrivee({ admin, stripe, data, token, description });
-        if (!session?.url) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
-        return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
-      } catch {
-        return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
-      }
+  if (arrivee) {
+    try {
+      const session = await sessionCarteArrivee({ admin, stripe, data, token, description });
+      if (!session?.url) return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
+      return { statusCode: 303, headers: { Location: session.url, "Cache-Control": "no-store" }, body: "" };
+    } catch {
+      return html(503, page("Paiement indisponible", MOTIFS.compte_introuvable));
     }
   }
 
