@@ -322,7 +322,9 @@ export function OfferDetail({ offerId, onClose, onConfirmed, onOpenBank }) {
 // ---------------------------------------------------------------------------
 // Liste des propositions reçues.
 // ---------------------------------------------------------------------------
-export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementDirect = false }) {
+// 101 : autresMissions = missions publiées affichées juste au-dessus, dans le
+// même onglet « Missions disponibles » (pas d'état vide ni de titre en double).
+export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementDirect = false, autresMissions = 0 }) {
   const [offers, setOffers] = useState(null);
   const [open, setOpen] = useState(focusOfferId || null);
   const [error, setError] = useState("");
@@ -346,7 +348,7 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
     <>
     <ReglementsPanel />
     <div className="panel panel-full">
-      <h2>Missions disponibles</h2>
+      <h2>{autresMissions > 0 ? "Autres propositions" : "Missions disponibles"}</h2>
       {error && <div className="alert error">{error}</div>}
       {direct && !direct.ready && available.some((o) => o.mode === "plateau") && (
         <div className="alert" role="status">
@@ -355,7 +357,8 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
         </div>
       )}
       {offers === null && <p className="muted">Chargement…</p>}
-      {offers && available.length === 0 && <div className="empty-state"><strong>Aucune mission disponible pour le moment</strong>Les propositions compatibles avec vos préférences apparaissent ici.</div>}
+      {offers && available.length === 0 && autresMissions === 0 && <div className="empty-state"><strong>Aucune mission disponible pour le moment</strong>Les propositions compatibles avec vos préférences apparaissent ici.</div>}
+      {offers && available.length === 0 && autresMissions > 0 && <p className="muted">Aucune autre proposition pour le moment.</p>}
       <div className="cards">
         {available.map((o) => (
           <article className="mission-card" key={o.id}>

@@ -36,3 +36,11 @@ test("écrans : URGENT partout, plateau = prix + date, convoyage = accepter ou a
   assert.doesNotMatch(sql, /\b(drop table|drop column|alter column|truncate|delete from)\b/i);
   assert.match(sql, /Transport par plateau : proposez votre prix/);
 });
+
+test("missions publiées dans « Missions disponibles », plus d'onglet « Sur candidature »", () => {
+  const app = lire("src/App.jsx");
+  assert.doesNotMatch(app, /Sur candidature/);
+  assert.match(app, /count: offresOuvertes \+ missionsSurCandidature\(\)/);
+  assert.match(app, /autresMissions=\{missionsSurCandidature\(\)\}/);
+  assert.match(lire("src/ondemand/PartnerOffers.jsx"), /autresMissions > 0 \? "Autres propositions" : "Missions disponibles"/);
+});

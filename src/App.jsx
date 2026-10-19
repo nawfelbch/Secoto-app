@@ -2690,14 +2690,14 @@ export default function App() {
     setClientTab("paiement");
   }
 
-  // Missions publiées à l'ancienne (sur candidature) : l'onglet n'existe que
-  // s'il y en a. Sinon, l'onglet par défaut « available » mène aux propositions.
+  // Missions publiées par SECOTO (101) : affichées dans l'onglet « Missions
+  // disponibles », au-dessus des propositions — plus d'onglet à part.
   const missionsSurCandidature = () => (account?.role === "admin" ? publishedMissions : publicMissions).length;
   const ongletTransporteur = () => (
-    flags.dispatch_notifications && transporterTab === "available" && missionsSurCandidature() === 0
-      ? "offres"
-      : transporterTab
+    flags.dispatch_notifications && transporterTab === "available" ? "offres" : transporterTab
   );
+  const voirMissionsPubliees = () => ongletTransporteur() === "available"
+    || (flags.dispatch_notifications && ongletTransporteur() === "offres" && missionsSurCandidature() > 0);
 
   const assignedToCurrentTransporter = useMemo(
     () => missions.filter((m) => m.assignedTransporterId === account?.id && ["assigned", "completed"].includes(m.status)),
@@ -4514,16 +4514,8 @@ export default function App() {
       sections: [
         { title: "Missions", items: [
           ...(flags.dispatch_notifications
-            ? [{ key: "offres", label: "Missions disponibles", icon: "megaphone", count: offresOuvertes }]
-            : []),
-          ...(!flags.dispatch_notifications || missionsSurCandidature() > 0
-            ? [{
-              key: "available",
-              label: flags.dispatch_notifications ? "Sur candidature" : "Disponibles",
-              icon: flags.dispatch_notifications ? "hand" : "megaphone",
-              count: missionsSurCandidature(),
-            }]
-            : []),
+            ? [{ key: "offres", label: "Missions disponibles", icon: "megaphone", count: offresOuvertes + missionsSurCandidature() }]
+            : [{ key: "available", label: "Disponibles", icon: "megaphone", count: missionsSurCandidature() }]),
           { key: "assigned", label: "Mes missions", icon: "truck", count: assignedToCurrentTransporter.length },
           ...(flags.dispatch_notifications
             ? [{ key: "disponibilite", label: "Ma disponibilité", icon: "settings" }]
@@ -5383,7 +5375,7 @@ export default function App() {
       {/* ===================== TRANSPORTEUR ===================== */}
       {(isTransporter || isAdmin) && mode === "transporter" && (
         <>
-          {ongletTransporteur() === "available" && (
+          {voirMissionsPubliees() && (
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Missions disponibles</h2>
@@ -5594,6 +5586,7 @@ export default function App() {
           {ongletTransporteur() === "offres" && (
             <section className="layout">
               <OffersPanel
+                autresMissions={missionsSurCandidature()}
                 focusOfferId={focusOfferId}
                 paiementDirect={Boolean(flags.plateau_paiement_direct) && ["vl", "pl"].includes(account?.transporterType || account?.transporter_type)}
                 onOpenBank={() => setTransporterTab("bank")}
