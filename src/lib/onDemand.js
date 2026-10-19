@@ -326,6 +326,11 @@ export async function uploadEligibilityFile({ businessId, applicationId, file, k
 
 // ---- Administration ----------------------------------------------------------
 export const admin = {
+  // 103 : distance routière calculée par le serveur, compteurs « À traiter »,
+  // prix du barème pour un devis manuel (lecture seule).
+  route: (from, to, mode) => callFunction("admin-route", { from, to, mode }),
+  aTraiter: () => rpc("secoto_admin_a_traiter", {}),
+  suggestQuote: (quoteId, km) => rpc("secoto_admin_quote_suggest", { p_quote_id: quoteId, p_distance_km: km }),
   // 099 : réglages des trois offres et mesure par offre.
   troisOffres: () => rpc("secoto_admin_trois_offres", {}),
   setTroisOffres: (reglages) => rpc("secoto_admin_set_trois_offres", { p_reglages: reglages }),

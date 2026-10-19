@@ -1141,6 +1141,22 @@ details.mission-card[open] { border-color: var(--border-strong); }
 .proposition-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
 .proposition-edit { display: grid; gap: 8px; margin-top: 8px; }
 
+/* 103 : admin simplifiée */
+.a-traiter-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+.a-traiter-tuile {
+  display: grid; gap: 4px; text-align: left; padding: 14px 16px; border-radius: 14px; cursor: pointer;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04)); border: 1px solid var(--border, rgba(255, 255, 255, 0.12)); color: inherit; font: inherit;
+}
+.a-traiter-tuile strong { font-size: 1.8rem; line-height: 1; }
+.a-traiter-tuile em { font-style: normal; font-weight: 700; color: var(--accent, #ff7a2f); }
+.a-traiter-tuile:hover, .a-traiter-tuile:focus-visible { border-color: var(--accent, #ff7a2f); }
+.recherche-missions { width: 100%; max-width: 520px; margin: 6px 0 14px; }
+.mission-details { margin-top: 10px; border-top: 1px dashed var(--border, rgba(255, 255, 255, 0.12)); padding-top: 8px; }
+.mission-details > summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.od-avance { margin-top: 18px; }
+.od-avance > summary { cursor: pointer; padding: 6px 0; }
+.distance-auto { justify-content: flex-end; }
+
 /* ============================================================
    SIGNATURE ELECTRONIQUE + DOCUMENTS RECUS
 ============================================================ */

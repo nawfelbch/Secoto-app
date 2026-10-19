@@ -56,8 +56,8 @@ function download(content, name, type = "text/csv;charset=utf-8") {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export default function AdminOnDemand({ flags, onFlagsChange, transporters = [] }) {
-  const [tab, setTab] = useState("orders");
+export default function AdminOnDemand({ flags, onFlagsChange, transporters = [], ongletInitial = "orders" }) {
+  const [tab, setTab] = useState(ongletInitial);
   const [data, setData] = useState({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -452,6 +452,20 @@ function AdminQuotes({ quotes, busy, run, flags }) {
               <p className="muted">{q.client_name} · prise en charge {formatDateTime(q.pickup_at)} · créneau {q.schedule?.slot}</p>
               <ContactClient q={q} />
               {q.vehicle?.notes && <p className="muted">« {q.vehicle.notes} »</p>}
+              <div className="actions-row">
+                <button className="btn ghost small" type="button" disabled={busy}
+                  onClick={() => run(async () => {
+                    // 103 : distance calculée par le serveur si le devis n'en a pas,
+                    // puis prix du barème actif. Rien n'est envoyé au client.
+                    const km = Number(q.route?.distance_km) || Number((await admin.route(q.pickup, q.delivery, q.mode))?.distance_km);
+                    const s = await admin.suggestQuote(q.id, km);
+                    if (!(s?.client_cents > 0)) throw new Error("Le barème ne s’applique pas à ce véhicule : fixez le prix à la main.");
+                    set({ client: (s.client_cents / 100).toFixed(2), partner: (s.partner_cents / 100).toFixed(2) });
+                    if (s.vehicules > 1) throw new Error(`Prix du barème rempli pour 1 véhicule (${km} km) : ce devis en compte ${s.vehicules}, ajustez avant d’envoyer.`);
+                  }, "Prix du barème rempli : vérifiez, puis envoyez.")}>
+                  ⚡ Prix du barème{q.route?.distance_km ? "" : " (calcul de la distance)"}
+                </button>
+              </div>
               <div className="od-inline-form">
                 <label className="field"><span>Prix client (€)</span><input inputMode="decimal" value={f.client} onChange={(e) => set({ client: e.target.value.replace(",", ".") })} /></label>
                 <label className="field"><span>Rémunération partenaire (€)</span><input inputMode="decimal" value={f.partner} onChange={(e) => set({ partner: e.target.value.replace(",", ".") })} /></label>
@@ -488,7 +502,8 @@ function AdminGrids({ grids, flags, busy, run, onFlagsChange }) {
   const active = useMemo(() => (grids || []).filter((g) => g.status === "active"), [grids]);
   return (
     <>
-      <h3>Activation des fonctionnalités</h3>
+      <details className="od-avance">
+      <summary><strong>Réglages avancés</strong> — activation des fonctionnalités (à ne toucher qu’en connaissance de cause)</summary>
       <div className="od-checks">
         {Object.entries(FLAG_LABEL).map(([key, label]) => (
           <label key={key}>
@@ -498,6 +513,7 @@ function AdminGrids({ grids, flags, busy, run, onFlagsChange }) {
           </label>
         ))}
       </div>
+      </details>
       <h3 style={{ marginTop: 18 }}>Barèmes</h3>
       {!grids && <p className="muted">Chargement…</p>}
       <div className="od-scroll">

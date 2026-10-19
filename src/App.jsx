@@ -143,7 +143,7 @@ import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
 import PaiementDirectPanel from "./ondemand/PaiementDirectPanel";
-import { acceptMission, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, admin as adminOD, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -513,6 +513,33 @@ function NotificationBell({ notifications, unreadCount, open, setOpen, onMarkAll
   );
 }
 
+// 103 : distance routière calculée par le serveur à partir des adresses (ou
+// des villes) saisies — plus de kilomètres à taper à la main.
+function DistanceAuto({ form, setForm }) {
+  const [etat, setEtat] = useState({ busy: false, message: "" });
+  const depart = form.pickupAddress || form.fromCity;
+  const arrivee = form.deliveryAddress || form.toCity;
+  async function calculer() {
+    setEtat({ busy: true, message: "" });
+    try {
+      const r = await adminOD.route({ label: depart }, { label: arrivee }, form.type);
+      setForm((prev) => ({ ...prev, distanceKm: String(Math.round(Number(r.distance_km))) }));
+      setEtat({ busy: false, message: `${Math.round(Number(r.distance_km))} km par la route${r.duration_min ? ` · environ ${Math.floor(r.duration_min / 60)} h ${String(r.duration_min % 60).padStart(2, "0")}` : ""}.` });
+    } catch (e) {
+      setEtat({ busy: false, message: humanizeError(e, "Distance non calculée : saisissez-la à la main.") });
+    }
+  }
+  return (
+    <div className="field distance-auto">
+      <span>&nbsp;</span>
+      <button className="btn ghost small" type="button" disabled={etat.busy || !depart || !arrivee} onClick={calculer}>
+        {etat.busy ? "Calcul…" : "⚡ Calculer la distance"}
+      </button>
+      {etat.message && <small className="muted">{etat.message}</small>}
+    </div>
+  );
+}
+
 function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false, disabled = false, extras = null }) {
   function update(e) {
     const { name, value } = e.target;
@@ -550,6 +577,7 @@ function MissionForm({ form, setForm, onSubmit, submitLabel, showPricing = false
       <Field label="Véhicule" name="vehicle" value={form.vehicle} onChange={update} placeholder="Ex : Renault Clio" />
       <Field label="Immatriculation" name="plate" value={form.plate} onChange={update} />
       <Field label="Distance km" name="distanceKm" value={form.distanceKm} onChange={update} type="number" />
+      {showPricing && <DistanceAuto form={form} setForm={setForm} />}
       {form.type === "plateau" && (
         <Field
           label="Tarif fixé par le transporteur €"
@@ -1723,6 +1751,11 @@ export default function App() {
   const [docModal, setDocModal] = useState(null);
   // Mission mise en avant après clic sur une notification.
   const [focusMissionId, setFocusMissionId] = useState(null);
+  // 103 : recherche dans les missions (référence, ville, client, téléphone, transporteur).
+  const [rechercheMission, setRechercheMission] = useState("");
+  // 103 : compteurs de la boîte « À traiter » et sous-onglet « À la demande » à ouvrir.
+  const [aTraiter, setATraiter] = useState(null);
+  const [ongletDemande, setOngletDemande] = useState({ tab: "orders", n: 0 });
   // Migration 024 : missions qui n'avanceront pas seules (vue admin dediee).
   const [adminAlerts, setAdminAlerts] = useState([]);
   const [claimShare, setClaimShare] = useState(null);
@@ -2825,6 +2858,7 @@ export default function App() {
           .from("secoto_admin_alertes_v1")
           .select("*")
           .limit(DATA_PAGE_SIZE);
+        adminOD.aTraiter().then(setATraiter).catch(() => setATraiter(null));
         setAdminAlerts(
           alertsResult?.error
             ? []
@@ -4138,6 +4172,27 @@ export default function App() {
     }));
   }
 
+  function filtrerMissions(liste) {
+    const q = rechercheMission.trim().toLowerCase();
+    if (!q) return liste;
+    const chiffres = q.replace(/\D/g, "");
+    return liste.filter((m) => {
+      const texte = [m.publicRef, m.fromCity, m.toCity, m.pickupAddress, m.deliveryAddress, m.vehicle, m.plate,
+        m.clientName, m.clientContact, m.assignedTransporterName].filter(Boolean).join(" ").toLowerCase();
+      return texte.includes(q) || (chiffres.length >= 4 && String(m.clientPhone || "").replace(/\D/g, "").includes(chiffres));
+    });
+  }
+  const rechercheMissionChamp = (
+    <input
+      className="recherche-missions"
+      type="search"
+      value={rechercheMission}
+      onChange={(e) => setRechercheMission(e.target.value)}
+      placeholder="Rechercher : référence, ville, client, téléphone, transporteur…"
+      aria-label="Rechercher une mission"
+    />
+  );
+
   function renderMissionCard(mission, options = {}) {
     const missionApplications = getMissionApplications(mission.id);
     // La liste est déjà triée du moins cher au plus cher : la 1re ligne avec un
@@ -4156,7 +4211,7 @@ export default function App() {
         </div>
         <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
         <PublicMissionInfo mission={mission} />
-        {options.showPrivate && <PrivateMissionInfo mission={mission} showPricing={isAdmin && !!options.showPricing} />}
+        {options.showPrivate && !isAdmin && <PrivateMissionInfo mission={mission} showPricing={false} />}
         {mission.assignedTransporterName && <p className="assigned">Transporteur attribué : {mission.assignedTransporterName}</p>}
         {options.canComplete && mission.status === "assigned" && (
           <button className="btn primary" onClick={() => markMissionCompleted(mission.id)}>Marquer terminée</button>
@@ -4228,28 +4283,28 @@ export default function App() {
           </div>
         )}
         {options.showTracking && renderTrackingTimeline(mission)}
+        {/* 103 : côté SECOTO, le détail et les actions sont repliés par défaut. */}
         {isAdmin && options.showPrivate && (
-          <MissionEditPanel
-            key={`${mission.id}-${mission.status}`}
-            mission={mission}
-            onSaved={() => loadAllData(account, { silent: true })}
-            onNotice={setNotice}
-            onError={setError}
-          />
-        )}
-        {isAdmin && options.showPrivate && (
-          <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
-            <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Accès client :</span>
-            <button className="btn primary small" type="button" onClick={() => createOrRenewMissionClaim(mission)}>
-              Créer / renouveler le lien de suivi
-            </button>
-            <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Documents :</span>
-            <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
-            <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
-            <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
-          </div>
-        )}
-        {isAdmin && options.showPrivate && (
+          <details className="mission-details" open={focusMissionId === mission.id}>
+            <summary>Détails client, modifier, documents et pilotage</summary>
+            <PrivateMissionInfo mission={mission} showPricing={!!options.showPricing} />
+            <MissionEditPanel
+              key={`${mission.id}-${mission.status}`}
+              mission={mission}
+              onSaved={() => loadAllData(account, { silent: true })}
+              onNotice={setNotice}
+              onError={setError}
+            />
+            <div className="actions-row" style={{ marginTop: 12, flexWrap: "wrap" }}>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem" }}>Accès client :</span>
+              <button className="btn primary small" type="button" onClick={() => createOrRenewMissionClaim(mission)}>
+                Créer / renouveler le lien de suivi
+              </button>
+              <span className="muted" style={{ width: "100%", fontSize: "0.8rem", marginTop: 8 }}>Documents :</span>
+              <button className="btn ghost small" onClick={() => openMissionDoc("devis", mission)}>Devis</button>
+              <button className="btn ghost small" onClick={() => openMissionDoc("bon", mission)}>Bon de mission</button>
+              <button className="btn ghost small" onClick={() => openMissionDoc("facture", mission)}>Facture</button>
+            </div>
             <AdminMissionPilot
               mission={mission}
               transporters={transporters}
@@ -4266,6 +4321,7 @@ export default function App() {
               onNotice={setNotice}
               onError={setError}
             />
+          </details>
         )}
       </article>
     );
@@ -4479,20 +4535,20 @@ export default function App() {
         active: adminTab, setActive: setAdminTab,
         sections: [
           { title: "Priorités", items: [
-            { key: "alertes", label: "À traiter", icon: "megaphone", count: adminAlerts.length || undefined },
+            { key: "alertes", label: "À traiter", icon: "megaphone", count: (adminAlerts.length + pendingApplications.length + Object.values(aTraiter || {}).reduce((t, v) => t + (Number(v) || 0), 0)) || undefined },
           ] },
           ...(espaceDirigeant ? [{ title: "Dirigeant", items: [
             { key: "dirigeant", label: "Espace dirigeant", icon: "chart" },
           ] }] : []),
-          { title: "Missions", items: [
+          { title: "Courses", items: [
+            // 103 : tout ce qui arrive des clients est dans « À la demande ».
+            { key: "ondemand", label: "À la demande", icon: "inbox", count: (aTraiter?.devis_a_chiffrer || 0) + (aTraiter?.commandes_sans_transporteur || 0) || undefined },
             { key: "create", label: "Créer une mission", icon: "plus" },
             { key: "published", label: "Publiées", icon: "megaphone", count: publishedMissions.length },
             { key: "assigned", label: "Attribuées", icon: "truck", count: activeAssignedMissions.length },
             { key: "completed", label: "Terminées", icon: "check", count: completedOrDeliveredMissions.length },
-            { key: "ondemand", label: "À la demande", icon: "megaphone" },
           ] },
-          { title: "Flux entrant", items: [
-            { key: "requests", label: "Demandes", icon: "inbox", count: pendingRequests.length },
+          { title: "Suivi", items: [
             { key: "applications", label: "Candidatures", icon: "hand", count: pendingApplications.length },
             { key: "frais", label: "Frais réels", icon: "settings" },
             ...(flags.mise_en_relation_v2 ? [{ key: "sav", label: "SAV clients", icon: "phone" }] : []),
@@ -4523,8 +4579,6 @@ export default function App() {
         ] },
         { title: "Mon activité", items: [
           { key: "applications", label: "Mes candidatures", icon: "hand", count: currentTransporterApplications.length },
-          { key: "request", label: "Proposer une mission", icon: "plus" },
-          { key: "requests", label: "Mes demandes", icon: "inbox", count: currentTransporterRequests.length },
           { key: "frais", label: "Mes frais", icon: "settings" },
           { key: "documents", label: "Mes documents", icon: "check", count: docsToSignCount || undefined },
         ] },
@@ -5061,6 +5115,20 @@ export default function App() {
                   Ce qui n’avancera pas tout seul aujourd’hui. Cette liste se vide
                   d’elle-même dès que la mission repart.
                 </p>
+                {/* 103 : une seule boîte, un bouton par sujet. */}
+                <div className="a-traiter-grille">
+                  {[
+                    { n: aTraiter?.devis_a_chiffrer, libelle: "devis à chiffrer", action: "Chiffrer", ouvrir: () => { setOngletDemande((o) => ({ tab: "quotes", n: o.n + 1 })); setAdminTab("ondemand"); } },
+                    { n: aTraiter?.commandes_sans_transporteur, libelle: "commandes sans transporteur", action: "Voir", ouvrir: () => { setOngletDemande((o) => ({ tab: "orders", n: o.n + 1 })); setAdminTab("ondemand"); } },
+                    { n: pendingApplications.length, libelle: "propositions de transporteurs", action: "Attribuer", ouvrir: () => setAdminTab("applications") },
+                    { n: aTraiter?.reglements_en_attente, libelle: "règlements à l’arrivée en attente", action: "Suivre", ouvrir: () => { setOngletDemande((o) => ({ tab: "reglements", n: o.n + 1 })); setAdminTab("ondemand"); } },
+                    { n: aTraiter?.marges_dues, libelle: "marges dues par les transporteurs", action: "Suivre", ouvrir: () => { setOngletDemande((o) => ({ tab: "reglements", n: o.n + 1 })); setAdminTab("ondemand"); } },
+                  ].filter((t) => Number(t.n) > 0).map((t) => (
+                    <button key={t.libelle} type="button" className="a-traiter-tuile" onClick={t.ouvrir}>
+                      <strong>{t.n}</strong><span>{t.libelle}</span><em>{t.action} →</em>
+                    </button>
+                  ))}
+                </div>
                 {adminAlerts.length === 0 && (
                   <div className="alert success">
                     Rien de bloqué. Toutes les missions publiées et attribuées suivent leur cours.
@@ -5164,8 +5232,9 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Missions publiées</h2>
+                {rechercheMissionChamp}
                 {publishedMissions.length === 0 && <p className="muted">Aucune mission publiée.</p>}
-                <div className="cards">{publishedMissions.map((mission) => renderMissionCard(mission, { showPrivate: true, showApplications: true, canDelete: true }))}</div>
+                <div className="cards">{filtrerMissions(publishedMissions).map((mission) => renderMissionCard(mission, { showPrivate: true, showApplications: true, canDelete: true }))}</div>
               </div>
             </section>
           )}
@@ -5187,8 +5256,9 @@ export default function App() {
               <div className="panel panel-full">
                 <h2>Missions attribuées</h2>
                 {activeAssignedMissions.length === 0 && <div className="alert success">Aucune mission attribuée en cours.</div>}
+                {rechercheMissionChamp}
                 {activeAssignedMissions.length > 0 && (
-                  <div className="cards">{activeAssignedMissions.map((mission) => renderCompactAdminMissionCard(mission, { delivered: false }))}</div>
+                  <div className="cards">{filtrerMissions(activeAssignedMissions).map((mission) => renderCompactAdminMissionCard(mission, { delivered: false }))}</div>
                 )}
               </div>
             </section>
@@ -5198,8 +5268,9 @@ export default function App() {
             <section className="layout">
               <div className="panel panel-full">
                 <h2>Missions terminées</h2>
+                {rechercheMissionChamp}
                 {completedOrDeliveredMissions.length === 0 && <p className="muted">Aucune mission terminée.</p>}
-                <div className="cards">{completedOrDeliveredMissions.map((mission) => renderCompactAdminMissionCard(mission, { delivered: true }))}</div>
+                <div className="cards">{filtrerMissions(completedOrDeliveredMissions).map((mission) => renderCompactAdminMissionCard(mission, { delivered: true }))}</div>
               </div>
             </section>
           )}
@@ -5318,7 +5389,7 @@ export default function App() {
 
           {adminTab === "ondemand" && (
             <section className="layout">
-              <AdminOnDemand flags={flags} transporters={transporters} onFlagsChange={(value) => setFlags(value || {})} />
+              <AdminOnDemand key={ongletDemande.n} ongletInitial={ongletDemande.tab} flags={flags} transporters={transporters} onFlagsChange={(value) => setFlags(value || {})} />
             </section>
           )}
 
