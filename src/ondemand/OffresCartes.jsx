@@ -1,4 +1,4 @@
-import { OFFRE_LIBELLE, fenetreLibelle, formatCents, transporteursLibelle } from "../lib/orderCopy";
+import { OFFRE_LIBELLE, fenetreLibelle, formatCents, klarnaSousPrix, transporteursLibelle } from "../lib/orderCopy";
 import { BADGE_STANDARD } from "../lib/offres";
 
 // ============================================================================
@@ -18,7 +18,7 @@ const ACCROCHE = {
   eco: "Porte-voitures en groupage, pour qui peut attendre",
 };
 
-export default function OffresCartes({ offres, choix, onChoix, disabled = false }) {
+export default function OffresCartes({ offres, choix, onChoix, disabled = false, klarna = false }) {
   if (!offres?.length) return null;
   return (
     <fieldset className="od-offres" disabled={disabled}>
@@ -32,6 +32,7 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false 
               {o.recommande && <span className="od-offre-badge">{BADGE_STANDARD}</span>}
               <span className="od-offre-nom">{o.libelle || OFFRE_LIBELLE[o.cle] || o.cle}</span>
               <strong className="od-offre-prix">{formatCents(o.client_cents)}</strong>
+              {klarna && klarnaSousPrix(o.client_cents) && <span className="od-klarna">{klarnaSousPrix(o.client_cents)}</span>}
               <span className="od-offre-fenetre">Prise en charge {fenetreLibelle(o.fenetre_h)}</span>
               <span className="od-offre-detail">À domicile · {ACCROCHE[o.cle] || ""}</span>
               <span className="od-offre-transporteurs">{transporteursLibelle(o.transporteurs)}</span>

@@ -20,7 +20,7 @@ async function as(userId, text, params = [], role = "authenticated") {
 const sql = (t, p) => pool.query(t, p).then((r) => r.rows);
 test.after(() => pool.end());
 
-test("devis sans itinéraire : compté « à chiffrer », prix du barème suggéré pour une distance donnée", async () => {
+test("devis à établir (hérité) : compté « à chiffrer », prix du barème suggéré pour une distance donnée", async () => {
   await sql("update public.secoto_feature_flags set enabled = true where key = 'auto_pricing'");
   const admin = randomUUID(); const client = randomUUID();
   await sql(`insert into public.accounts(id, role, full_name, email, status, is_verified) values
@@ -33,7 +33,9 @@ test("devis sans itinéraire : compté « à chiffrer », prix du barème suggé
     schedule: { pickup_date: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10), slot: "matin", flexibility_days: 0 },
   };
   const q = (await as(null, "select public.secoto_quote_create($1,$2,$3) as q", [client, JSON.stringify(payload), null], "service_role"))[0].q;
-  assert.equal(q.manual_reason, "itineraire_indisponible");
+  // 105 : le devis a désormais un prix (distance estimée) ; on reconstitue un devis « à établir » d'avant 105.
+  assert.equal(q.manual_reason ?? null, null);
+  await sql("update public.transport_quotes set status='manual_review', manual_reason='itineraire_indisponible', client_price_cents=null where id=$1", [q.id]);
   const t = (await as(admin, "select public.secoto_admin_a_traiter() as r"))[0].r;
   assert.ok(t.devis_a_chiffrer >= 1);
   const s = (await as(admin, "select public.secoto_admin_quote_suggest($1, 925.5) as r", [q.id]))[0].r;

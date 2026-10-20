@@ -37,11 +37,12 @@ test("091 : non roulant + batterie faible + message = prix immédiat, supplémen
   assert.equal(base.client_price_cents - roulant.client_price_cents, 8000, "80 € de plus pour un non roulant");
 });
 
-test("091 : les autres contraintes restent en devis manuel", async () => {
+test("091 + 105 : les autres contraintes sont tarifées avec un supplément, plus de devis manuel", async () => {
   for (const c of ["sans_cle", "gabarit_hors_norme", "garde_au_sol_basse", "non_immatricule", "acces_difficile"]) {
     const q = await devis({ rolling: false, constraints: ["batterie_faible", c] });
-    assert.equal(q.status, "manual_review", c);
-    assert.equal(q.manual_reason, "contraintes_particulieres", c);
+    assert.equal(q.status, "priced", c);
+    assert.equal(q.manual_reason ?? null, null, c);
+    assert.ok(q.lines.some((l) => /Contraintes particulières/.test(l.label)), c);
   }
 });
 

@@ -62,6 +62,14 @@ export function isDiffereOrder(order) {
 }
 export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco" };
 
+// 105 : mention Klarna sous le prix (règlement à l'arrivée). Klarna décide
+// seul de l'acceptation et du nombre d'échéances : « par exemple », jamais promis.
+export function klarnaSousPrix(cents) {
+  const total = Number(cents || 0);
+  if (!(total >= 3500)) return "";
+  return `ou en plusieurs fois avec Klarna, par exemple 3 × ${formatCents(Math.ceil(total / 3))}, à la livraison`;
+}
+
 // ---- 100 : règlement à l'arrivée du véhicule ----------------------------------
 // Carte enregistrée à la réservation (0 € prélevé), règlement à la livraison
 // selon le mode choisi. Délais alignés sur app_settings['reglement_arrivee'].

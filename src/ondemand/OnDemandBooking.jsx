@@ -9,7 +9,7 @@ import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
   OFFER_WINDOW_HOURS, TVA_MENTION, MODE_REGLEMENT_LIBELLE,
-  bookQuote, bookQuoteOffre, cancellationPolicy, fenetreLibelle, transporteursLibelle, formatCents, formatDateTime, paymentExplanation, publicQuote,
+  bookQuote, bookQuoteOffre, cancellationPolicy, klarnaSousPrix, fenetreLibelle, transporteursLibelle, formatCents, formatDateTime, paymentExplanation, publicQuote,
   rememberAnonQuote, requestQuote, subscriptionOverview,
 } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
@@ -444,11 +444,12 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>
               {offres ? (
-                <OffresCartes offres={offres} choix={offre} onChoix={choisirOffre} disabled={busy} />
+                <OffresCartes offres={offres} choix={offre} onChoix={choisirOffre} disabled={busy} klarna={arrivee} />
               ) : (
                 <div className="od-price">
                   <span>Prix total du transport</span>
                   <strong>{formatCents(quote.client_price_cents)}</strong>
+                  {arrivee && klarnaSousPrix(quote.client_price_cents) && <span className="od-klarna">{klarnaSousPrix(quote.client_price_cents)}</span>}
                 </div>
               )}
               {anonyme && <ReserverExpress arrivee={arrivee} onConnexion={() => onNeedAccount?.(quote, "login")} libelle={arrivee ? "Réserver – 0 € aujourd’hui" : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}

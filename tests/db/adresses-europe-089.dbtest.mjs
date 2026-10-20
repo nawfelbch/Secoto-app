@@ -76,20 +76,18 @@ test("089 : Allemagne → France, prix immédiat avec le même barème", async (
   assert.equal(q.client_price_cents, fr.client_price_cents);
 });
 
-test("089 : Suisse ou pays sans prix immédiat → devis établi par SECOTO, jamais de blocage", async () => {
+test("089 + 105 : Suisse, pays hors zone ou trajet sans route → prix immédiat majoré, jamais de devis manuel", async () => {
   const q = await devis(CH, FR_A);
-  assert.equal(q.status, "manual_review");
-  assert.equal(q.manual_reason, "international_hors_zone");
+  assert.equal(q.status, "priced");
+  assert.equal(q.manual_reason ?? null, null);
+  assert.ok(q.lines.some((l) => /hors zone/.test(l.label)), "supplément hors zone affiché");
   // Code postal absent à l'étranger : accepté, pays en minuscules accepté.
   const ie = await devis(IE_SANS_CP, FR_A);
-  assert.equal(ie.status, "manual_review");
-  // Traversée en bateau (pas d'itinéraire par la route) : devis établi par SECOTO.
+  assert.equal(ie.status, "priced");
+  // Pas d'itinéraire par la route : distance estimée, signalée au client.
   const sansRoute = await devis(DE, FR_A, null);
-  assert.equal(sansRoute.status, "manual_review");
-  assert.equal(sansRoute.manual_reason, "itineraire_indisponible");
-  // Les demandes à établir arrivent bien chez l'administrateur.
-  const notif = await sql("select count(*)::int n from public.notifications where event_key like $1", [`%quote-manual:${q.id}%`]);
-  assert.ok(notif[0].n > 0, "notification « devis à établir » créée");
+  assert.equal(sansRoute.status, "priced");
+  assert.ok(sansRoute.lines.some((l) => /Distance estimée/.test(l.label)));
 });
 
 test("089 : adresses étrangères mal formées refusées", async () => {

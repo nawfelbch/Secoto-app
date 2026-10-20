@@ -159,3 +159,8 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .od-virement dd { margin: 0; overflow-wrap: anywhere; }
 .od-commission-montant { font-family: var(--font-display); font-size: 1.4rem; color: var(--danger); }
 @media (max-width: 560px) { .od-reglement-grille { grid-template-columns: 1fr; } .od-zero-montant { font-size: 1.7rem; } }
+
+/* 105 : Klarna sous le prix */
+.od-klarna { display: block; font-size: 0.82rem; font-weight: 600; color: inherit; opacity: 0.85; margin-top: 2px; }
+.od-price { flex-wrap: wrap; }
+.od-price .od-klarna { width: 100%; text-align: right; }

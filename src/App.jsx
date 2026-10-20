@@ -5131,6 +5131,7 @@ export default function App() {
                 <div className="a-traiter-grille">
                   {[
                     { n: aTraiter?.devis_a_chiffrer, libelle: "devis à chiffrer", action: "Chiffrer", ouvrir: () => { setOngletDemande((o) => ({ tab: "quotes", n: o.n + 1 })); setAdminTab("ondemand"); } },
+                    { n: aTraiter?.devis_a_rappeler, libelle: "devis à rappeler (téléphone seul)", action: "Appeler", ouvrir: () => { setOngletDemande((o) => ({ tab: "quotes", n: o.n + 1 })); setAdminTab("ondemand"); } },
                     { n: aTraiter?.commandes_sans_transporteur, libelle: "commandes sans transporteur", action: "Voir", ouvrir: () => { setOngletDemande((o) => ({ tab: "orders", n: o.n + 1 })); setAdminTab("ondemand"); } },
                     { n: pendingApplications.length, libelle: "propositions de transporteurs", action: "Attribuer", ouvrir: () => setAdminTab("applications") },
                     { n: aTraiter?.reglements_en_attente, libelle: "règlements à l’arrivée en attente", action: "Suivre", ouvrir: () => { setOngletDemande((o) => ({ tab: "reglements", n: o.n + 1 })); setAdminTab("ondemand"); } },

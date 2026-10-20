@@ -55,6 +55,14 @@ test.before(async () => {
 });
 test.after(async () => { await pool.end(); });
 
+// 105 : plus aucun devis manuel n'est créé ; un devis « à établir » d'avant 105
+// est reconstitué tel qu'il existe encore en base.
+async function devisManuelHistorique() {
+  const q = await devisSansCompte();
+  await sql("update public.transport_quotes set status='manual_review', manual_reason='contraintes_particulieres', client_price_cents=null, partner_pay_cents=null where id=$1", [q.id]);
+  return { ...q, status: "manual_review", manual_reason: "contraintes_particulieres" };
+}
+
 test("095 : supprimer = sort des listes, lien révoqué, rien d'effacé", async () => {
   const q = await devisSansCompte();
   const l = await lien(q.id);
@@ -98,7 +106,7 @@ test("095 : restauré après expiration → « expiré », jamais un prix périm
 });
 
 test("095 : devis à établir supprimable ; devis avec commande refusé", async () => {
-  const m = await devisSansCompte(["gabarit_hors_norme"]);
+  const m = await devisManuelHistorique();
   assert.equal(m.status, "manual_review");
   await supprimer(m.id);
   assert.equal((await ligne(m.id)).status, "cancelled");

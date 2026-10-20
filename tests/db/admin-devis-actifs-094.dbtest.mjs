@@ -49,11 +49,19 @@ test.before(async () => {
 });
 test.after(async () => { await pool.end(); });
 
+// 105 : plus aucun devis manuel n'est créé ; un devis « à établir » d'avant 105
+// est reconstitué tel qu'il existe encore en base.
+async function devisManuelHistorique() {
+  const q = await devisSansCompte();
+  await sql("update public.transport_quotes set status='manual_review', manual_reason='contraintes_particulieres', client_price_cents=null, partner_pay_cents=null where id=$1", [q.id]);
+  return { ...q, status: "manual_review", manual_reason: "contraintes_particulieres" };
+}
+
 test("094 : devis à établir + tarifés valides, rien d'autre, même format que la liste complète", async () => {
   const valide = await devisSansCompte();
   const expire = await devisSansCompte();
   await sql("update public.transport_quotes set valid_until = now() - interval '1 hour' where id = $1", [expire.id]);
-  const manuel = await devisSansCompte(["gabarit_hors_norme"]);
+  const manuel = await devisManuelHistorique();
   assert.equal(valide.status, "priced");
   assert.equal(manuel.status, "manual_review", JSON.stringify(manuel));
 
