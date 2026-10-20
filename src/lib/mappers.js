@@ -288,6 +288,7 @@ export function notificationFromDb(row) {
     missionId: row.mission_id,
     audience: row.audience,
     isRead: row.is_read,
+    pushScreen: row.push_screen || null,
     createdAt: row.created_at,
   };
 }

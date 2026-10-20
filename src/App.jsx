@@ -2068,7 +2068,8 @@ export default function App() {
       setMode("admin");
       if (screen === "documents") setAdminTab("assigned");
       else if (screen === "frais") setAdminTab("frais");
-      else if (screen === "requests") setAdminTab("requests");
+      // 108 : l'onglet « Demandes » n'existe plus : devis et commandes sont dans « À la demande ».
+      else if (screen === "requests") setAdminTab("ondemand");
       else if (screen === "applications") setAdminTab("applications");
       else if (screen === "assigned") setAdminTab("assigned");
       else if (screen === "transporters") setAdminTab("transporters");
@@ -2426,7 +2427,7 @@ export default function App() {
     try {
       const { data, error } = await supabase
         .from("notifications")
-        .select("id,account_id,type,title,body,mission_id,audience,is_read,created_at")
+        .select("id,account_id,type,title,body,mission_id,audience,is_read,created_at,push_screen")
         .eq("account_id", currentAccount.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -2578,7 +2579,7 @@ export default function App() {
     if (account.role === "admin") {
       setMode("admin");
       if (n.type === "frais") setAdminTab("frais");
-      else if (n.type === "new_request") setAdminTab("requests");
+      else if (n.type === "new_request" || (!n.missionId && n.pushScreen === "offre")) setAdminTab("ondemand");
       else if (n.type === "new_application") setAdminTab("applications");
       else if (target?.status === "assigned") setAdminTab("assigned");
       else if (target?.status === "completed") setAdminTab("completed");
