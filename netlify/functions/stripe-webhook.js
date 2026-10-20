@@ -123,6 +123,20 @@ export async function handleDirectSetup(admin, stripeEvent) {
   return response(200, { ok: true, result: data });
 }
 
+// 107 — Page Stripe en mode « setup » terminée : on relit le SetupIntent
+// (lecture seule) et on le rattache comme setup_intent.succeeded.
+export async function handleSetupCheckout(admin, stripe, stripeEvent) {
+  const session = stripeEvent.data?.object || {};
+  const siId = typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent?.id;
+  if (!siId) return response(200, { ignored: stripeEvent.type });
+  const si = await stripe.setupIntents.retrieve(siId);
+  if (si?.status !== "succeeded") return response(200, { ignored: stripeEvent.type, status: si?.status || null });
+  // Déjà rattachée par setup_intent.succeeded : rien à refaire.
+  const { data: deja } = await admin.from("payments").select("id").eq("setup_intent_id", si.id).not("saved_payment_method_id", "is", null).maybeSingle();
+  if (deja) return response(200, { ignored: stripeEvent.type, reason: "already_saved" });
+  return handleDirectSetup(admin, { ...stripeEvent, data: { object: si } });
+}
+
 // 100 — Marge SECOTO d'une course payée en espèces, réglée par le transporteur.
 export async function handleCommission(admin, stripeEvent) {
   if (stripeEvent.type !== "payment_intent.succeeded") return null;
@@ -162,6 +176,11 @@ const handler = async (event) => {
 
   // 074 : carte validée pour un paiement direct (plateau) — aucun encaissement.
   if (stripeEvent.type === "setup_intent.succeeded") return handleDirectSetup(admin, stripeEvent);
+  // 107 : page Stripe en mode « setup » terminée -> même rattachement de la
+  // carte (au cas où « setup_intent.succeeded » n'est pas abonné).
+  if (stripeEvent.type === "checkout.session.completed" && stripeEvent.data?.object?.mode === "setup") {
+    return handleSetupCheckout(admin, stripe, stripeEvent);
+  }
 
   // 100 : marge SECOTO réglée par le transporteur (course payée en espèces).
   const commission = await handleCommission(admin, stripeEvent);

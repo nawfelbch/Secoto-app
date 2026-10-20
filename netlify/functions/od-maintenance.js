@@ -15,6 +15,7 @@ import { connectStatusFromAccount } from "./connect-onboarding.js";
 import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from "../lib/paiement-direct.js";
 import { envoyerConversionsMeta } from "../lib/conversions.js";
 import { processReglements } from "../lib/reglement-livraison.js";
+import { rattraperCartes } from "../lib/rattrapage-cartes.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -113,6 +114,13 @@ export async function runMaintenance({ admin, stripe }) {
     report.connect = await resyncConnectAccounts({ admin, stripe });
   } catch (erreur) {
     report.connect = { error: String(erreur?.message || erreur).slice(0, 200) };
+  }
+  // 107 : cartes enregistrées chez Stripe mais jamais rattachées (webhook
+  // manqué) -> la commande part aux transporteurs. Lecture seule, aucun débit.
+  try {
+    report.cartes = await rattraperCartes({ admin, stripe });
+  } catch (erreur) {
+    report.cartes = { error: String(erreur?.message || erreur).slice(0, 200) };
   }
   // 100 : règlement à l'arrivée — prélèvements arrivés à échéance et retenues
   // de marge AVANT les versements, pour que la retenue porte sur ce passage.
