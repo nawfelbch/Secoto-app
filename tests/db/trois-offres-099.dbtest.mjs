@@ -256,13 +256,13 @@ test("fenêtre écoulée : aucun débit, annulation automatique, relance en un c
   await assert.rejects(as(ids.autre, "select public.secoto_od_reproposer($1)", [o.id]), /introuvable/);
 });
 
-test("Éco : seuls les porte-voitures PL volontaires reçoivent, au barème fixe", async () => {
+test("Éco : 107 -> tous les VL/PL reçoivent, au barème fixe", async () => {
   await flag("trois_offres", true);
   const q = await quote(ids.client, {}, 800);
   const o = await bookOffre(ids.client, q.id, "eco");
   await cardSaved(o.payment_id);
   for (const k of PL) assert.ok(await offerFor(o.id, ids[k]), `${k} reçoit`);
-  for (const k of VL) assert.equal(await offerFor(o.id, ids[k]), undefined, `${k} ne reçoit pas`);
+  for (const k of VL) assert.ok(await offerFor(o.id, ids[k]), `107 : ${k} reçoit aussi`);
   const x = await row("transport_offers", await offerFor(o.id, ids.pl1));
   assert.equal(x.partner_pay_cents, 50000);
   const ord = await row("transport_orders", o.id);

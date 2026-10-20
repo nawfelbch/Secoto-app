@@ -99,6 +99,10 @@ export async function runMaintenance({ admin, stripe }) {
   const avis = await admin.rpc("secoto_review_requests_tick", { p_limit: 20 });
   report.avis = avis.error ? { error: avis.error.message } : avis.data;
 
+  // 107 : transporteurs devenus éligibles après la diffusion -> ils reçoivent les courses en cours.
+  const complements = await admin.rpc("secoto_od_completer_diffusions");
+  report.complements_diffusion = complements.error ? { error: complements.error.message } : complements.data;
+
   // 106 : relances e-mail des devis non réservés (la base choisit qui, quand, et s'arrête seule).
   const devis = await admin.rpc("secoto_devis_relances", { p_limit: 50 });
   report.relances_devis = devis.error ? { error: devis.error.message } : devis.data;

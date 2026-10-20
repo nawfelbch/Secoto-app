@@ -242,7 +242,7 @@ test("085 : prix client = prix des transporteurs disponibles + commission ; diff
   assert.equal(o.client_price_cents, 43200);
   assert.ok(await offerFor(o.id, ids.ready), "le moins cher reçoit");
   assert.ok(await offerFor(o.id, ids.t2), "à moins de 5 % au-dessus : reçoit en même temps");
-  assert.equal(await offerFor(o.id, ids.t3), undefined, "trop cher : ne reçoit pas");
+  assert.ok(await offerFor(o.id, ids.t3), "107 : barème plus cher -> reçoit quand même (tous les VL/PL)");
   // Avec 3 transporteurs minimum, le prix monte au 3e moins cher pour que tous puissent la prendre.
   await sql("update public.app_settings set value = value || '{\"min_carriers\": 3}' where key='bareme_transporteurs'");
   assert.deepEqual(await quoteCents(), { client: 67200, partner: 56000 });
@@ -264,8 +264,8 @@ test("085 : un devis non calculé par les barèmes part à tous ; personne au pr
     await as(ids[k], "select public.secoto_carrier_rates_save($1)", [JSON.stringify({ voiture: { eur_per_km: 3, minimum_eur: 90, non_rolling_eur: 60 } })]);
   }
   await cardSaved(o.payment_id);
-  assert.equal((await sql("select count(*)::int n from public.transport_offers where order_id=$1", [o.id]))[0].n, 0);
-  assert.ok((await sql("select count(*)::int n from public.notifications where account_id=$1 and title='Aucun transporteur à ce prix'", [ids.admin]))[0].n >= 1);
+  // 107 : le barème personnel ne filtre plus : tous les VL/PL prêts reçoivent.
+  assert.ok((await sql("select count(*)::int n from public.transport_offers where order_id=$1", [o.id]))[0].n >= 3);
 });
 
 test("085 : un chauffeur salarié ne fixe pas le barème", async () => {

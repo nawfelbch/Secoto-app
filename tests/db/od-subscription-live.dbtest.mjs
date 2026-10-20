@@ -150,7 +150,7 @@ test("attribution : acceptations simultanées → un seul gagnant, capture, miss
   await paid(mainOrder.payment_id);
   const offers = await sql("select id, partner_id from public.transport_offers where order_id = $1 order by partner_id", [mainOrder.id]);
   const partners = offers.map((o) => o.partner_id).sort();
-  assert.deepEqual(partners, [ids.p1, ids.p2, ids.p3].sort(), "diffusion limitée aux partenaires compatibles, disponibles, documents valides");
+  assert.deepEqual(partners, [ids.p1, ids.p2, ids.p3, ids.pUnavailable].sort(), "107 : tous les convoyeurs validés aux documents valides, même « indisponibles »");
   const notif = await sql("select push_screen, ref_id from public.notifications where type='mission_offer' and account_id=$1", [ids.p1]);
   assert.equal(notif[0].push_screen, "offre");
 
@@ -159,7 +159,7 @@ test("attribution : acceptations simultanées → un seul gagnant, capture, miss
   // Paiement déjà encaissé : le gagnant est confirmé sur-le-champ.
   const winners = results.filter((x) => x.r.result === "confirmed");
   assert.equal(winners.length, 1, JSON.stringify(results));
-  assert.equal(results.filter((x) => x.r.result === "already_assigned").length, 2);
+  assert.equal(results.filter((x) => x.r.result === "already_assigned").length, 3);
 
   const confirmed = winners[0].r;
   const mission = (await sql("select * from public.missions where id = $1", [confirmed.mission_id]))[0];
@@ -511,8 +511,8 @@ test("diffusion : un transporteur qui n'a rien réglé reçoit quand même les m
   assert.ok(offers.some((o) => o.partner_id === neuf), "aucune préférence exigée pour recevoir une mission");
   // La zone déclarée par p1 (92) ne l'empêche pas : elle n'exclut que hors zone.
   assert.ok(offers.some((o) => o.partner_id === ids.p1));
-  // Un transporteur qui s'est déclaré indisponible reste protégé.
-  assert.ok(!offers.some((o) => o.partner_id === ids.pUnavailable));
+  // 107 : « Ma disponibilité » ne filtre plus, il reçoit aussi.
+  assert.ok(offers.some((o) => o.partner_id === ids.pUnavailable));
 });
 
 test("fenêtre de 48 h, un seul tour, remboursement intégral sous 24 h", async () => {
