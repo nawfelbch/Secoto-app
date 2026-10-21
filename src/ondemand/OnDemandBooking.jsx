@@ -185,10 +185,14 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
     return "";
   }, [step, form]);
 
-  async function computePrice() {
+  // 112 : le téléphone devient facultatif — 3 visiteurs Ads sur 4 s'arrêtaient
+  // sur cet écran (entonnoir 110). Sans contact, le prix s'affiche quand même.
+  async function computePrice(sansContact = false) {
     setBusy(true);
     setError("");
-    etapeFormulaire(anonyme ? "contact" : "dates", { connecte: !anonyme });
+    // « contact » = coordonnées laissées (112 : elles sont facultatives).
+    if (!anonyme) etapeFormulaire("dates", { connecte: true });
+    else if (!sansContact && contactValide(contact)) etapeFormulaire("contact");
     try {
       const payload = {
         mode: form.mode,
@@ -215,7 +219,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         ...(subscriptionActive && overview?.business?.id ? { business_id: overview.business.id } : {}),
       };
       const leContact = anonyme ? contactValide(contact) : null;
-      if (anonyme && !leContact) throw new Error("Indiquez votre numéro de téléphone ou votre e-mail.");
+      if (anonyme && !leContact && !sansContact) throw new Error("Indiquez votre numéro de téléphone ou votre e-mail.");
       const result = anonyme ? await publicQuote(payload, leContact) : await requestQuote(payload);
       if (leContact) { memoriserContact(leContact); setContactEnvoye(leContact); }
       if (anonyme) rememberAnonQuote(result.token);
@@ -588,11 +592,16 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           setStep(step === 4 ? 3 : step - 1);
         }}>Retour</button>}
         {step < 3 && <button className="btn primary" type="button" disabled={Boolean(stepError)} onClick={() => setStep(step + 1)}>Continuer</button>}
-        {step === 3 && !anonyme && <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online} onClick={computePrice}>{busy ? "Calcul de l’itinéraire…" : "Calculer le prix"}</button>}
+        {step === 3 && !anonyme && <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online} onClick={() => computePrice()}>{busy ? "Calcul de l’itinéraire…" : "Calculer le prix"}</button>}
         {step === 3 && anonyme && !etapeContact && <button className="btn primary" type="button" disabled={Boolean(stepError)} onClick={() => { setError(""); setEtapeContact(true); }}>Continuer</button>}
         {step === 3 && anonyme && etapeContact && (
-          <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online || !contactValide(contact)} onClick={computePrice}>
+          <button className="btn primary" type="button" disabled={Boolean(stepError) || busy || !online || !contactValide(contact)} onClick={() => computePrice(false)}>
             {busy ? "Calcul de votre prix…" : "Voir mon prix"}
+          </button>
+        )}
+        {step === 3 && anonyme && etapeContact && !busy && (
+          <button className="btn ghost" type="button" disabled={Boolean(stepError) || !online} onClick={() => computePrice(true)}>
+            Voir mon prix sans laisser de numéro
           </button>
         )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (

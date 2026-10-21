@@ -12,7 +12,9 @@ const SOURCES = { ads: "Google Ads", naturel: "Google naturel", direct: "Direct"
 /** Taux de passage de la colonne précédente à celle-ci (null si rien avant). */
 function tauxPassage(etapes, i) {
   if (i === 0) return null;
-  const avant = Number(etapes?.[COLONNES[i - 1][0]] || 0);
+  // 112 : le contact est facultatif ; le prix se compare aux visiteurs arrivés aux dates.
+  const precedente = COLONNES[i][0] === "prix" ? "dates" : COLONNES[i - 1][0];
+  const avant = Number(etapes?.[precedente] || 0);
   const ici = Number(etapes?.[COLONNES[i][0]] || 0);
   return avant > 0 ? Math.round((ici / avant) * 100) : null;
 }
@@ -52,7 +54,7 @@ export default function EntonnoirPanel() {
           ))}
         </tbody>
       </table>
-      <p className="muted">Visites sans compte. Le pourcentage indique la part des visiteurs de l’étape précédente qui ont atteint celle-ci ; en rouge, plus de la moitié abandonne.{lignes.some((r) => r.etapes?.erreur_prix) ? " Des erreurs de calcul de prix ont été comptées : prévenez votre développeur." : ""}</p>
+      <p className="muted">Visites sans compte. Le pourcentage indique la part des visiteurs de l’étape précédente qui ont atteint celle-ci (pour « Prix » : par rapport à « Dates », car le contact est facultatif ; « Contact » = coordonnées laissées) ; en rouge, plus de la moitié abandonne.{lignes.some((r) => r.etapes?.erreur_prix) ? " Des erreurs de calcul de prix ont été comptées : prévenez votre développeur." : ""}</p>
     </div>
   );
 }

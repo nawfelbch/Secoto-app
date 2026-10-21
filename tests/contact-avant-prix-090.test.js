@@ -39,9 +39,11 @@ test("serveur : le contact part à la base, jamais bloquant pour le prix", async
   assert.equal(await enregistrerContact(enPanne, "q1", { email: "a@b.fr" }), false);
 });
 
-test("parcours : contact obligatoire avant le prix, sans compte, téléphone d'abord", () => {
+test("parcours : contact proposé avant le prix, téléphone d'abord ; 112 : facultatif", () => {
   const b = lire("src/ondemand/OnDemandBooking.jsx");
-  assert.match(b, /if \(anonyme && !leContact\) throw new Error/);
+  assert.match(b, /if \(anonyme && !leContact && !sansContact\) throw new Error/);
+  assert.match(b, /Voir mon prix sans laisser de numéro/);
+  assert.match(b, /computePrice\(true\)/);
   assert.match(b, /publicQuote\(payload, leContact\)/);
   assert.match(b, /!contactValide\(contact\)\}/);
   assert.match(b, /Voir mon prix/);

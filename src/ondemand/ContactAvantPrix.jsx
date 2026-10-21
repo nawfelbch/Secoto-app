@@ -26,8 +26,8 @@ export default function ContactAvantPrix({ value, onChange, onSubmit }) {
       <h3 className="contact-prix-titre">Votre prix s’affiche juste après</h3>
       <p className="muted contact-prix-sous">
         {mode === "telephone"
-          ? "Laissez votre numéro : nous pourrons vous joindre au sujet de cette demande."
-          : "Laissez votre e-mail : nous pourrons vous joindre au sujet de cette demande."}
+          ? "Facultatif : laissez votre numéro pour recevoir votre prix et être rappelé si besoin."
+          : "Facultatif : laissez votre e-mail pour recevoir votre prix et un rappel avant qu’il expire."}
       </p>
 
       {mode === "telephone" ? (
