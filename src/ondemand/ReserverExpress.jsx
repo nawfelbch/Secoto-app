@@ -13,6 +13,7 @@ import { consentementPub, evenement } from "../lib/consentement";
 import { getAuthRedirectUrl, getPlatform, openExternal } from "../platform/runtime";
 import { humanizeError } from "../lib/humanError";
 import { reglementArriveeActif } from "../lib/onDemand";
+import { etapeFormulaire } from "../lib/entonnoir";
 
 export default function ReserverExpress({ onConnexion, libelle = "Réserver", arrivee: arriveeConnu }) {
   const memo = contactMemorise();
@@ -40,6 +41,7 @@ export default function ReserverExpress({ onConnexion, libelle = "Réserver", ar
   }, []);
 
   async function reserver(e) {
+    etapeFormulaire("reserver"); // 110 : comptage anonyme
     e.preventDefault();
     setErreur("");
     const probleme = verifierSaisie({ nom, email });

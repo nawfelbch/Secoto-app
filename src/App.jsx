@@ -137,6 +137,7 @@ import PaiementAFinaliser from "./ondemand/PaiementAFinaliser";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
+import EntonnoirPanel from "./ondemand/EntonnoirPanel";
 import { MissionEditPanel, PropositionAdmin, PropositionTransporteur, UrgentBadge } from "./MissionPropositions";
 import { modifierMissionAdmin } from "./lib/missionsPropositions";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
@@ -5143,6 +5144,11 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                {/* 110 : où les visiteurs abandonnent le formulaire de devis. */}
+                <details className="mission-details" style={{ marginTop: 12 }}>
+                  <summary>Entonnoir du formulaire de devis (7 derniers jours)</summary>
+                  <EntonnoirPanel />
+                </details>
                 {adminAlerts.length === 0 && (
                   <div className="alert success">
                     Rien de bloqué. Toutes les missions publiées et attribuées suivent leur cours.

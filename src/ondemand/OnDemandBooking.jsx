@@ -16,6 +16,7 @@ import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/
 import { evenement } from "../lib/consentement";
 import ContactAvantPrix from "./ContactAvantPrix";
 import ReserverExpress from "./ReserverExpress";
+import { etapeFormulaire } from "../lib/entonnoir";
 import { contactMemorise, contactValide, memoriserContact, telephoneLisible } from "../lib/contactDevis";
 
 const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
@@ -108,6 +109,16 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   });
   const [contactEnvoye, setContactEnvoye] = useState(null);
 
+  // 110 : comptage anonyme des étapes atteintes (une fois par visite).
+  useEffect(() => {
+    if (initialQuote) return;
+    const nom = ["arrivee", "trajet", "vehicule", "mode"][step];
+    if (nom) etapeFormulaire(nom, { connecte: !anonyme });
+  }, [step, initialQuote, anonyme]);
+  useEffect(() => {
+    if (etapeContact) etapeFormulaire("dates", { connecte: !anonyme });
+  }, [etapeContact, anonyme]);
+
   useEffect(() => {
     const on = () => setOnline(true);
     const off = () => setOnline(false);
@@ -177,6 +188,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   async function computePrice() {
     setBusy(true);
     setError("");
+    etapeFormulaire(anonyme ? "contact" : "dates", { connecte: !anonyme });
     try {
       const payload = {
         mode: form.mode,
@@ -211,8 +223,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       setOffre(offreParDefaut(result.quote?.offres, result.quote?.id));
       // 088 : prix vu par le visiteur (mesure, avec son accord seulement).
       if (result.quote?.client_price_cents != null) evenement("prix_affiche", { service: payload.mode || "" }, { eventId: `prix-${result.quote.id}` });
+      etapeFormulaire("prix", { connecte: !anonyme });
       setStep(4);
     } catch (e) {
+      etapeFormulaire("erreur_prix", { connecte: !anonyme });
       setError(humanizeError(e));
     } finally {
       setBusy(false);
@@ -231,6 +245,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   }, [reserverAussitot, quote?.id, quote?.status]);
 
   async function book() {
+    etapeFormulaire("reserver", { connecte: !anonyme });
     setBusy(true);
     setError("");
     try {
@@ -500,7 +515,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
             </div>
           )}
           {anonyme && !["priced", "manual_priced"].includes(quote.status) && quote.status !== "expired" && (
-            <CompteCta prix={false} onCompte={(mode) => onNeedAccount?.(quote, mode)} />
+            <CompteCta prix={false} onCompte={(mode) => { etapeFormulaire("reserver"); onNeedAccount?.(quote, mode); }} />
           )}
         </div>
       )}
