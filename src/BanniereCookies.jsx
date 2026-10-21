@@ -23,10 +23,10 @@ export default function BanniereCookies() {
 
   return (
     <div className="cookies-bandeau" role="dialog" aria-modal="false" aria-labelledby="cookies-titre">
+      {/* 113 : bandeau compact — l'ancien recouvrait le formulaire sur mobile. */}
       <div className="cookies-carte">
-        <p id="cookies-titre" className="cookies-titre">Cookies de mesure publicitaire</p>
         <p className="cookies-texte">
-          Avec votre accord, Google et Meta mesurent quelles publicités nous amènent des clients. Sans accord, rien n’est déposé et l’application fonctionne exactement pareil.{" "}
+          <strong id="cookies-titre">Cookies de mesure publicitaire</strong> (Google, Meta) : seulement avec votre accord, l’application marche pareil sans.{" "}
           <a href="/politique-confidentialite.html#cookies" target="_blank" rel="noopener noreferrer">En savoir plus</a>
         </p>
         <div className="cookies-actions">

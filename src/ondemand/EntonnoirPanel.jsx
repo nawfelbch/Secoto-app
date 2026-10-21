@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 const COLONNES = [
-  ["arrivee", "Arrivée"], ["trajet", "Trajet"], ["vehicule", "Véhicule"], ["mode", "Mode"],
+  ["arrivee", "Arrivée"], ["adresse_saisie", "Tape une adresse"], ["adresse_choisie", "Choisit une adresse"], ["trajet", "Trajet validé"], ["vehicule", "Véhicule"], ["mode", "Mode"],
   ["dates", "Dates"], ["contact", "Contact"], ["prix", "Prix"], ["reserver", "Réserver"],
 ];
 const SOURCES = { ads: "Google Ads", naturel: "Google naturel", direct: "Direct", autre: "Autre" };

@@ -26,6 +26,7 @@ test("un visiteur anonyme compte ses étapes une fois ; l'admin lit l'entonnoir 
   await etape(v1, "arrivee"); // doublon ignoré
   for (const e of ["arrivee", "trajet"]) await etape(v2, e);
   await etape(v2, "pirate"); // étape inconnue ignorée
+  await etape(v2, "adresse_saisie"); await etape(v2, "adresse_choisie"); // 113
   await etape(randomUUID(), "arrivee", "nimporte");
   assert.equal((await sql("select count(*)::int n from public.entonnoir_etapes where visite=$1", [v1]))[0].n, 7);
   assert.equal((await sql("select count(*)::int n from public.entonnoir_etapes where etape='pirate'"))[0].n, 0);
@@ -39,5 +40,7 @@ test("un visiteur anonyme compte ses étapes une fois ; l'admin lit l'entonnoir 
   assert.equal(ads.etapes.arrivee, 2);
   assert.equal(ads.etapes.trajet, 2);
   assert.equal(ads.etapes.prix, 1);
+  assert.equal(ads.etapes.adresse_saisie, 1);
+  assert.equal(ads.etapes.adresse_choisie, 1);
   await assert.rejects(as(null, "select public.secoto_admin_entonnoir(7)", [], "anon"), /./);
 });

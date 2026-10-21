@@ -170,6 +170,8 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .entonnoir th, .entonnoir td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border, rgba(255,255,255,0.08)); white-space: nowrap; }
 .entonnoir-fuite { color: #ef4444; font-weight: 600; }
 
+/* 113 : aide sous le champ adresse */
+.ac-aide { color: #f59e0b; font-weight: 600; }
 /* 111 : mode de règlement choisi */
 .od-reglement { margin: 4px 0; }
 .od-reglement.is-especes { color: #f59e0b; font-weight: 600; }

@@ -318,8 +318,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
 
       {step === 0 && (
         <div className="form-grid">
-          <VerifiedAddressField label="Adresse de prise en charge" value={form.pickup} onChange={(v) => setForm((f) => ({ ...f, pickup: v }))} required />
-          <VerifiedAddressField label="Adresse de livraison" value={form.delivery} onChange={(v) => setForm((f) => ({ ...f, delivery: v }))} required />
+          <VerifiedAddressField label="Adresse de prise en charge" value={form.pickup} onSaisie={() => etapeFormulaire("adresse_saisie", { connecte: !anonyme })} onChange={(v) => { if (v?.verified) etapeFormulaire("adresse_choisie", { connecte: !anonyme }); setForm((f) => ({ ...f, pickup: v })); }} required />
+          <VerifiedAddressField label="Adresse de livraison" value={form.delivery} onSaisie={() => etapeFormulaire("adresse_saisie", { connecte: !anonyme })} onChange={(v) => { if (v?.verified) etapeFormulaire("adresse_choisie", { connecte: !anonyme }); setForm((f) => ({ ...f, delivery: v })); }} required />
         </div>
       )}
 

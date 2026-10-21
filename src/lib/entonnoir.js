@@ -9,7 +9,7 @@ import { supabase } from "../supabaseClient";
 import { lireAttribution } from "./attribution";
 
 const CLE_VISITE = "secoto:visite-entonnoir";
-export const ETAPES = Object.freeze(["arrivee", "trajet", "vehicule", "mode", "dates", "contact", "prix", "erreur_prix", "reserver"]);
+export const ETAPES = Object.freeze(["arrivee", "adresse_saisie", "adresse_choisie", "trajet", "vehicule", "mode", "dates", "contact", "prix", "erreur_prix", "reserver"]);
 const envoyees = new Set();
 
 /** Provenance réduite à 4 valeurs : ads, naturel, direct, autre. */

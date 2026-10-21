@@ -11,7 +11,7 @@ import { SCORE_FRANCE_SUR, doitChercherEtranger, nomPays } from "../lib/adresses
 //     ne trouve rien de sûr, ou tout de suite si le client choisit
 //     « Adresse hors de France ».
 
-export default function VerifiedAddressField({ label, value, onChange, required = false }) {
+export default function VerifiedAddressField({ label, value, onChange, required = false, onSaisie = null }) {
   const [text, setText] = useState(value?.label || "");
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
@@ -30,7 +30,8 @@ export default function VerifiedAddressField({ label, value, onChange, required 
 
   function search(q, forceHorsFrance = horsFrance) {
     clearTimeout(timer.current);
-    if (q.trim().length < 4) { setItems([]); setOpen(false); return; }
+    // 113 : dès 3 lettres (Pau, Gap, Dax…).
+    if (q.trim().length < 3) { setItems([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
       controller.current?.abort();
       controller.current = new AbortController();
@@ -87,7 +88,7 @@ export default function VerifiedAddressField({ label, value, onChange, required 
   function basculerHorsFrance() {
     const suivant = !horsFrance;
     setHorsFrance(suivant);
-    if (text.trim().length >= 4) search(text, suivant);
+    if (text.trim().length >= 3) search(text, suivant);
   }
 
   const verified = Boolean(value?.verified && value.label === text);
@@ -107,7 +108,12 @@ export default function VerifiedAddressField({ label, value, onChange, required 
         onChange={(e) => {
           setText(e.target.value);
           onChange(null);
+          onSaisie?.();
           search(e.target.value);
+        }}
+        onBlur={() => {
+          // 113 : ville tapée sans toucher la liste -> la 1re proposition est retenue.
+          if (!verified && status !== "loading" && items.length > 0 && text.trim().length >= 3) choose(items[0]);
         }}
         onKeyDown={(e) => {
           if (!open || !items.length) return;
@@ -133,7 +139,7 @@ export default function VerifiedAddressField({ label, value, onChange, required 
         </ul>
       )}
       {status === "error" && <small className="muted">Recherche d’adresse indisponible (réseau). Réessayez.</small>}
-      {text && !verified && status !== "error" && <small className="muted">Choisissez l’adresse dans la liste pour la vérifier.</small>}
+      {text && !verified && status !== "error" && <small className="ac-aide">Touchez une adresse dans la liste pour continuer.</small>}
       {verified && <small className="muted">Adresse vérifiée · {[value.postcode, value.city].filter(Boolean).join(" ")}{pays ? ` · ${pays}` : ""}</small>}
       <button type="button" className="ac-hors-france" onClick={basculerHorsFrance}>
         {horsFrance ? "Revenir aux adresses en France" : "Adresse hors de France ?"}
