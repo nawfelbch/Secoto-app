@@ -86,6 +86,16 @@ export const MODES_REGLEMENT = [
   { cle: "especes", libelle: "Espèces", detail: `Vous payez le transporteur en main propre à l’arrivée (${PLAFOND_ESPECES_EUR.toLocaleString("fr-FR")} € maximum). La carte n’est prélevée que si le paiement n’est pas fait.` },
 ];
 export const MODE_REGLEMENT_LIBELLE = Object.fromEntries(MODES_REGLEMENT.map((m) => [m.cle, m.libelle]));
+// 111 : mode de règlement choisi, lisible d'un coup d'œil (admin et transporteur).
+const REGLEMENT_COURT = {
+  carte: "💳 Carte bancaire (prélevée à l’arrivée)",
+  klarna: "💳 Klarna en plusieurs fois",
+  virement: "🏦 Virement bancaire",
+  especes: "💶 Espèces au transporteur",
+};
+export function libelleReglement(cle) {
+  return REGLEMENT_COURT[cle] || (cle ? String(cle) : "Non renseigné");
+}
 // Modes proposés pour cette commande : espèces dans la limite légale, virement si l'IBAN SECOTO est renseigné.
 export function modesReglementPossibles(order) {
   return MODES_REGLEMENT.filter((m) => (m.cle !== "especes" || order?.especes_possible !== false)

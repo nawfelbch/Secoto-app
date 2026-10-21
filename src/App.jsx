@@ -144,7 +144,7 @@ import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
 import PaiementDirectPanel from "./ondemand/PaiementDirectPanel";
-import { acceptMission, admin as adminOD, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
+import { acceptMission, admin as adminOD, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, libelleReglement, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
 import {
   buildApplicationRpcPayload,
@@ -991,6 +991,8 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
       <p><strong>Contact :</strong> {mission.clientContact || "Non renseigné"}</p>
       <p><strong>Téléphone :</strong> {mission.clientPhone || "Non renseigné"}</p>
       <p><strong>Immatriculation :</strong> {mission.plate || "Non renseignée"}</p>
+      {/* 111 : le transporteur doit savoir s'il encaisse des espèces. */}
+      <p className={`od-reglement${mission.paymentMethod === "especes" ? " is-especes" : ""}`}><strong>Règlement :</strong> {libelleReglement(mission.paymentMethod)}</p>
       {/* Montants visibles uniquement par l'admin (cloisonnement marge/coût). */}
       {visiblePricing === "admin" && (
         <>

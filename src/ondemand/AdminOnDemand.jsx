@@ -1,7 +1,7 @@
 import { humanizeError } from "../lib/humanError";
 import AdminOffres from "./AdminOffres";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { admin, formatCents, formatDateTime, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
+import { admin, formatCents, formatDateTime, libelleReglement, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 import { telephoneLisible } from "../lib/contactDevis";
 import { lienCourt, messageDevisSms } from "../lib/messageDevis";
 import { DEVIS_AFFICHES, devisTarifesValides, filtrerDevis } from "../lib/devisAdmin";
@@ -149,6 +149,9 @@ function AdminOrders({ orders, busy, run, transporters, relation = false }) {
         Client {formatCents(o.client_price_cents)} · partenaire {formatCents(o.partner_pay_cents)} · <strong>marge {formatCents(o.margin_cents)}</strong>
         {o.funding === "subscription" ? " · forfait" : ` · ${PAYMENT_STATE_LABEL[o.payment_status] || "—"}`}
       </p>
+      {o.mode_reglement && (
+        <p className={`od-reglement${o.mode_reglement === "especes" ? " is-especes" : ""}`}><strong>Règlement choisi :</strong> {libelleReglement(o.mode_reglement)}</p>
+      )}
       <p className="muted">
         Tour {o.dispatch_round} · {o.offers?.sent || 0} proposition(s) en cours, {o.offers?.seen || 0} vue(s), {o.offers?.declined || 0} refus, {o.offers?.unanswered || 0} sans réponse
         {o.offers_expire_at ? ` · tour valable jusqu’à ${formatDateTime(o.offers_expire_at)}` : ""}
