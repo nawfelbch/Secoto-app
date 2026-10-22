@@ -22,7 +22,7 @@ test("API admin : supprimer, restaurer, corbeille", () => {
 });
 
 test("écran : bouton sur chaque carte, confirmation dans la carte (pas de fenêtre système), corbeille", () => {
-  assert.equal((ECRAN.match(/<SupprimerDevis q=\{q\} busy=\{busy\} run=\{run\} \/>/g) || []).length, 2);
+  assert.equal((ECRAN.match(/<SupprimerDevis q=\{q\} busy=\{busy\} run=\{run\} \/>/g) || []).length, 4); // 116 : + « à prévenir » et « date passée »
   assert.match(ECRAN, /Confirmer la suppression/);
   assert.match(ECRAN, /<DevisSupprimes busy=\{busy\} run=\{run\} \/>/);
   const bloc = ECRAN.slice(ECRAN.indexOf("function SupprimerDevis"), ECRAN.indexOf("function AdminQuotes"));

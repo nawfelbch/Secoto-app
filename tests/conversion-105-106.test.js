@@ -19,5 +19,6 @@ test("relances et zéro devis manuel : branchés et réglables", () => {
   for (const motif of ["luxury_pct", "constraint_client_eur", "short_notice_pct", "od_distance_estimee", "od_hors_zone", "Ajustement tarifaire"]) {
     assert.ok(m105.includes(motif), motif);
   }
-  assert.match(lire("src/App.jsx"), /devis à rappeler \(téléphone seul\)/);
+  // 116 : « à rappeler » devient « à prévenir par message ».
+  assert.match(lire("src/App.jsx"), /devis à prévenir par message \(téléphone seul\)/);
 });

@@ -10,6 +10,23 @@ export function lienCourt(url) {
   return String(url || "").replace("/.netlify/functions/devis-pay?", "/payer?");
 }
 
+// 116 : le message prédéfini part du téléphone de l'admin (SMS ou WhatsApp).
+// WhatsApp veut le numéro international sans « + » : 06… → 336…
+export function numeroWhatsApp(tel) {
+  const d = String(tel || "").replace(/\D/g, "");
+  if (d.startsWith("00")) return d.slice(2);
+  if (d.length === 10 && d.startsWith("0")) return `33${d.slice(1)}`;
+  return d;
+}
+
+export function lienSms(tel, texte) {
+  return `sms:${String(tel || "").replace(/[^\d+]/g, "")}?&body=${encodeURIComponent(texte || "")}`;
+}
+
+export function lienWhatsApp(tel, texte) {
+  return `https://wa.me/${numeroWhatsApp(tel)}?text=${encodeURIComponent(texte || "")}`;
+}
+
 // Prénom seulement s'il ressemble à un vrai nom (pas « Demande sans compte »,
 // pas une adresse e-mail, pas un nom de société en majuscules).
 export function prenomClient(nom) {

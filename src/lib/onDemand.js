@@ -364,6 +364,10 @@ export const admin = {
   // vaut reservation.
   quotePaymentLink: (quoteId, days = 30) =>
     rpc("secoto_admin_devis_link_quote", { p_quote: quoteId, p_validity_days: days }),
+  // 116 : devis « téléphone seul » — message prédéfini envoyé par l'admin,
+  // préparé (devis expiré réactivé, lien de paiement) puis tracé.
+  preparerMessage: (quoteId) => rpc("secoto_admin_devis_message_preparer", { p_quote: quoteId }),
+  messageEnvoye: (quoteId, canal) => rpc("secoto_admin_devis_message_envoye", { p_quote: quoteId, p_canal: canal }),
   rebroadcast: (id) => rpc("secoto_admin_od_rebroadcast", { p_order_id: id }),
   setPartnerPay: (id, cents, override, note) => rpc("secoto_admin_od_set_partner_pay", { p_order_id: id, p_partner_pay_cents: cents, p_override: override, p_note: note }),
   lockForPartner: (orderId, partnerId) => callFunction("offer-accept", { adminOrderId: orderId, partnerId }),
