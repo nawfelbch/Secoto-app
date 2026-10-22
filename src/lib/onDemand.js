@@ -233,6 +233,9 @@ export const cancelOrder = (orderId) => rpc("secoto_od_cancel_order", { p_order_
 export const cancelPreview = (orderId) => rpc("secoto_od_cancel_quote_preview", { p_order_id: orderId });
 // 100 : règlement à l'arrivée — mode choisi par le client (avant confirmation du transporteur).
 export const choisirReglement = (orderId, mode) => rpc("secoto_od_choisir_reglement", { p_order_id: orderId, p_mode: mode });
+// 115 : contacts à l'enlèvement et à la livraison ({ nom, telephone }).
+export const enregistrerContactsSurPlace = (orderId, enlevement, livraison) =>
+  rpc("secoto_od_contacts_sur_place", { p_order_id: orderId, p_enlevement: enlevement, p_livraison: livraison });
 // 100 : transporteur — règlements en espèces à confirmer et marges SECOTO dues.
 export const mesReglements = () => rpc("secoto_mes_reglements", {});
 export const declarerEspeces = (orderId, recu) => rpc("secoto_reglement_especes", { p_order_id: orderId, p_recu: Boolean(recu) });

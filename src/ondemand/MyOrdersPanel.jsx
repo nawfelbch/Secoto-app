@@ -13,6 +13,7 @@ import {
 } from "../lib/onDemand";
 import { memoriserOffre } from "../lib/offres";
 import { ChoixReglement, ReglementLivraison } from "./ReglementArrivee";
+import ContactsSurPlace from "./ContactsSurPlace";
 
 // 099 : temps restant dans la fenêtre de prise en charge, en clair.
 function resteFenetre(fin) {
@@ -137,6 +138,10 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
                   setBusyId(order.id);
                   try { await payNow(order.payment_id); } catch (e) { setError(humanizeError(e)); } finally { setBusyId(null); load(); }
                 }} />
+              )}
+              {/* 115 : qui contacter à l'enlèvement et à la livraison. */}
+              {["awaiting_payment", "searching_partner", "partner_locked", "partner_confirmed", "picked_up"].includes(order.status) && (
+                <ContactsSurPlace order={order} onChange={(o) => setOrders((list) => (list || []).map((x) => (x.id === o.id ? o : x)))} />
               )}
               {order.partner_contact
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
