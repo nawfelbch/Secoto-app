@@ -66,7 +66,31 @@
 
 # Référencement : l'app n'est jamais indexée (le site vitrine secoto-transport.fr
 # porte le contenu public). Complète la balise robots de index.html.
+#
+# En-têtes de sécurité (22/10/2026). Choisis pour ne rien bloquer du parcours
+# client (paiement Stripe / Apple Pay, liens /payer et /m/{token}, suivi,
+# publicités consenties) :
+# - HSTS : le navigateur refuse tout retour en HTTP (sans includeSubDomains,
+#   pour ne pas toucher aux autres sous-domaines).
+# - nosniff : le navigateur n'interprète pas un fichier autrement que son type.
+# - X-Frame-Options : l'app ne peut pas être affichée dans le cadre d'un autre
+#   site (anti-clickjacking sur les pages de paiement). Aucun site de SECOTO
+#   n'intègre l'app dans une iframe ; les aperçus de documents sont des iframes
+#   internes de même origine.
+# - Referrer-Policy : les liens à jeton (/payer?t=, /m/…) ne fuient jamais en
+#   entier vers GTM, Meta, Geoapify, etc.
+# - Permissions-Policy : coupe micro, USB, série et Bluetooth, jamais utilisés
+#   par l'app. Caméra, géolocalisation et paiement restent autorisés.
+# - CSP en MODE RAPPORT SEULEMENT (Content-Security-Policy-Report-Only) : elle
+#   ne bloque rien. Elle liste dans la console du navigateur ce qui sortirait
+#   de la liste, pour la resserrer puis la passer en blocage sans risque.
 [[headers]]
   for = "/*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
+    Strict-Transport-Security = "max-age=31536000"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "microphone=(), usb=(), serial=(), bluetooth=()"
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://www.googletagmanager.com https://connect.facebook.net https://pay.google.com https://applepay.cdn-apple.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api-adresse.data.gouv.fr https://api.geoapify.com https://router.project-osrm.org https://*.tile.openstreetmap.org https://www.google-analytics.com https://*.google-analytics.com https://*.googletagmanager.com https://www.google.com https://www.googleadservices.com https://stats.g.doubleclick.net https://www.facebook.com https://connect.facebook.net; frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://www.googletagmanager.com https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
