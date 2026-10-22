@@ -276,6 +276,9 @@ async function fetchPublicMissions(limit) {
   const query = (columns) => supabase.from("secoto_public_missions_v2").select(columns)
     .order("created_at", { ascending: false }).limit(limit);
   const colonneAbsente = (r) => r.error && /column|colonne|42703/i.test(`${r.error.code} ${r.error.message}`);
+  // 114 : « commande » = course issue d'une réservation client, à prix fixe.
+  const avecCommande = await query(`${PUBLIC_MISSION_COLUMNS},commande`);
+  if (!colonneAbsente(avecCommande)) return avecCommande;
   const result = await query(PUBLIC_MISSION_COLUMNS);
   if (!colonneAbsente(result)) return result;
   // 101 pas encore appliquée : on garde la rémunération, sans la pastille URGENT.

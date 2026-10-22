@@ -149,7 +149,30 @@ export function PropositionAdmin({ mission, application, onSaved, onNotice, onEr
  * Plateau : un prix + une date (modifiables tant que SECOTO n'a pas tranché).
  * Convoyage : « Accepter » la date renseignée, ou proposer une autre date.
  */
-export function PropositionTransporteur({ mission, maProposition, disabled, onAccepter, onRefuser, onEnvoyee, onNotice, onError }) {
+export function PropositionTransporteur(props) {
+  // 114 : course issue d'une commande client : prix et date fixés, on accepte.
+  return props.mission?.commande ? <CommandeAPrixFixe {...props} /> : <PropositionLibre {...props} />;
+}
+
+function CommandeAPrixFixe({ mission, disabled, onAccepter, onRefuser }) {
+  return (
+    <>
+      <p className="od-offer-pay">{Number(mission.carrierPay || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
+      <p className="muted">
+        Course réservée par un client, à prix fixe. Votre rémunération est versée sous 48 h après la livraison.
+        Véhicule {mission.vehicleRolling === false ? "NON ROULANT" : "roulant"}.
+      </p>
+      <div className="actions-row">
+        <button className="btn primary small" type="button" disabled={disabled} onClick={onAccepter}>
+          {mission.missionDate ? `Accepter (enlèvement le ${formatDateTime(mission.missionDate)})` : "Accepter"}
+        </button>
+        <button className="btn ghost small" type="button" disabled={disabled} onClick={onRefuser}>Refuser</button>
+      </div>
+    </>
+  );
+}
+
+function PropositionLibre({ mission, maProposition, disabled, onAccepter, onRefuser, onEnvoyee, onNotice, onError }) {
   const plateau = mission.type === "plateau";
   const enAttente = maProposition?.status === "pending";
   const [ouvert, setOuvert] = useState(plateau && !maProposition);

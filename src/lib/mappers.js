@@ -158,6 +158,8 @@ export function publicMissionFromDb(row) {
     vehicleRolling: row.vehicle_rolling ?? null,
     carrierPay: row.carrier_pay ?? null,
     urgent: row.urgent === true,
+    // 114 : course issue d'une commande client — acceptation directe au prix affiché.
+    commande: row.commande === true,
   };
 }
 
