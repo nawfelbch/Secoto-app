@@ -3,7 +3,7 @@ import AdminOffres from "./AdminOffres";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { admin, formatCents, formatDateTime, libelleReglement, ORDER_STATUS_LABEL, PAYMENT_STATE_LABEL, toCsv } from "../lib/onDemand";
 import { telephoneLisible } from "../lib/contactDevis";
-import { lienCourt, messageDevisSms } from "../lib/messageDevis";
+import { lienCourt, lienSms, lienWhatsApp, messageDevisSms } from "../lib/messageDevis";
 import { DEVIS_AFFICHES, devisTarifesValides, filtrerDevis } from "../lib/devisAdmin";
 
 const TABS = [
@@ -90,8 +90,9 @@ export default function AdminOnDemand({ flags, onFlagsChange, transporters = [],
   async function run(work, successMessage) {
     setBusy(true); setError(""); setMessage("");
     try {
-      await work();
-      if (successMessage) setMessage(successMessage);
+      const resultat = await work();
+      // 116 : le message peut dépendre du résultat (e-mail parti ou non).
+      if (successMessage) setMessage(typeof successMessage === "function" ? successMessage(resultat) : successMessage);
       await load(tab);
     } catch (e) {
       setError(humanizeError(e));
@@ -313,6 +314,24 @@ function DevisSupprimes({ busy, run }) {
   );
 }
 
+// 116 : canal du dernier message envoyé au client, en clair.
+const CANAL_MESSAGE = { sms: "SMS", whatsapp: "WhatsApp", appel: "appel" };
+
+// Heures de validité restantes, pour la phrase « prix garanti … » du message.
+function heuresRestantes(iso) {
+  return iso ? Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 3600000)) : 0;
+}
+
+function TraceMessage({ q }) {
+  if (!q?.dernier_message) return <p className="od-pill is-warn" style={{ display: "inline-block" }}>Aucun message envoyé : le client ne connaît pas ce prix</p>;
+  return (
+    <p className="muted">
+      Dernier contact : {CANAL_MESSAGE[q.dernier_message.canal] || q.dernier_message.canal} le {formatDateTime(q.dernier_message.le)}
+      {Number(q.nb_messages) > 1 ? ` (${q.nb_messages} au total)` : ""}
+    </p>
+  );
+}
+
 function AdminQuotes({ quotes, busy, run, flags }) {
   const [form, setForm] = useState({});
   // Dernier lien fabrique : la carte disparait des que le devis est tarife,
@@ -321,9 +340,37 @@ function AdminQuotes({ quotes, busy, run, flags }) {
   const [copie, setCopie] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [toutVoir, setToutVoir] = useState(false);
+  // Heure de référence de l'écran (devis périmés), figée au montage.
+  const [maintenant] = useState(() => new Date());
+
+  // Fiche du message à envoyer (lien de paiement + texte prédéfini).
+  function afficherLien(quote, resultat, validiteHeures) {
+    setLien({
+      quoteId: quote.id,
+      url: lienCourt(resultat?.url || ""),
+      amountCents: Number(resultat?.amount_cents || 0),
+      client: quote.client_name || "",
+      phone: quote.client_phone || "",
+      trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
+      pickupAt: quote.pickup_at || null,
+      mode: quote.mode,
+      vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
+      validiteHeures: Number(validiteHeures) || 0,
+      envoye: null,
+    });
+    setCopie(false);
+  }
+
+  // 116 : le serveur dit si le client a été prévenu par e-mail ; sinon, c'est
+  // à l'admin d'envoyer le message.
+  const bilanChiffrage = (r) => (r?.email_envoye
+    ? "Devis chiffré : e-mail envoyé au client avec son lien de réservation."
+    : r?.telephone_seul
+      ? "Devis chiffré. Ce client n’a laissé qu’un numéro : envoyez-lui le message ci-dessus."
+      : "Devis chiffré. Aucun e-mail connu pour ce client : prévenez-le vous-même.");
 
   async function envoyerAvecLien(quote, f) {
-    await admin.priceQuote(
+    const r = await admin.priceQuote(
       quote.id,
       Math.round(Number(f.client) * 100),
       Math.round(Number(f.partner) * 100),
@@ -332,61 +379,76 @@ function AdminQuotes({ quotes, busy, run, flags }) {
       f.override,
     );
     const resultat = await admin.quotePaymentLink(quote.id, 30);
-    setLien({
-      quoteId: quote.id,
-      url: lienCourt(resultat?.url || ""),
-      amountCents: Number(resultat?.amount_cents || 0),
-      client: quote.client_name || "",
-      phone: quote.client_phone || "",
-      trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
-      pickupAt: quote.pickup_at || null,
-      mode: quote.mode,
-      vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
-      validiteHeures: Number(f.hours) || 0,
-    });
-    setCopie(false);
-    return resultat;
+    afficherLien(quote, resultat, f.hours);
+    return r;
+  }
+
+  // 116 : devis « téléphone seul » (même expiré, si l'enlèvement est à venir).
+  async function preparerMessage(quote) {
+    const resultat = await admin.preparerMessage(quote.id);
+    afficherLien(quote, resultat, heuresRestantes(resultat?.valid_until));
+  }
+
+  // Trace de l'envoi : le message part du téléphone de l'admin, l'appel peut suivre.
+  function tracer(canal) {
+    const l = lien;
+    if (!l?.quoteId) return;
+    setLien({ ...l, envoye: canal });
+    run(() => admin.messageEnvoye(l.quoteId, canal),
+      canal === "appel" ? "Appel noté sur le devis." : `${CANAL_MESSAGE[canal]} noté sur le devis : vous pouvez appeler le client maintenant.`);
   }
 
   // SMS au client : voir src/lib/messageDevis.js.
   const messageSms = (l) => messageDevisSms({ ...l, arrivee: flags?.reglement_arrivee !== false });
   if (!quotes) return <p className="muted">Chargement…</p>;
-  const pending = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
+  const aChiffrer = quotes.filter((q) => ["manual_review", "manual_priced"].includes(q.status));
+  // 116 : un devis dont la date d'enlèvement est passée ne se chiffre plus,
+  // il se classe.
+  const perime = (q) => q.status === "manual_review" && q.pickup_at && new Date(q.pickup_at) <= maintenant;
+  const pending = aChiffrer.filter((q) => !perime(q));
+  const perimes = aChiffrer.filter(perime);
+  // 116 : sans compte ni e-mail, le client ne sait rien tant qu'on ne lui a
+  // pas écrit. Ceux sans message d'abord.
+  const aPrevenir = quotes.filter((q) => q.telephone_seul)
+    .sort((a, b) => Number(Boolean(a.dernier_message)) - Number(Boolean(b.dernier_message)));
+  const sansMessage = aPrevenir.filter((q) => !q.dernier_message).length;
   // Un devis deja tarife quittait cette liste : si le lien n'avait pas pu etre
   // cree, plus aucun ecran ne permettait de le refabriquer.
   // Tous restent accessibles : 12 affichés, le reste sur « Voir tout » ou
   // par la recherche (ville, nom, téléphone, e-mail).
-  const tarifes = devisTarifesValides(quotes);
+  const tarifes = devisTarifesValides(quotes).filter((q) => !q.telephone_seul);
   const trouves = filtrerDevis(tarifes, recherche);
   const affiches = toutVoir || recherche.trim() ? trouves : trouves.slice(0, DEVIS_AFFICHES);
 
   async function creerLien(quote) {
     const resultat = await admin.quotePaymentLink(quote.id, 30);
-    setLien({
-      quoteId: quote.id,
-      url: lienCourt(resultat?.url || ""),
-      amountCents: Number(resultat?.amount_cents || 0),
-      client: quote.client_name || "",
-      phone: quote.client_phone || "",
-      trajet: `${quote.pickup?.city || ""} → ${quote.delivery?.city || ""}`,
-      pickupAt: quote.pickup_at || null,
-      mode: quote.mode,
-      vehicules: Array.isArray(quote.vehicles) ? quote.vehicles.length : 1,
-    });
-    setCopie(false);
+    afficherLien(quote, resultat, 0);
     return resultat;
   }
   return (
     <>
       {lien && (
         <article className="mission-card" style={{ marginBottom: 14 }}>
-          <div className="card-top"><span className="badge">lien de paiement</span></div>
+          <div className="card-top"><span className="badge">message au client</span></div>
           <h3>{lien.trajet}</h3>
           <p className="muted">
-            {lien.client} · {(lien.amountCents / 100).toFixed(2).replace(".", ",")} € · valable 30 jours
+            {lien.client} · {(lien.amountCents / 100).toFixed(2).replace(".", ",")} € · lien de paiement prêt
           </p>
-          <p style={{ wordBreak: "break-all", fontSize: 13 }}>{lien.url}</p>
+          <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, margin: "8px 0" }}>{messageSms(lien)}</pre>
           <div className="actions-row" style={{ flexWrap: "wrap" }}>
+            <a className="btn primary small" href={lienSms(lien.phone, messageSms(lien))} onClick={() => tracer("sms")}>
+              Envoyer par SMS
+            </a>
+            {lien.phone && (
+              <a className="btn ghost small" href={lienWhatsApp(lien.phone, messageSms(lien))} target="_blank" rel="noreferrer" onClick={() => tracer("whatsapp")}>
+                WhatsApp
+              </a>
+            )}
+            {lien.phone && (
+              <a className={`btn small ${lien.envoye ? "primary" : "ghost"}`} href={`tel:${lien.phone}`} onClick={() => tracer("appel")}>
+                Appeler {telephoneLisible(lien.phone)}
+              </a>
+            )}
             <button className="btn ghost small" type="button"
               onClick={async () => {
                 try {
@@ -396,13 +458,36 @@ function AdminQuotes({ quotes, busy, run, flags }) {
               }}>
               {copie ? "Lien copié" : "Copier le lien"}
             </button>
-            <a className="btn primary small" href={`sms:${lien.phone || ""}?&body=${encodeURIComponent(messageSms(lien))}`}>
-              Envoyer par SMS
-            </a>
             <button className="btn ghost small" type="button" onClick={() => setLien(null)}>Masquer</button>
           </div>
+          {lien.envoye && lien.envoye !== "appel" && <p className="muted">Message noté. Appelez dans la foulée : le client a le prix sous les yeux.</p>}
           {!lien.phone && <p className="muted">Aucun numéro sur la fiche client : le message s’ouvrira sans destinataire.</p>}
         </article>
+      )}
+      {aPrevenir.length > 0 && (
+        <details open={sansMessage > 0} style={{ marginBottom: 14 }}>
+          <summary><strong>À prévenir par message ({sansMessage} sans message{aPrevenir.length > sansMessage ? `, ${aPrevenir.length - sansMessage} déjà contactés` : ""})</strong></summary>
+          <p className="muted">Ces clients n’ont laissé qu’un numéro : aucun e-mail ne leur part. Envoyez le message prérempli (SMS ou WhatsApp), puis appelez.</p>
+          <div className="cards" style={{ marginTop: 10 }}>
+            {aPrevenir.map((q) => (
+              <article className="mission-card" key={q.id}>
+                <div className="card-top"><span className="badge">{q.mode}</span>{q.status === "expired" && <span className="od-pill is-warn">prix expiré, réactivé à l’envoi</span>}</div>
+                <h3>{q.pickup?.city} → {q.delivery?.city}</h3>
+                <p className="muted">
+                  {formatCents(q.client_price_cents)} · prise en charge {formatDateTime(q.pickup_at)} · {telephoneLisible(q.client_phone)}
+                </p>
+                <TraceMessage q={q} />
+                <div className="actions-row">
+                  <button className="btn primary small" type="button" disabled={busy}
+                    onClick={() => run(() => preparerMessage(q), "Message prêt : envoyez-le, puis appelez.")}>
+                    {q.dernier_message ? "Renvoyer le message" : "Préparer le message"}
+                  </button>
+                </div>
+                <SupprimerDevis q={q} busy={busy} run={run} />
+              </article>
+            ))}
+          </div>
+        </details>
       )}
       {tarifes.length > 0 && (
         <details style={{ marginBottom: 14 }}>
@@ -447,6 +532,7 @@ function AdminQuotes({ quotes, busy, run, flags }) {
           const f = form[q.id] || { client: "", partner: "", hours: 48, note: "", override: false };
           const set = (patch) => setForm({ ...form, [q.id]: { ...f, ...patch } });
           const margin = Number(f.client) - Number(f.partner);
+          const telSeul = q.client_anonyme && !q.client_email && Boolean(q.client_phone);
           return (
             <article className="mission-card" key={q.id}>
               <div className="card-top"><span className="badge">{q.mode}</span><span className="od-pill is-warn">{q.manual_reason || q.status}</span></div>
@@ -454,6 +540,8 @@ function AdminQuotes({ quotes, busy, run, flags }) {
               <p>{q.vehicle?.model} · {q.vehicle?.class} · {q.vehicle?.rolling ? "roulant" : "NON roulant"} · {q.route?.distance_km ? `${q.route.distance_km} km` : "distance à estimer"}</p>
               <p className="muted">{q.client_name} · prise en charge {formatDateTime(q.pickup_at)} · créneau {q.schedule?.slot}</p>
               <ContactClient q={q} />
+              {telSeul && <p className="od-pill is-warn" style={{ display: "inline-block" }}>Téléphone seul : aucun e-mail ne partira. Après le chiffrage, envoyez le message prérempli.</p>}
+              {!q.client_phone && !q.client_email && <p className="od-pill is-warn" style={{ display: "inline-block" }}>Aucun contact : le client ne pourra pas être prévenu.</p>}
               {q.vehicle?.notes && <p className="muted">« {q.vehicle.notes} »</p>}
               <div className="actions-row">
                 <button className="btn ghost small" type="button" disabled={busy}
@@ -479,11 +567,12 @@ function AdminQuotes({ quotes, busy, run, flags }) {
               <label className="field"><span>Note interne</span><input value={f.note} onChange={(e) => set({ note: e.target.value })} /></label>
               <div className="actions-row" style={{ flexWrap: "wrap" }}>
                 <button className="btn primary small" type="button" disabled={busy || !f.client || !f.partner}
-                  onClick={() => run(() => envoyerAvecLien(q, f), "Devis envoyé, lien de paiement prêt.")}>
+                  onClick={() => run(() => envoyerAvecLien(q, f), bilanChiffrage)}>
                   Envoyer le devis + lien de paiement
                 </button>
                 <button className="btn ghost small" type="button" disabled={busy || !f.client || !f.partner}
-                  onClick={() => run(() => admin.priceQuote(q.id, Math.round(Number(f.client) * 100), Math.round(Number(f.partner) * 100), f.hours, f.note, f.override), "Devis transmis au client.")}>
+                  onClick={() => run(() => admin.priceQuote(q.id, Math.round(Number(f.client) * 100), Math.round(Number(f.partner) * 100), f.hours, f.note, f.override),
+                    (r) => bilanChiffrage(r).replace(" ci-dessus", ""))}>
                   Devis seul (règlement en espèces)
                 </button>
               </div>
@@ -492,6 +581,21 @@ function AdminQuotes({ quotes, busy, run, flags }) {
           );
         })}
       </div>
+      {perimes.length > 0 && (
+        <details style={{ marginTop: 14 }}>
+          <summary className="muted">Date d’enlèvement passée ({perimes.length}) — à classer</summary>
+          <div className="cards" style={{ marginTop: 10 }}>
+            {perimes.map((q) => (
+              <article className="mission-card" key={q.id}>
+                <h3>{q.pickup?.city} → {q.delivery?.city}</h3>
+                <p className="muted">{q.client_name} · prise en charge prévue {formatDateTime(q.pickup_at)}</p>
+                <ContactClient q={q} />
+                <SupprimerDevis q={q} busy={busy} run={run} />
+              </article>
+            ))}
+          </div>
+        </details>
+      )}
       <DevisSupprimes busy={busy} run={run} />
     </>
   );

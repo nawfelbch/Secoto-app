@@ -74,8 +74,10 @@ test("094 : devis à établir + tarifés valides, rien d'autre, même format que
     assert.ok(["manual_review", "manual_priced"].includes(q.status) || (q.status === "priced" && (!q.valid_until || new Date(q.valid_until) > new Date())), q.status);
   }
   // Mêmes objets (nom, téléphone…) et même ordre que secoto_admin_quotes.
+  // 116 : trois champs en plus (téléphone seul, dernier message, nombre de messages).
   const complet = (await tous(adminId)).filter((q) => ids.includes(q.id));
-  assert.deepEqual(a, complet);
+  const sans116 = a.map(({ telephone_seul, dernier_message, nb_messages, ...q }) => q);
+  assert.deepEqual(sans116, complet);
 });
 
 test("094 : réservé à l'admin, fermé aux anonymes", async () => {
