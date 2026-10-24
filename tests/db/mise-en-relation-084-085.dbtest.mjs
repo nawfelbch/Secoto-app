@@ -200,8 +200,10 @@ test("085 : barème de départ = prix inchangés voiture, utilitaire 1,25/1,10, 
   assert.deepEqual(await quoteCents({ vehicle: { model: "TEST Master", class: "utilitaire", category: "standard", rolling: true, constraints: [] } }),
     { client: 50000, partner: 44000 });
   const moto = await quoteCents({ vehicle: { model: "TEST MT-07", class: "moto", category: "standard", rolling: true, constraints: [] } }, 900);
-  assert.equal(moto.client, 38200);
-  assert.equal(moto.partner, 31833);
+  // 117 : 92 → 69 hors couloir Île-de-France ↔ 06/83/13 : plus de plafond,
+  // 400 × 0,85 + 500 × 0,68 = 680 € transporteur, × 1,2 = 816 € client.
+  assert.equal(moto.client, 81600);
+  assert.equal(moto.partner, 68000);
   const nr = await quoteCents({ vehicle: { model: "TEST 308", class: "voiture", category: "standard", rolling: false, constraints: [] } });
   assert.equal(nr.partner, 46667);
   assert.equal(nr.client, 56000);

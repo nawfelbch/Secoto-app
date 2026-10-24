@@ -129,11 +129,11 @@ test("Éco : tranches de distance, plus chère que Standard -> masquée ; moto p
   // Court trajet : l'Éco (390 €) serait plus chère que Standard -> absente.
   const q100 = await quote(ids.client, {}, 100);
   assert.equal(q100.offres.find((o) => o.cle === "eco"), undefined);
-  // Moto 900 km : Standard plafonné à 382 €, Express = 382 x 1,25.
+  // Moto 900 km, 92 → 69 (hors couloir 117) : Standard dégressif 816 €, Express = 816 x 1,25.
   const moto = await quote(ids.client, { model: "TEST Yamaha MT-07", class: "moto" }, 900);
   const std = moto.offres.find((o) => o.cle === "standard");
-  assert.equal(std.client_cents, 38200);
-  assert.equal(moto.offres.find((o) => o.cle === "express").client_cents, Math.round(38200 * 1.25));
+  assert.equal(std.client_cents, 81600);
+  assert.equal(moto.offres.find((o) => o.cle === "express").client_cents, Math.round(81600 * 1.25));
   assert.equal(moto.offres.find((o) => o.cle === "eco"), undefined);
   // Non roulant : pas d'Éco (porte-voitures).
   const nr = await quote(ids.client, { rolling: false }, 800);
