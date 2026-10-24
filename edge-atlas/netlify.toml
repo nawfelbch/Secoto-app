@@ -1,0 +1,22 @@
+# EDGE ATLAS — site statique (dossier dist) + une fonction pour FRED.
+# Binance et Twelve Data sont appelés directement par le navigateur (CORS
+# autorisé ; Binance refuse souvent les serveurs situés aux États-Unis).
+# FRED n'autorise pas l'appel direct : la fonction fred.mjs relaie la lecture.
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+  # Même dépôt que SECOTO : ne reconstruire que si edge-atlas/ a changé
+  # (chaque déploiement coûte des crédits Netlify).
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- ."
+
+[[redirects]]
+  from = "/api/fred"
+  to = "/.netlify/functions/fred"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"

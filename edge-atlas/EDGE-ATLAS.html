@@ -1,0 +1,1025 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="EDGE ATLAS : laboratoire pédagogique du trading. Macro, long et short, analyse multi-unités de temps, simulation 3D et backtests transparents."><meta name="theme-color" content="#121b19"><title>EDGE ATLAS — Comprendre. Tester. Douter.</title><style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{--paper:#eeeee6;--ink:#192723;--muted:#59665f;--line:#ced2c6;--lime:#d6ff62;--green:#2d715d;--red:#b44739;--panel:#fbfcf5}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:15px 'DM Sans',sans-serif}button,input,select{font:inherit}button,a,input,select,summary{-webkit-tap-highlight-color:transparent}a{color:inherit;text-decoration:none}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.7}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #268b75;outline-offset:4px}.skip{position:fixed;top:-80px;background:var(--lime);z-index:20;padding:20px}.skip:focus{top:0}.rail{position:fixed;width:70px;inset:0 auto 0 0;background:var(--ink);color:var(--paper);display:flex;align-items:center;flex-direction:column;z-index:5}.brand{font-size:30px;font-weight:800;line-height:1;margin-top:25px}.brand span{color:var(--lime);font-size:22px}.rail-text{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;letter-spacing:3px;margin:auto}.rail-bottom{font-size:10px;letter-spacing:2px;margin-bottom:26px}.shell{margin-left:70px}header{height:100px;margin:0 5%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);gap:20px}.wordmark{font-size:22px;font-weight:500;letter-spacing:-1px}.wordmark b{font-weight:800}.wordmark small{display:block;font:9px monospace;letter-spacing:2.2px;margin-top:6px}nav{display:flex;gap:28px;font-size:13px}nav a{padding:10px 0}nav a.active{border-bottom:2px solid var(--green)}nav a span{color:var(--green)}.source-link{font-size:11px}main{min-height:80vh}h1,h2,h3{font-family:Manrope,sans-serif;line-height:1.08;margin:0;font-weight:600}h1{font-size:clamp(48px,5.7vw,86px);letter-spacing:-5px}h2{font-size:clamp(30px,3.6vw,48px);letter-spacing:-2px}h3{font-size:23px;letter-spacing:-.7px}p{line-height:1.7}.eyebrow{font:11px monospace;letter-spacing:1.8px;text-transform:uppercase;display:flex;gap:12px;align-items:center;margin-bottom:26px}.eyebrow:before{content:'';width:7px;height:7px;background:var(--green);border-radius:50%}.hero{display:grid;grid-template-columns:1.02fr 1fr;min-height:610px;border-bottom:1px solid var(--line)}.hero-copy{padding:64px 5vw 48px}.hero h1 em{font-style:normal;color:var(--green)}.hero-copy>p{color:var(--muted);max-width:390px;margin:26px 0;font-size:15px}.actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.btn{display:inline-flex;padding:15px 22px;gap:30px;align-items:center;border:1px solid var(--ink);background:var(--ink);color:white;font-size:13px;font-weight:600}.btn.lime{background:var(--lime);border-color:var(--lime);color:var(--ink)}.btn.ghost{background:transparent;color:var(--ink)}.text-link{font-size:13px;text-decoration:underline;text-underline-offset:6px}.hero-note{font-size:10px!important;margin-top:28px!important;letter-spacing:.3px}.hero-art{position:relative;background:#142520;overflow:hidden;color:#ecf3e8;min-height:540px}.hero-art:before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 45% 45%,#31584466,transparent 70%);pointer-events:none}.art-top{position:absolute;top:30px;left:30px;right:30px;display:flex;justify-content:space-between;font:10px monospace;letter-spacing:1px;z-index:1}.pill{font:10px monospace;padding:6px 8px;border:1px solid #688578;border-radius:20px;color:#d6ff62}.hero-art canvas{width:100%;height:100%;position:absolute;inset:0;touch-action:pan-y}.art-bottom{position:absolute;bottom:30px;left:30px;right:30px;display:flex;justify-content:space-between;align-items:end;pointer-events:none}.art-bottom strong{font:28px Manrope;display:block;margin-top:8px}.art-bottom small{font:10px monospace;color:#afc2b7}.axis-note{font:10px monospace;line-height:1.9;text-align:right;color:#bfd0c5}.ticker{display:flex;justify-content:space-between;padding:21px 5%;border-bottom:1px solid var(--line);gap:18px;font:10px monospace;letter-spacing:1px}.ticker b{color:var(--green);font-weight:400}.section{padding:58px 5%}.section-head{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:32px}.section-head p{max-width:340px;color:var(--muted);margin:0;font-size:13px}.cards{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-left:1px solid var(--line)}.card{padding:28px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:rgba(255,255,255,.2);display:flex;flex-direction:column;align-items:start}.card .num{font:11px monospace;color:var(--green);margin-bottom:42px}.card h3{max-width:280px}.card p{color:var(--muted);font-size:13px;flex:1}.card a,.card button{margin-top:15px}.card:hover{background:#f9faef}.tag{font:10px monospace;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:16px}.ribbon{display:flex;gap:25px;background:var(--lime);padding:25px 5%;align-items:center;justify-content:space-between}.ribbon p{margin:0;font-size:13px;max-width:700px}.page-title{padding:48px 5% 30px}.page-title h1{font-size:58px;letter-spacing:-3px}.page-title p{max-width:760px;color:var(--muted)}.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:24px}.segmented{display:inline-flex;border:1px solid var(--line);padding:4px;gap:3px;flex-wrap:wrap}.segmented button{background:none;border:0;padding:10px 16px;color:var(--muted);font-size:12px}.segmented button.selected{background:var(--ink);color:white}.search{padding:12px 16px;border:1px solid var(--line);background:var(--panel);min-width:240px;flex:1}.progress{font:11px monospace;color:var(--green)}.lesson-card{min-height:235px}.lesson-card button{background:none;border:0;padding:0;text-align:left;color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:4px}.workspace{display:grid;grid-template-columns:330px 1fr;border:1px solid var(--line)}.controls{padding:24px;background:var(--panel);border-right:1px solid var(--line)}.controls h3{font-size:20px;margin-bottom:20px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{display:flex;flex-direction:column;gap:7px;font-size:11px;color:var(--muted)}input,select{width:100%;padding:11px 9px;border:1px solid #c4cbbd;border-radius:0;color:var(--ink);background:white}input[type=range]{padding:0;accent-color:var(--green)}label.full{grid-column:1/-1}.hint{font-size:11px;color:var(--muted);line-height:1.65}.error{color:var(--red);font-size:13px;line-height:1.6}.results{padding:26px;min-width:0}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);margin-bottom:22px}.metric{padding:16px;border-right:1px solid var(--line);min-width:0}.metric:last-child{border:0}.metric small{display:block;color:var(--muted);font-size:10px;margin-bottom:10px}.metric strong{font:600 clamp(18px,2vw,27px) Manrope}.positive{color:var(--green)}.negative{color:var(--red)}.chart{width:100%;height:240px;display:block}.lab-art{height:320px;min-height:320px}.lab-art .art-top{top:16px;left:18px;right:18px}.lab-art .art-bottom{bottom:16px;left:18px;right:18px}.notice{font-size:12px;line-height:1.7;background:#e2e5d8;border-left:3px solid var(--green);padding:16px 20px;margin:22px 0}.notice.warn{border-color:#ac6b24;background:#eee6d6}.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}details{border-bottom:1px solid var(--line);padding:20px 0}summary{cursor:pointer;font-weight:600;line-height:1.5}details p,details li{font-size:13px;line-height:1.8;color:var(--muted)}.strategy{border-top:1px solid var(--line);padding:30px 0;display:grid;grid-template-columns:1fr 2fr;gap:40px}.strategy h3{margin-bottom:14px}.strategy dl{margin:0;display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:13px;line-height:1.7}.strategy dt{font:10px monospace;text-transform:uppercase;padding-top:4px}.strategy dd{margin:0;color:var(--muted)}.source{display:grid;grid-template-columns:45px 1fr 30px;gap:20px;border-top:1px solid var(--line);padding:20px 0}.source small{font:11px monospace}.source a{text-decoration:underline;text-underline-offset:4px}.source p{margin:8px 0 0;color:var(--muted);font-size:12px}.question{padding:32px;background:var(--panel);border:1px solid var(--line);max-width:800px;margin:auto}.question h3{font-size:26px;line-height:1.4;margin-bottom:25px}.answers{display:grid;gap:10px}.answer{padding:17px;text-align:left;background:transparent;border:1px solid var(--line);line-height:1.6}.answer.correct{background:#dcebc6;border-color:var(--green);opacity:1}.answer.wrong{background:#f4d8d0;border-color:var(--red);opacity:1}.question .actions{margin-top:24px}.flow{display:grid;grid-template-columns:repeat(7,1fr);margin-top:28px;border:1px solid var(--line)}.flow button{border:0;border-right:1px solid var(--line);padding:18px 5px;background:transparent;color:var(--ink)}.flow button.active{background:var(--ink);color:var(--lime)}.flow b{display:block;font:22px Manrope}.flow small{font-size:10px}.flow-detail{padding:26px;background:var(--panel);min-height:150px;border:1px solid var(--line);border-top:0}.flow-detail p{font-size:13px;margin-bottom:0}.readable{max-width:850px}.readable h3{margin-top:32px}.readable p,.readable li{font-size:14px;line-height:1.85}.inline-source{font-size:11px;text-decoration:underline;color:var(--green);margin-right:12px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;border-bottom:1px solid var(--line);padding:12px 8px;white-space:nowrap}th{font-size:10px;color:var(--muted)}.export{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}dialog{border:1px solid var(--line);background:var(--paper);color:var(--ink);max-width:810px;width:calc(100% - 30px);padding:48px;max-height:85vh}dialog::backdrop{background:#0b1713a8;backdrop-filter:blur(6px)}dialog h2{font-size:36px;line-height:1.2;margin-bottom:26px}dialog p{font-size:14px}dialog .close{position:sticky;top:0;float:right;background:var(--ink);color:white;border:0;width:30px;height:30px;font-size:22px}#toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:var(--lime);padding:15px;z-index:20;display:none}footer{padding:35px 5%;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-size:12px}footer>a:first-child{font-weight:800;letter-spacing:2px}footer p{margin:0}footer small{width:100%;font-size:10px;color:var(--muted)}.empty{padding:40px;font-size:16px}
+@media(min-width:1550px){.shell{max-width:1650px;margin-right:auto}.hero-copy{padding-left:70px}}@media(max-width:1100px){header{height:90px}nav{gap:15px}.source-link{display:none}.hero{min-height:540px}.hero-copy{padding:45px 4vw}.hero-art{min-height:490px}h1{letter-spacing:-3px}.workspace{grid-template-columns:285px 1fr}.metric-grid{grid-template-columns:1fr 1fr}.metric:nth-child(2){border-right:0}.metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}@media(max-width:760px){.rail{display:none}.shell{margin:0}header{margin:0 5%;height:auto;padding:22px 0 15px;flex-wrap:wrap}.wordmark{font-size:20px}nav{width:100%;justify-content:space-between;gap:8px;font-size:11px;order:2}.hero{grid-template-columns:1fr}.hero-copy{padding:40px 6%}h1{font-size:60px}.hero-art{min-height:380px}.ticker{flex-wrap:wrap;font-size:9px;justify-content:start}.ticker span{width:45%}.section{padding:38px 5%}.section-head{align-items:start;flex-direction:column}.cards{grid-template-columns:1fr}.card .num{margin-bottom:22px}.card{padding:24px}.card h3{max-width:none}.ribbon{align-items:start;flex-direction:column}.page-title h1{font-size:43px;letter-spacing:-2px}.workspace{grid-template-columns:1fr}.controls{border-right:0;border-bottom:1px solid var(--line)}.results{padding:16px}.details-grid{grid-template-columns:1fr}.strategy{grid-template-columns:1fr;gap:20px}.strategy dl{grid-template-columns:80px 1fr;gap:12px}.flow b{font-size:17px}.flow small{font-size:8px}.flow-detail{padding:20px}.question{padding:22px}dialog{padding:25px}.art-bottom strong{font-size:22px}.axis-note{font-size:9px}footer{flex-direction:column;gap:15px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+
+[hidden]{display:none!important}
+
+.radar-banner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 25px;background:var(--ink);color:var(--lime);margin-bottom:24px}.radar-banner .tag{color:var(--lime);margin:0}.radar-banner strong{font:12px monospace;display:block}.radar-banner small{color:#c4d3c9;display:block;font-size:10px;margin-top:8px}.radar-workspace .controls>label{margin:14px 0}.checkline{flex-direction:row;align-items:center;line-height:1.7}.checkline input{width:18px;height:18px;accent-color:var(--green)}.radar-horizons{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin:20px 0}.radar-horizons button{background:transparent;border:1px solid var(--line);padding:12px 3px;color:var(--ink)}.radar-horizons button.active{background:var(--ink);color:var(--lime)}.radar-horizons b{font:18px Manrope;display:block}.radar-horizons small{font-size:9px;display:block;margin:6px 0}.radar-horizons span{font:9px monospace}.radar-empty{padding:40px 12px}.radar-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:40px 0 28px;border-bottom:1px solid var(--line)}.radar-tabs button{padding:14px 18px;border:0;background:transparent;color:var(--muted);font-size:12px}.radar-tabs button.selected{background:var(--ink);color:var(--lime)}.rule{display:flex;align-items:center;gap:15px;border-bottom:1px solid var(--line);padding:12px 0}.rule>span{font-size:18px}.rule p{font-size:12px;flex:1;margin:0;line-height:1.6}.rule b{font:11px monospace;white-space:nowrap}.rule small{font:10px monospace;width:110px}.eval-form{display:flex;gap:20px;align-items:end;flex-wrap:wrap;margin:24px 0}.eval-form label{flex:1;min-width:140px}textarea{font:inherit;width:100%;padding:12px;background:white;border:1px solid var(--line);color:var(--ink);resize:vertical}.flow{grid-template-columns:repeat(8,1fr)}header nav{gap:20px}
+@media(max-width:1000px){header nav{gap:12px;font-size:12px}.radar-horizons{grid-template-columns:repeat(4,1fr)}.radar-banner{flex-direction:column;align-items:start}}@media(max-width:760px){header nav{gap:9px;font-size:10px;flex-wrap:wrap}.flow{grid-template-columns:repeat(4,1fr)}.flow button{border-bottom:1px solid var(--line)}.radar-tabs button{padding:12px}.radar-banner{padding:18px}.radar-workspace .controls{padding:20px}}
+
+</style></head><body>
+<a class="skip" href="#main">Aller au contenu</a><aside class="rail"><a href="#accueil" class="brand" aria-label="Edge Atlas accueil">E<span>↗</span></a><span class="rail-text">LE RISQUE AVANT LE RENDEMENT</span><span class="rail-bottom">EA / 01</span></aside>
+<div class="shell"><header><a class="wordmark" href="#accueil">EDGE <b>ATLAS</b><small>TRADING RESEARCH LAB</small></a><nav aria-label="Navigation principale"><a href="#radar">Mon radar ↗</a><a href="#apprendre">Comprendre</a><a href="#strategies">Stratégies</a><a href="#laboratoire">Laboratoire <span>↗</span></a><a href="#defis">Se challenger</a></nav><a class="source-link" href="#sources">Sources & risques ↗</a></header>
+<main id="main" tabindex="-1"></main><footer><a href="#accueil">EDGE ATLAS</a><p>Apprendre à décider dans l’incertitude.</p><a href="#sources">Méthodologie, sources et avertissements ↗</a><small>Éducation uniquement · Risque de perte en capital · Aucun gain garanti · Données démo synthétiques</small></footer></div>
+<dialog id="lessonDialog"><button class="close" aria-label="Fermer la leçon">×</button><div id="lessonContent"></div></dialog><div id="toast" role="status"></div>
+<script>(function(root){
+'use strict';
+function rng(seed){let s=seed>>>0;return ()=>{s=(1664525*s+1013904223)>>>0;return (s+.5)/4294967296}}
+function synthetic(seed=42,n=480){let r=rng(seed),p=100;return Array.from({length:n},(_,i)=>{let z=Math.sqrt(-2*Math.log(r()))*Math.cos(2*Math.PI*r());let drift=i<160?.0009:i<320?-.0007:.0001;p*=Math.exp(drift+z*.012);return {date:new Date(Date.UTC(2024,0,1+i)).toISOString().slice(0,10),close:p}})}
+function simulate(o){let {capital,risk,entry,stop,target,exit,fee,slip,leverage,side,borrow,days}=o;for(let k of Object.keys(o))if(k!=='side'&&!Number.isFinite(o[k]))throw Error('Tous les paramètres doivent être numériques.');if(capital<=0||risk<=0||risk>10||entry<=0||stop<=0||target<=0||exit<=0||leverage<1||fee<0||slip<0||borrow<0||days<0)throw Error('Vérifiez les valeurs : prix et capital positifs, risque entre 0 et 10 %.');let sign=side==='short'?-1:1;if((entry-stop)*sign<=0||(target-entry)*sign<=0)throw Error('Long : stop < entrée < objectif. Short : objectif < entrée < stop.');let costRate=(fee+slip)/10000,perRisk=Math.abs(entry-stop)+(entry+stop)*costRate+entry*borrow/100*days/365*(side==='short');let q=Math.min(capital*risk/100/perRisk,capital*leverage/entry);let costs=q*(entry+exit)*costRate+q*entry*borrow/100*days/365*(side==='short');let pnl=q*(exit-entry)*sign-costs;let loss=q*perRisk;let reward=q*(target-entry)*sign-q*(entry+target)*costRate-q*entry*borrow/100*days/365*(side==='short');return {q,notional:q*entry,margin:q*entry/leverage,pnl,costs,loss,reward,rr:reward/loss,equity:capital+pnl}}
+function backtest(data,o={}){let {fast=15,slow=60,fee=5,slip=3,borrow=3,mode='both',strategy='trend',capital=10000,start=0}=o;if(fast<2||slow<=fast||slow>=data.length-2||capital<=0||fee<0||slip<0||borrow<0)throw Error('Fenêtres : 2 ≤ rapide < lente < nombre de lignes − 2.');let sum=[0];data.forEach(x=>sum.push(sum.at(-1)+x.close));let begin=Math.max(slow+1,start),equity=capital,peak=capital,dd=0,pos=0,units=0,trade=null,trades=[],curve=[{date:data[begin-1].date,value:capital}],returns=[],costs=0;const rate=(fee+slip)/10000;
+for(let i=begin;i<data.length;i++){let before=equity,move=pos*units*(data[i].close-data[i-1].close),carry=pos<0?units*data[i-1].close*borrow/100/365*(Math.max(1,(Date.parse(data[i].date)-Date.parse(data[i-1].date))/86400000)):0;equity+=move-carry;costs+=carry;if(trade)trade.pnl+=move-carry;let a=(sum[i]-sum[i-fast])/fast,b=(sum[i]-sum[i-slow])/slow;let signal=a>b?1:a<b?-1:0;if(strategy==='revert')signal=-signal;if(mode==='long'&&signal<0)signal=0;if(i===data.length-1||equity<=0)signal=0;
+if(signal!==pos){if(pos!==0){let c=units*data[i].close*rate;equity-=c;costs+=c;trade.pnl-=c;trade.exit=data[i].date;trades.push(trade);trade=null}if(signal!==0&&equity>0){units=equity/(data[i].close*(1+rate));let c=units*data[i].close*rate;equity-=c;costs+=c;trade={entry:data[i].date,side:signal,pnl:-c}}pos=signal}peak=Math.max(peak,equity);dd=Math.max(dd,(peak-equity)/peak);returns.push(equity/before-1);curve.push({date:data[i].date,value:equity});if(equity<=0)break}
+let wins=trades.filter(t=>t.pnl>0),profit=wins.reduce((a,t)=>a+t.pnl,0),loss=-trades.filter(t=>t.pnl<0).reduce((a,t)=>a+t.pnl,0);let end=begin+curve.length-2;let benchmark=capital/(1+rate)*data[end].close/data[begin].close*(1-rate);return {end,equity,return:equity/capital-1,dd,costs,trades,winRate:trades.length?wins.length/trades.length:0,pf:loss?profit/loss:profit?Infinity:null,curve,benchmark,begin,returns}}
+function parseCSV(text){let lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);if(lines.length<83||lines.length>10001)throw Error('Importez 82 à 10 000 observations quotidiennes.');let sep=lines[0].includes(';')?';':',';let heads=lines.shift().toLowerCase().split(sep).map(x=>x.trim());let di=heads.indexOf('date'),ci=heads.indexOf('close');if(di<0||ci<0)throw Error('En-têtes requis : date,close (ou date;close).');let last='';return lines.map((l,i)=>{let cells=l.split(sep),date=cells[di]?.trim(),raw=cells[ci]?.trim(),close=Number(sep===';'?raw?.replace(',','.'):raw);if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date||date<=last||!Number.isFinite(close)||close<=0)throw Error('Ligne '+(i+2)+' : date ISO réelle, unique, croissante et clôture positive requises.');last=date;return {date,close}})}
+const api={rng,synthetic,simulate,backtest,parseCSV};if(typeof module!=='undefined')module.exports=api;root.Engine=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+;
+const CONTENT = {
+  "verifiedAt": "2026-10-24",
+  "editorialNote": "Contenu pédagogique original. Les protocoles chiffrés sont des exemples à tester, pas des résultats validés ni des conseils personnalisés. Une source sur une famille de stratégies ne valide pas les paramètres du simulateur.",
+  "sources": [
+    {
+      "id": "amf-cfd",
+      "title": "AMF — Comprendre les CFD",
+      "url": "https://www.amf-france.org/fr/espace-epargnants/comprendre-les-produits-financiers/produits-complexes/cfd"
+    },
+    {
+      "id": "esma-2026",
+      "title": "ESMA — CFD et contrats perpétuels : protections applicables",
+      "url": "https://www.esma.europa.eu/press-news/esma-news/esma-reminds-firms-their-obligations-under-cfd-product-intervention-measures"
+    },
+    {
+      "id": "sec-long-short",
+      "title": "SEC Investor.gov — Longs et shorts",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/stock-purchases-and-sales-long-and"
+    },
+    {
+      "id": "sec-short",
+      "title": "SEC — Risques de la vente à découvert",
+      "url": "https://www.sec.gov/investor/pubs/regsho.htm"
+    },
+    {
+      "id": "sec-orders",
+      "title": "SEC Investor.gov — Types d’ordres",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/types-orders"
+    },
+    {
+      "id": "sec-stops",
+      "title": "SEC Investor.gov — Stop, stop-limit et trailing stop",
+      "url": "https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins-15"
+    },
+    {
+      "id": "sec-execution",
+      "title": "SEC Investor.gov — Exécution des ordres",
+      "url": "https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work/executing-order"
+    },
+    {
+      "id": "sec-diversification",
+      "title": "SEC Investor.gov — Allocation et diversification",
+      "url": "https://www.investor.gov/introduction-investing/getting-started/asset-allocation"
+    },
+    {
+      "id": "momentum",
+      "title": "Moskowitz, Ooi & Pedersen — Time Series Momentum (2012)",
+      "url": "https://www.aqr.com/Insights/Research/Journal-Article/Time-Series-Momentum"
+    },
+    {
+      "id": "reversal",
+      "title": "Ignashkina, Rinne & Suominen — Réversion et fourniture de liquidité (2022)",
+      "url": "https://doi.org/10.1016/j.jbankfin.2022.106430"
+    },
+    {
+      "id": "pairs",
+      "title": "Gatev, Goetzmann & Rouwenhorst — Pairs Trading (NBER)",
+      "url": "https://www.nber.org/papers/w7032"
+    },
+    {
+      "id": "carry",
+      "title": "Koijen et al. — Carry (2018)",
+      "url": "https://www.aqr.com/Insights/Research/Journal-Article/Carry"
+    },
+    {
+      "id": "cme-basis",
+      "title": "CME Group — Calculer la juste valeur d’un future",
+      "url": "https://www.cmegroup.com/trading/equity-index/fairvalue.html"
+    },
+    {
+      "id": "overfit",
+      "title": "Bailey et al. — The Probability of Backtest Overfitting",
+      "url": "https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf"
+    },
+    {
+      "id": "abe",
+      "title": "ABE Infoservice — Trading en ligne et escroqueries",
+      "url": "https://www.abe-infoservice.fr/fr/epargne/autres-placements-risque/trading-en-ligne-forex-crypto-actifs-produits-derives-sur-crypto-actifs-cfd-de-quoi-parle-t"
+    },
+    {
+      "id": "ecb-transmission",
+      "title": "BCE — Transmission de la politique monétaire",
+      "url": "https://www.ecb.europa.eu/mopo/intro/transmission/html/index.en.html"
+    },
+    {
+      "id": "fed-curve",
+      "title": "Federal Reserve — Modèles de courbe des taux",
+      "url": "https://www.federalreserve.gov/data/yield-curve-models.htm"
+    },
+    {
+      "id": "bls-cpi",
+      "title": "BLS — Comprendre l’indice des prix à la consommation",
+      "url": "https://www.bls.gov/cpi/questions-and-answers.htm"
+    },
+    {
+      "id": "bea-gdp",
+      "title": "BEA — PIB, premières estimations et révisions",
+      "url": "https://www.bea.gov/news/gdp-release-additional-information"
+    },
+    {
+      "id": "fed-surprises",
+      "title": "Dallas Fed — Surprise monétaire et information économique",
+      "url": "https://www.dallasfed.org/research/economics/2023/0822"
+    },
+    {
+      "id": "bis-correlation",
+      "title": "BRI — Relation changeante entre matières premières et dollar",
+      "url": "https://www.bis.org/publications/bulletin-74-changing-nexus-between-commodity-prices-and-dollar-causes-and-implications"
+    },
+    {
+      "id": "fed-identification",
+      "title": "Kansas City Fed — Identifier les effets causaux de la politique monétaire",
+      "url": "https://www.kansascityfed.org/research/economic-review/estimating-the-effects-of-monetary-policy-an-ongoing-evolution/"
+    },
+    {
+      "id": "fidelity-ta",
+      "title": "Fidelity — Analyse technique et limites",
+      "url": "https://www.fidelity.com/learning-center/trading-investing/technical-analysis/what-is-technical-analysis"
+    },
+    {
+      "id": "fidelity-rsi",
+      "title": "Fidelity — Formule et interprétation du RSI",
+      "url": "https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/RSI"
+    },
+    {
+      "id": "fidelity-atr",
+      "title": "Fidelity — Average True Range",
+      "url": "https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr"
+    },
+    {
+      "id": "tv-vwap",
+      "title": "TradingView — Calcul et ancrage du VWAP",
+      "url": "https://www.tradingview.com/support/solutions/43000502018-volume-weighted-average-price-vwap/"
+    },
+    {
+      "id": "cftc-spoof",
+      "title": "CFTC — Distinguer spoofing et annulation légitime",
+      "url": "https://www.cftc.gov/LawRegulation/FederalRegister/FinalRules/2013-12365.html"
+    },
+    {
+      "id": "oanda-pip",
+      "title": "OANDA — Pip et fraction de pip",
+      "url": "https://www.oanda.com/ca-en/skills-and-insights/education/introduction-trading/basics/what-is-a-pip/"
+    },
+    {
+      "id": "cme-pnl",
+      "title": "CME Group — Calcul du résultat d’un contrat future",
+      "url": "https://www.cmegroup.com/education/courses/introduction-to-futures/calculating-futures-contract-profit-or-loss"
+    },
+    {
+      "id": "cme-roll",
+      "title": "CME Group — Échéance et roulement des futures",
+      "url": "https://www.cmegroup.com/education/courses/introduction-to-futures/understanding-futures-expiration-contract-roll"
+    },
+    {
+      "id": "oic-greeks",
+      "title": "Options Industry Council — Sensibilités des options",
+      "url": "https://prd-web.optionseducation.org/advancedconcepts/understanding-options-greeks"
+    },
+    {
+      "id": "cftc-crypto",
+      "title": "CFTC — Risques du trading de crypto-actifs",
+      "url": "https://www.cftc.gov/LearnAndProtect/AdvisoriesAndArticles/understand_risks_of_virtual_currency.html"
+    },
+    {
+      "id": "coinbase-funding",
+      "title": "Coinbase International Exchange — Règles de funding",
+      "url": "https://www.coinbase.com/international-exchange/legal/trading-rules"
+    },
+    {
+      "id": "cointegration",
+      "title": "NobelPrize.org — Cointégration et séries non stationnaires",
+      "url": "https://www.nobelprize.org/prizes/economic-sciences/2003/9216-popular-information-swedish/"
+    },
+    {
+      "id": "bootstrap",
+      "title": "Politis & Romano — The Stationary Bootstrap (1994)",
+      "url": "https://doi.org/10.1080/01621459.1994.10476870"
+    },
+    {
+      "id": "kelly",
+      "title": "Jacot & Mochkovitch — Kelly et Kelly fractionnaire (2023)",
+      "url": "https://www.degruyterbrill.com/document/doi/10.1515/jqas-2020-0122"
+    },
+    {
+      "id": "behavior",
+      "title": "MoneySense — Biais cognitifs et investissement",
+      "url": "https://www.moneysense.gov.sg/investments/behavioural-science-and-investing/"
+    },
+    {
+      "id": "radar-binance",
+      "title": "Binance — Documentation des données de marché",
+      "url": "https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints"
+    },
+    {
+      "id": "radar-twelve",
+      "title": "Twelve Data — Documentation des séries temporelles",
+      "url": "https://twelvedata.com/docs"
+    },
+    {
+      "id": "radar-fred",
+      "title": "FRED — Sources et séries économiques",
+      "url": "https://fred.stlouisfed.org/"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "market",
+      "level": "Débutant",
+      "title": "Le marché : prix, liquidité, horizon",
+      "summary": "Comprendre ce que l’on échange avant de chercher un signal.",
+      "body": [
+        "Une action est une part de société ; un indice est une mesure ; un ETF est un fonds coté ; un future, une option ou un CFD est un contrat aux propriétés propres. Un graphique identique ne rend pas ces produits interchangeables.",
+        "Le bid est le prix proposé par un acheteur, l’ask celui d’un vendeur. Acheter immédiatement implique généralement de payer l’ask. Le dernier cours affiché peut être différent de votre prix d’exécution.",
+        "Distinguez votre horizon d’analyse, votre horizon de détention et les heures réellement négociables du produit. Le choix d’un instrument commence par sa fiche contractuelle."
+      ],
+      "sourceIds": [
+        "sec-execution",
+        "amf-cfd"
+      ]
+    },
+    {
+      "id": "long-short",
+      "level": "Débutant",
+      "title": "Long et short : deux expositions asymétriques",
+      "summary": "Le sens de la position ne résume pas son risque.",
+      "body": [
+        "Être long signifie bénéficier d’une hausse ; être short, d’une baisse. Pour une exposition linéaire de q unités, le résultat brut est q × (sortie − entrée) en long et q × (entrée − sortie) en short. Un multiplicateur de contrat peut s’ajouter.",
+        "Acheter 10 actions à 100 € puis les revendre 110 € produit 100 € bruts. Les vendre à découvert à 100 € puis les racheter 90 € produit aussi 100 € bruts.",
+        "Le long au comptant sans emprunt peut perdre la mise. Le short action peut subir une perte théoriquement illimitée, des frais d’emprunt et des paiements compensant les dividendes. Ces mécanismes ne décrivent pas toutes les options ni tous les dérivés."
+      ],
+      "sourceIds": [
+        "sec-long-short",
+        "sec-short"
+      ]
+    },
+    {
+      "id": "leverage",
+      "level": "Débutant",
+      "title": "Levier, marge et liquidation",
+      "summary": "La marge déposée n’est pas le montant exposé.",
+      "body": [
+        "Un dépôt de 1 000 € avec une exposition de 5 000 € représente un levier initial de 5. Un mouvement défavorable de 2 % représente environ 100 € de perte, soit 10 % du dépôt, avant frais, pour une exposition linéaire inchangée.",
+        "La liquidation dépend du produit, de la marge de maintenance, des autres positions et des règles du courtier. Elle ne se calcule pas universellement par « 100 / levier ».",
+        "Des protections spécifiques, dont le solde négatif, concernent certains CFD destinés aux particuliers dans le cadre européen. Elles ne couvrent pas tous les produits, clients ou prestataires ; vérifiez le contrat et votre statut."
+      ],
+      "sourceIds": [
+        "amf-cfd",
+        "esma-2026"
+      ]
+    },
+    {
+      "id": "orders",
+      "level": "Débutant",
+      "title": "Ordres : choisir le compromis",
+      "summary": "Maîtriser le prix ou favoriser l’exécution.",
+      "body": [
+        "Un ordre au marché vise l’exécution au meilleur prix disponible, avec un prix final incertain. Un ordre limite fixe le prix maximal d’achat ou minimal de vente ; il peut rester inexécuté ou n’être exécuté qu’en partie.",
+        "Un stop classique devient un ordre au marché après déclenchement : un gap peut produire une perte supérieure au scénario prévu. Un stop-limit contrôle le prix mais peut ne pas sortir la position.",
+        "Exercice : une position longue entre à 100, le stop est à 98, le marché rouvre à 94. La perte réalisée n’est pas automatiquement 2 par unité."
+      ],
+      "sourceIds": [
+        "sec-orders",
+        "sec-stops"
+      ]
+    },
+    {
+      "id": "sizing",
+      "level": "Débutant",
+      "title": "Dimensionner la position",
+      "summary": "Partir du risque accepté, puis calculer la quantité.",
+      "body": [
+        "Exemple pédagogique : capital 10 000 €, budget de perte planifié 0,5 %, entrée 100 €, stop 98 €. Sans frais, quantité théorique = 50 / 2 = 25 unités. Le taux de 0,5 % illustre un calcul, pas un niveau recommandé.",
+        "Ajoutez les frais et une hypothèse de glissement, arrondissez au lot autorisé, puis vérifiez exposition, marge et risque cumulé. La formule suppose un produit linéaire et une valeur du point connue.",
+        "Le risque planifié n’est pas une garantie de perte maximale. Un gap, une panne ou une exécution partielle peuvent le dépasser."
+      ],
+      "sourceIds": [
+        "sec-stops"
+      ]
+    },
+    {
+      "id": "expectancy",
+      "level": "Intermédiaire",
+      "title": "Espérance : dépasser le taux de réussite",
+      "summary": "Avoir souvent raison ne suffit pas.",
+      "body": [
+        "Avec une probabilité de gain p, un gain moyen G, une perte moyenne L et un coût moyen C, l’espérance par opération est E = pG − (1 − p)L − C. Il s’agit d’une estimation, soumise à l’incertitude de l’échantillon.",
+        "Exemple : 40 % de gains à 2R et 60 % de pertes à 1R donnent +0,20R avant coûts ; 0,25R de coûts rendent le résultat négatif. R représente le risque initial planifié.",
+        "Un résultat moyen masque les queues de distribution, les séries de pertes et les changements de régime. Comparez des intervalles d’incertitude, pas seulement un chiffre."
+      ],
+      "sourceIds": []
+    },
+    {
+      "id": "costs",
+      "level": "Intermédiaire",
+      "title": "L’avantage doit survivre aux coûts",
+      "summary": "Le résultat brut n’est pas le résultat économique.",
+      "body": [
+        "Comptabilisez commissions, spread, glissement, financement, emprunt de titres et éventuels coûts de change. La fiscalité dépend du pays et de la situation ; elle n’est pas simulée ici.",
+        "Évitez le double comptage : si les achats et ventes sont déjà valorisés à l’ask et au bid, le spread est déjà incorporé. Le glissement doit être mesuré par rapport à un prix de référence explicite.",
+        "Un signal rapide peut échouer après frais. Faites varier les coûts et la taille : la liquidité disponible peut se dégrader quand la quantité augmente."
+      ],
+      "sourceIds": [
+        "sec-execution"
+      ]
+    },
+    {
+      "id": "portfolio",
+      "level": "Intermédiaire",
+      "title": "Risque de portefeuille et drawdown",
+      "summary": "Plusieurs positions peuvent cacher le même pari.",
+      "body": [
+        "Diversifier les noms ne suffit pas si leurs expositions économiques se ressemblent. Plusieurs actions technologiques, un indice et une position de change peuvent partager une sensibilité au même scénario.",
+        "Le drawdown mesure le recul depuis un précédent sommet de valeur du portefeuille. Une baisse de 20 % exige ensuite +25 % pour retrouver ce sommet : 0,8 × 1,25 = 1.",
+        "Surveillez l’exposition brute, nette et les facteurs communs. Une exposition nette faible n’implique pas un risque faible, surtout avec deux jambes importantes et une relation instable."
+      ],
+      "sourceIds": [
+        "sec-diversification"
+      ]
+    },
+    {
+      "id": "backtest",
+      "level": "Intermédiaire",
+      "title": "Un backtest reproductible",
+      "summary": "Une expérience historique doit pouvoir être refaite.",
+      "body": [
+        "Définissez avant le test l’univers, les dates, le signal, le prix d’exécution, les coûts, la taille et la règle de sortie. Un signal calculé à la clôture ne doit pas être exécuté rétroactivement à un prix déjà connu sans justification.",
+        "Conservez les titres disparus pour éviter le biais de survivance. Traitez opérations sur titres, données manquantes, fuseaux horaires et disponibilité réelle des informations.",
+        "Séparez chronologiquement développement et évaluation. Comparez à une référence adaptée. Les données synthétiques de démonstration enseignent la mécanique ; elles ne prouvent aucun avantage sur un marché réel."
+      ],
+      "sourceIds": [
+        "overfit"
+      ]
+    },
+    {
+      "id": "overfitting",
+      "level": "Professionnel",
+      "title": "Surapprentissage et tests multiples",
+      "summary": "Le meilleur résultat testé peut être le plus chanceux.",
+      "body": [
+        "Tester beaucoup de variantes puis ne montrer que la meilleure sélectionne aussi le bruit. Conservez un registre des essais, y compris les échecs, et un jeu final jamais utilisé pour choisir les paramètres.",
+        "Cherchez une zone de paramètres raisonnablement stable plutôt qu’un pic isolé. Examinez plusieurs périodes, actifs et niveaux de coûts. Un walk-forward réduit certaines fuites ; il ne supprime pas la sélection répétée.",
+        "La recherche de Bailey et coauteurs formalise ce risque. Un score élevé en échantillon n’est donc pas une preuve suffisante de performance future."
+      ],
+      "sourceIds": [
+        "overfit"
+      ]
+    },
+    {
+      "id": "process",
+      "level": "Tous niveaux",
+      "title": "Journal, discipline et droit de ne pas trader",
+      "summary": "Évaluer une décision séparément de son résultat.",
+      "body": [
+        "Avant une opération, écrivez hypothèse, invalidation, horizon, quantité, exposition et coût prévu. Après, enregistrez ce qui s’est effectivement passé, sans réécrire la thèse pour justifier le résultat.",
+        "Une opération rentable peut avoir violé toutes les règles ; une perte peut provenir d’une décision cohérente. Évaluez séparément processus, exécution et performance.",
+        "Définissez à l’avance une condition d’arrêt : incident de données, exposition excessive ou comportement impulsif. Dans les défis, la bonne réponse peut être « pas de position »."
+      ],
+      "sourceIds": []
+    },
+    {
+      "id": "protection",
+      "level": "Débutant",
+      "title": "Vérifier le prestataire et le cadre",
+      "summary": "Un beau tableau de bord n’est pas une preuve d’agrément.",
+      "body": [
+        "Consultez les registres officiels et comparez exactement raison sociale, domaine et coordonnées. L’absence d’un nom sur une liste noire ne prouve pas son autorisation ; des fraudeurs usurpent des sociétés réelles.",
+        "Méfiez-vous des rendements garantis, des pressions pour déposer davantage et des conditions de retrait opaques. Comprendre le produit et le statut du prestataire fait partie du travail.",
+        "Ce site est éducatif : ni conseil personnalisé, ni signal, ni recommandation d’investissement. Le capital est exposé à des pertes. Les résultats historiques ou simulés ne garantissent rien pour l’avenir."
+      ],
+      "sourceIds": [
+        "abe"
+      ]
+    },
+    {
+      "id": "macro",
+      "level": "Débutant",
+      "title": "Macro : croissance, emploi, inflation",
+      "summary": "Lire une publication sans confondre niveau, variation et surprise.",
+      "body": [
+        "L’inflation mesure une variation de prix. Une inflation qui ralentit ne signifie pas nécessairement que les prix baissent. Distinguez variation mensuelle, glissement annuel et séries corrigées des variations saisonnières.",
+        "Le PIB mesure la production ; le PIB réel vise à retirer l’effet des prix. Les premières estimations peuvent être révisées : un backtest macro doit utiliser la version disponible à la date de décision.",
+        "Pour chaque annonce, notez unité, période, heure, consensus, valeur publiée et révisions. Une croissance trimestrielle annualisée américaine n’est pas directement comparable à une croissance trimestrielle non annualisée."
+      ],
+      "sourceIds": [
+        "bls-cpi",
+        "bea-gdp"
+      ]
+    },
+    {
+      "id": "central-banks",
+      "level": "Intermédiaire",
+      "title": "Banques centrales : suivre la transmission",
+      "summary": "Les taux influencent l’économie par plusieurs canaux.",
+      "body": [
+        "Le taux directeur affecte le marché monétaire puis, de façon imparfaite, les crédits et dépôts. Le financement, les anticipations, les prix d’actifs et le change influencent ensuite demande et inflation.",
+        "Ces effets arrivent avec des délais variables. Une banque centrale ne pilote pas mécaniquement chaque taux obligataire ni chaque cours de Bourse.",
+        "Pour construire un scénario, distinguez décision du jour, trajectoire future attendue et informations sur l’économie. Documentez la chaîne supposée, puis ce qui pourrait la contredire."
+      ],
+      "sourceIds": [
+        "ecb-transmission"
+      ]
+    },
+    {
+      "id": "surprises",
+      "level": "Intermédiaire",
+      "title": "Le marché réagit à l’écart aux attentes",
+      "summary": "Une bonne nouvelle économique peut faire baisser un actif.",
+      "body": [
+        "Une hausse de taux déjà anticipée peut produire moins de mouvement qu’un maintien inattendu. La surprise porte aussi sur le communiqué, les projections et la trajectoire future.",
+        "Une annonce peut révéler simultanément un changement de politique et des informations sur la croissance. Leurs effets peuvent s’opposer : « taux en hausse = actions en baisse » n’est pas une règle universelle.",
+        "Exercice : inflation supérieure au consensus, mais révision du mois précédent en baisse. Formulez deux scénarios, observez taux et change, puis définissez une invalidation. N’inventez pas une explication certaine après le mouvement."
+      ],
+      "sourceIds": [
+        "fed-surprises",
+        "fed-identification"
+      ]
+    },
+    {
+      "id": "yield-curve",
+      "level": "Intermédiaire",
+      "title": "Courbe des taux : prix, rendement, primes",
+      "summary": "Une courbe n’est pas une prévision pure.",
+      "body": [
+        "La courbe relie échéances et rendements. Pour une obligation à flux fixes, une hausse du rendement exigé réduit généralement son prix ; la sensibilité dépend notamment de sa durée et de ses flux.",
+        "Un taux long reflète les anticipations de taux courts et des primes, notamment de terme. Les écarts nominal/réel peuvent renseigner sur la compensation d’inflation, avec des composantes de risque et de liquidité.",
+        "Étudiez séparément mouvement de niveau, pentification et aplatissement. Une inversion seule ne donne ni date certaine de récession ni ordre de trading."
+      ],
+      "sourceIds": [
+        "fed-curve"
+      ]
+    },
+    {
+      "id": "intermarket",
+      "level": "Professionnel",
+      "title": "Intermarchés : liens conditionnels",
+      "summary": "Dollar, matières premières, actions et taux changent de relation.",
+      "body": [
+        "Une matière première cotée en dollars et le dollar peuvent évoluer en sens opposés, mais ce lien peut changer. La BRI documente des périodes où ils montent ensemble, sous l’effet des chocs et des structures économiques.",
+        "Le change est un prix relatif : comparez deux économies, leurs anticipations de taux et leurs primes de risque. Le pétrole dépend aussi de l’offre ; l’or ne répond pas uniquement à l’inflation.",
+        "Construisez plusieurs scénarios de régime : croissance, inflation, stress de liquidité. Une flèche sur une carte macro représente une hypothèse conditionnelle, jamais une causalité automatique."
+      ],
+      "sourceIds": [
+        "bis-correlation",
+        "ecb-transmission"
+      ]
+    },
+    {
+      "id": "causality",
+      "level": "Professionnel",
+      "title": "Corrélation, causalité et variables cachées",
+      "summary": "Deux séries qui bougent ensemble ne prouvent pas un mécanisme.",
+      "body": [
+        "Corrélation : association statistique. Causalité : effet d’une intervention, toutes choses pertinentes prises en compte. Un facteur commun peut faire bouger deux actifs ; la causalité peut aussi aller dans les deux sens.",
+        "Une avance temporelle ou un test de Granger indique au mieux une capacité prédictive conditionnelle dans un modèle, pas une cause structurelle. Il faut examiner événements simultanés, anticipation, sélection et stabilité.",
+        "Préférez des rendements synchronisés aux niveaux de prix pour une corrélation exploratoire. Examinez plusieurs fenêtres glissantes, les observations extrêmes et les retards. Une corrélation estimée peut être bruitée et changer de signe."
+      ],
+      "sourceIds": [
+        "fed-identification",
+        "bis-correlation"
+      ]
+    },
+    {
+      "id": "top-down",
+      "level": "Tous niveaux",
+      "title": "Top-down : du contexte W1 à l’exécution M1",
+      "summary": "Attribuer une fonction à chaque horizon.",
+      "body": [
+        "Protocole pédagogique : W1 (semaine) et D1 (jour) pour le contexte et les zones ; H4/H1 pour le scénario ; M15/M5 pour une configuration ; M1 (une minute) pour examiner l’exécution. Cette organisation n’est pas une preuve d’avantage statistique.",
+        "Consignez direction, invalidation et horizon à chaque étage. Un signal M1 opposé au scénario D1 peut être du bruit ou une opération différente : ne changez pas d’horizon après une perte pour sauver la thèse.",
+        "Les horizons sont imbriqués, pas indépendants : cinq confirmations du même mouvement ne sont pas cinq preuves. Fixez le rôle des conflits avant le test. « Attendre » reste une décision valide."
+      ],
+      "sourceIds": []
+    },
+    {
+      "id": "m1",
+      "level": "Professionnel",
+      "title": "M1 : microstructure et faux sentiment de précision",
+      "summary": "Plus de bougies ne signifie pas plus d’information exploitable.",
+      "body": [
+        "Une bougie d’une minute résume les transactions ; elle ne décrit ni le carnet complet ni l’ordre exact des prix à l’intérieur de la minute. Un spread ou un changement de liquidité peut dominer un petit objectif.",
+        "Si stop et cible sont touchés dans la même bougie, l’ordre réel est inconnu avec les seules données OHLC. Utilisez une convention prudente explicite ou des données plus fines, jamais l’issue la plus favorable par défaut.",
+        "Pour tester W1→M1, n’utilisez que les bougies supérieures déjà clôturées à chaque instant. Mesurez délais, coûts et remplissages manqués. Les données de démonstration ne simulent pas une exécution réelle."
+      ],
+      "sourceIds": [
+        "sec-orders",
+        "sec-execution"
+      ]
+    },
+    {
+      "id": "technical-structure",
+      "level": "Débutant",
+      "title": "Structure, tendance et zones de prix",
+      "summary": "Décrire ce qui est visible sans inventer une certitude.",
+      "body": [
+        "Une tendance peut être décrite par une succession de sommets et creux croissants ou décroissants ; un range par une oscillation dans une zone. Le résultat dépend de l’horizon et de la règle choisie pour identifier les pivots.",
+        "Supports et résistances sont des zones d’observation, pas des murs. Fixez leur définition avant de regarder la suite : prix, largeur, nombre de contacts et condition d’invalidation.",
+        "Une cassure ou un chandelier ne prouve ni manipulation ni avantage rentable. Les pivots confirmés plusieurs bougies après leur apparition ne doivent devenir exploitables qu’au moment de leur confirmation."
+      ],
+      "sourceIds": [
+        "fidelity-ta"
+      ]
+    },
+    {
+      "id": "moving-average-rsi",
+      "level": "Intermédiaire",
+      "title": "Moyennes mobiles et RSI : calculs, pas oracles",
+      "summary": "Connaître la transformation appliquée aux prix.",
+      "body": [
+        "SMA sur n clôtures = leur somme divisée par n. Une EMA courante suit EMAₜ = αCₜ + (1−α)EMAₜ₋₁, avec α = 2/(n+1) ; l’initialisation doit être documentée. Le lissage retarde les retournements et peut multiplier les faux signaux en range.",
+        "RSI = 100 − 100/(1+RS), où RS compare gains moyens et pertes moyennes positives. La version de Wilder utilise un lissage de coefficient 1/n après initialisation ; précisez le traitement des séries sans perte ou sans variation.",
+        "« Suracheté » ne signifie pas « doit baisser ». En tendance forte, un RSI peut rester extrême. Des indicateurs issus des mêmes prix ne constituent pas des confirmations indépendantes."
+      ],
+      "sourceIds": [
+        "fidelity-ta",
+        "fidelity-rsi"
+      ]
+    },
+    {
+      "id": "atr-vwap",
+      "level": "Intermédiaire",
+      "title": "ATR et VWAP : amplitude et prix moyen",
+      "summary": "Deux mesures qui répondent à des questions différentes.",
+      "body": [
+        "True Range = max(H−L, |H−C précédent|, |L−C précédent|). L’ATR de Wilder lisse cette amplitude : ATRₜ = ((n−1)ATRₜ₋₁ + TRₜ)/n après initialisation. Il mesure une amplitude, pas une direction ni une perte maximale.",
+        "VWAP = somme(prix × volume) / somme(volume) depuis un ancrage défini. À partir de bougies, un prix typique (H+L+C)/3 fournit une approximation du calcul transaction par transaction.",
+        "Un stop en multiple d’ATR et un retour au VWAP sont des hypothèses à tester. Spécifiez session, fuseau, ancrage et type de volume ; un flux partiel ne représente pas nécessairement tout le marché."
+      ],
+      "sourceIds": [
+        "fidelity-atr",
+        "tv-vwap"
+      ]
+    },
+    {
+      "id": "order-flow",
+      "level": "Professionnel",
+      "title": "Volume, carnet et order flow",
+      "summary": "Ne pas confondre liquidité affichée et engagement définitif.",
+      "body": [
+        "Le volume mesure les échanges réalisés ; le carnet expose des ordres en attente sur un lieu donné. Chaque transaction a un acheteur et un vendeur : un volume « acheteur » désigne généralement une classification du côté agressif, pas l’absence de vendeur.",
+        "Les ordres peuvent être déplacés ou annulés légitimement ; des quantités peuvent rester cachées. Un gros ordre affiché n’est donc pas une garantie de soutien.",
+        "Le spoofing implique une intention de tromper par des ordres destinés à être annulés. Une capture du carnet ou une simple annulation ne démontre pas cette intention. Sans données complètes, évitez les récits certains sur les institutions."
+      ],
+      "sourceIds": [
+        "cftc-spoof"
+      ]
+    },
+    {
+      "id": "forex-units",
+      "level": "Intermédiaire",
+      "title": "Forex : base, cotation, pip et conversion",
+      "summary": "Toujours exprimer le résultat dans la bonne devise.",
+      "body": [
+        "EUR/USD exprime des dollars par euro. Acheter la paire expose positivement à l’euro et négativement au dollar. Pour une position linéaire de q euros, le résultat brut en dollars est q × variation du taux.",
+        "Sur EUR/USD, un pip usuel vaut 0,0001 : 10 000 unités représentent 1 USD par pip. Pour de nombreuses paires en yen, le pip usuel vaut 0,01 ; vérifiez toujours la convention du contrat.",
+        "La valeur du pip en devise de compte peut varier avec le taux de conversion. Cumulez les expositions par devise : plusieurs paires peuvent concentrer le même pari dollar. Intégrez financement et spread."
+      ],
+      "sourceIds": [
+        "oanda-pip"
+      ]
+    },
+    {
+      "id": "futures-contracts",
+      "level": "Intermédiaire",
+      "title": "Futures : tick, multiplicateur et échéance",
+      "summary": "Un mouvement d’un point ne vaut pas la même somme partout.",
+      "body": [
+        "Pour un future linéaire, valeur d’un tick = taille du tick × multiplicateur. Exemple fictif : tick de 0,25 point et multiplicateur de 20 € par point donnent 5 € par tick ; 3 contrats déplacés de 8 ticks donnent 120 € bruts dans le bon sens.",
+        "Le dépôt de marge n’est pas la valeur notionnelle du contrat. Vérifiez devise, horaires, limites de prix, dates de négociation et modalités de règlement ou de livraison.",
+        "Rouler consiste à fermer une échéance et ouvrir une autre : spreads et coûts changent. Un historique continu ajusté est utile pour l’analyse mais ne correspond pas toujours à des prix réellement négociables."
+      ],
+      "sourceIds": [
+        "cme-pnl",
+        "cme-roll"
+      ]
+    },
+    {
+      "id": "options-greeks",
+      "level": "Professionnel",
+      "title": "Options : direction, convexité et volatilité",
+      "summary": "Avoir raison sur le sous-jacent ne garantit pas un gain.",
+      "body": [
+        "Un call donne un droit d’achat et un put un droit de vente, selon strike, échéance et conditions contractuelles. Pour un achat simple payé intégralement, la perte de l’option est la prime et les frais ; son exercice peut créer une nouvelle exposition. Certaines ventes non couvertes ont un risque très élevé, voire illimité pour le call.",
+        "Delta décrit une sensibilité locale au sous-jacent ; gamma, sa variation ; theta, le passage du temps ; vega, la volatilité implicite. Ces approximations dépendent du modèle et changent avec les conditions.",
+        "La volatilité réalisée est calculée sur un passé choisi. L’implicite est déduite des prix d’options via un modèle, pas une prédiction certaine. Comprenez exercice, assignation et multiplicateur avant une simulation."
+      ],
+      "sourceIds": [
+        "oic-greeks"
+      ]
+    },
+    {
+      "id": "crypto-perpetual",
+      "level": "Intermédiaire",
+      "title": "Crypto : spot, perpétuels et risque de plateforme",
+      "summary": "Le funding n’est pas un rendement garanti.",
+      "body": [
+        "Au comptant, l’exposition porte sur l’actif ; un perpétuel est un dérivé dont les règles de marge, liquidation et référence de prix dépendent de la plateforme. La conservation des actifs ajoute un risque de perte de clés ou de défaillance d’intermédiaire.",
+        "Dans le modèle fréquent où un funding positif est payé par les longs aux shorts, le montant dépend du taux et du notionnel à l’instant pertinent. Exemple : 2 000 € × 0,01 % = 0,20 € pour une période, sans supposer que ce taux persistera.",
+        "Lire fréquence, indice, mark price, collatéral et clauses de liquidation. Une couverture spot/short perpétuel reste exposée à base, financement, décorrélation du collatéral, retrait impossible et contrepartie."
+      ],
+      "sourceIds": [
+        "coinbase-funding",
+        "cftc-crypto"
+      ]
+    },
+    {
+      "id": "stationarity",
+      "level": "Professionnel",
+      "title": "Stationnarité et cointégration",
+      "summary": "Une relation statistique doit être définie et éprouvée.",
+      "body": [
+        "Dans une formulation faible, une série stationnaire conserve moyenne, variance et covariances selon le décalage temporel. De nombreuses séries de prix ne respectent pas cette hypothèse ; une régression sur leurs niveaux peut sembler convaincante sans relation exploitable.",
+        "La cointégration concerne des séries non stationnaires dont une combinaison est stationnaire sous les hypothèses du modèle. Une forte corrélation des rendements n’établit pas cette propriété.",
+        "Un test statistique ne garantit pas une convergence rentable ni sa vitesse. Fixez fenêtre, retards et méthode avant sélection ; examinez ruptures structurelles, coûts et stabilité du coefficient de couverture hors échantillon."
+      ],
+      "sourceIds": [
+        "cointegration"
+      ]
+    },
+    {
+      "id": "monte-carlo",
+      "level": "Professionnel",
+      "title": "Monte Carlo : explorer les chemins de pertes",
+      "summary": "Une distribution simulée dépend du monde que l’on suppose.",
+      "body": [
+        "Monte Carlo génère des trajectoires à partir d’un modèle ; un bootstrap rééchantillonne les données observées. Comparez drawdown, séries de pertes, capital final et fréquence de franchissement d’un seuil de risque explicitement défini.",
+        "Tirer chaque rendement indépendamment détruit sa dépendance temporelle. Des blocs de rendements peuvent en préserver une partie ; leur longueur et l’hypothèse de stationnarité changent les conclusions.",
+        "Une simulation ne crée pas des crises absentes des données. Ajoutez des scénarios de gap, de coûts et de liquidité dégradée. Un percentile à 95 % n’est ni une perte maximale ni une certitude sur le futur."
+      ],
+      "sourceIds": [
+        "bootstrap"
+      ]
+    },
+    {
+      "id": "kelly-risk",
+      "level": "Professionnel",
+      "title": "Kelly, risque d’estimation et survie",
+      "summary": "Une taille optimale dans un modèle peut être excessive en pratique.",
+      "body": [
+        "Dans un pari binaire répété où une mise perdante est perdue intégralement et une mise gagnante rapporte b fois la mise en gain net, Kelly donne f* = p − (1−p)/b. Il maximise la croissance logarithmique sous des hypothèses précises ; f* est une fraction de capital misée.",
+        "Ce raccourci ne s’applique pas directement à une stratégie aux pertes variables, aux gaps ou à des positions corrélées. Estimer p et b avec peu d’opérations peut conduire à une taille très excessive.",
+        "Un Kelly fractionnaire réduit l’exposition du modèle, sans rendre ses hypothèses vraies. Testez estimation pessimiste, coûts, séquences défavorables et contraintes de marge. La survie opérationnelle et le capital disponible restent des contraintes distinctes."
+      ],
+      "sourceIds": [
+        "kelly"
+      ]
+    },
+    {
+      "id": "psychology",
+      "level": "Tous niveaux",
+      "title": "Biais : transformer une intuition en protocole",
+      "summary": "La discipline ne remplace pas un avantage, mais protège l’expérience.",
+      "body": [
+        "Biais de confirmation : ne chercher que ce qui soutient la thèse. Ancrage : traiter son prix d’entrée comme une valeur objective. Excès de confiance : attribuer les gains au talent et les pertes au hasard. Ces pièges touchent aussi les professionnels.",
+        "Écrivez une observation qui vous ferait changer d’avis, puis une règle « si… alors… ». Comparez votre journal aux règles initiales ; ne jugez pas une méthode sur la dernière opération.",
+        "Après une perte, vouloir se refaire n’améliore pas les probabilités. Prévoyez une pause et un contrôle d’exposition. Les défis récompensent un raisonnement vérifiable, y compris le choix de ne pas ouvrir de position."
+      ],
+      "sourceIds": [
+        "behavior"
+      ]
+    },
+    {
+      "id": "monthly-first",
+      "level": "Tous niveaux",
+      "title": "Du mensuel à M1 : préserver la thèse",
+      "summary": "Un scénario de plusieurs mois et un déclencheur minute ne répondent pas à la même question.",
+      "body": [
+        "Commencez par MN : environnement économique, valorisations, financement et grandes zones. W décrit la structure et D le scénario tactique ; H4/H1 suivent son évolution ; M15/M5 organisent une configuration ; M1 examine une exécution.",
+        "Avant de descendre, notez ce que vous attendez, les observations qui vous feraient changer d’avis et l’horizon de cette attente. Une baisse M1 ne réfute pas automatiquement une hypothèse mensuelle. Réciproquement, un scénario mensuel ne justifie pas de conserver une position minute qui a franchi son invalidation.",
+        "Une seule baisse peut apparaître dans les huit horizons. Compter huit confirmations surestime alors l’information. Le radar décrit cet alignement ; il ne le convertit pas en huit preuves indépendantes."
+      ],
+      "sourceIds": [
+        "ecb-transmission",
+        "overfit"
+      ]
+    },
+    {
+      "id": "radar-scores",
+      "level": "Intermédiaire",
+      "title": "Score, fréquence et probabilité : trois objets distincts",
+      "summary": "Un 80/100 ne signifie pas 80 % de chance de baisse.",
+      "body": [
+        "Un score additionne des conditions selon des poids choisis. Il devient une probabilité seulement après une procédure de calibration évaluée sur des observations nouvelles. Des conditions issues du même prix sont souvent fortement dépendantes.",
+        "La précision descriptive d’une alerte est la fraction des alertes suivies de l’événement défini. Comparez-la à la fréquence naturelle du même événement sur les mêmes dates. Si l’événement est fréquent même sans alerte, un taux de réussite élevé peut avoir peu de valeur.",
+        "Fixez sens, amplitude et horizon avant le test. Un signal peut annoncer davantage d’amplitude sans prédire sa direction. Examiner plusieurs paramètres puis conserver le meilleur résultat réutilise l’échantillon et exige une nouvelle validation."
+      ],
+      "sourceIds": [
+        "overfit"
+      ]
+    },
+    {
+      "id": "market-data-personal",
+      "level": "Tous niveaux",
+      "title": "Choisir et auditer ses données",
+      "summary": "La précision d’un calcul ne compense pas un mauvais historique.",
+      "body": [
+        "Vérifiez instrument exact, lieu de cotation, devise, fuseau et date de fin de la bougie. SPY est un ETF qui suit le S&P 500 : ses horaires, frais et prix ne sont pas ceux de l’indice. BTC/USDT sur une plateforme n’est pas un prix universel du Bitcoin en dollars.",
+        "Sur actions, documentez splits, dividendes, radiations et ajustements. Pour M1, vérifiez les trous de séance, retards de diffusion et types de prix. Une API accessible ne garantit ni un droit temps réel ni un historique complet.",
+        "Une donnée journalière publiée avec délai peut éclairer le contexte macro. Elle ne devient pas une donnée minute parce que le site la télécharge chaque minute. Conservez la date de l’observation et celle de son acquisition."
+      ],
+      "sourceIds": [
+        "radar-binance",
+        "radar-twelve",
+        "radar-fred"
+      ]
+    },
+    {
+      "id": "personal-forecast-journal",
+      "level": "Professionnel",
+      "title": "Évaluer ses anticipations sans réécrire le passé",
+      "summary": "Figer les hypothèses puis observer les résultats.",
+      "body": [
+        "Enregistrez date, source, mesure, horizon, événement attendu et condition d’invalidation avant le résultat. Un commentaire vague comme « le marché pourrait bouger » ne permet pas d’évaluer une compétence prédictive.",
+        "Le journal du radar fige vos notes et mesures. Lorsqu’un même flux fournit cinq nouvelles bougies clôturées, il mesure le rendement observé et si la clôture a baissé d’au moins deux ATR initiaux. Ce diagnostic ne juge pas automatiquement le scénario libre que vous avez écrit.",
+        "Séparez qualité de la prévision et résultat d’une stratégie. Même une prévision utile peut produire une perte après frais, gap ou mauvaise taille. Comparez les résultats par régime et par horizon ; le but est d’apprendre où votre méthode échoue autant que là où elle fonctionne."
+      ],
+      "sourceIds": [
+        "overfit"
+      ]
+    }
+  ],
+  "strategies": [
+    {
+      "title": "Suivi de tendance",
+      "level": "Intermédiaire",
+      "idea": "Hypothèse documentée : certains mouvements persistent. Les études historiques multi-actifs ne valident pas automatiquement un indicateur particulier.",
+      "rules": "Exemple de recherche : signal calculé en clôture, long si moyenne rapide > lente, short dans le cas inverse ; exécution à la séance suivante et exposition plafonnée.",
+      "failure": "Marchés sans direction, retournements rapides, coûts de rotation et concentration de risque.",
+      "validation": "Évaluer séparément long/short, périodes et coûts ; comparer à une exposition passive. Le short requiert un instrument et un emprunt disponibles.",
+      "sourceIds": [
+        "momentum",
+        "sec-short"
+      ]
+    },
+    {
+      "title": "Cassure avec filtre de régime",
+      "level": "Intermédiaire",
+      "idea": "Variante expérimentale de suivi de tendance, pas une anomalie prouvée pour ces paramètres.",
+      "rules": "Définir à l’avance le plus haut/bas des N barres passées, hors barre courante ; tester une entrée après cassure confirmée et une sortie prédéfinie.",
+      "failure": "Fausses cassures, gap d’entrée, liquidité faible et multiplication de petites pertes.",
+      "validation": "Tester des fenêtres voisines et le prix réellement accessible après signal. Rejeter les règles qui ne résistent qu’à un seul réglage.",
+      "sourceIds": [
+        "momentum",
+        "sec-orders"
+      ]
+    },
+    {
+      "title": "Retour à la moyenne",
+      "level": "Intermédiaire",
+      "idea": "Des déplacements temporaires liés à la liquidité peuvent s’inverser. Un actif n’est pas obligé de revenir à son ancien prix.",
+      "rules": "Exemple : écart standardisé à une moyenne passée, entrée au-delà d’un seuil préétabli, sortie au retour ou à une durée maximale ; taille bornée.",
+      "failure": "Nouvelle information durable, tendance forte, séries corrélées et coûts élevés. Renforcer sans limite peut provoquer une ruine.",
+      "validation": "Tester le filtre de régime hors échantillon ; distinguer vraies transactions et rebonds artificiels entre bid et ask.",
+      "sourceIds": [
+        "reversal"
+      ]
+    },
+    {
+      "title": "Paires et valeur relative",
+      "level": "Professionnel",
+      "idea": "Acheter le membre relativement faible et vendre le fort d’une paire économiquement liée ; la convergence reste incertaine.",
+      "rules": "Séparer formation et négociation. Estimer la couverture sur le passé, plafonner chaque jambe et fixer durée maximale et seuil de rupture.",
+      "failure": "Relation économique rompue, faux lien statistique, emprunt indisponible et exécution d’une seule jambe. Corrélation ne signifie pas cointégration.",
+      "validation": "Inclure titres disparus, coûts d’emprunt, dividendes et variation de la couverture. Examiner le risque brut et les pertes lors de divergences persistantes.",
+      "sourceIds": [
+        "pairs"
+      ]
+    },
+    {
+      "title": "Carry et base spot–future",
+      "level": "Professionnel",
+      "idea": "Le carry est le rendement associé au portage sous hypothèses de prix et conditions inchangés ; une prime apparente rémunère souvent un risque.",
+      "rules": "Pour un future indiciel, décomposer prix spot, financement, dividendes et échéance. Comparer le différentiel au coût complet des deux jambes.",
+      "failure": "Appels de marge, financement variable, dividendes différents des attentes, contraintes de livraison et rupture de liquidité. Le funding d’un perpétuel n’est pas un taux garanti.",
+      "validation": "Simuler le chemin de trésorerie, pas seulement le profit final ; tester chocs de base et financement. Réserver ces modèles à l’étude avant toute exécution.",
+      "sourceIds": [
+        "carry",
+        "cme-basis"
+      ]
+    },
+    {
+      "title": "Réduire le coût d’exécution",
+      "level": "Professionnel",
+      "idea": "Une meilleure exécution peut préserver un avantage existant ; elle ne crée pas nécessairement une direction prédictive.",
+      "rules": "Comparer, sur une même intention d’ordre, exécution immédiate et limites avec délai maximum. Mesurer exécutions partielles et prix manqués.",
+      "failure": "Sélection adverse : être exécuté juste avant un mouvement défavorable ; manquer les meilleurs départs ; surestimer la liquidité.",
+      "validation": "Mesurer l’écart entre prix de décision et prix exécuté, y compris les ordres jamais remplis. Les seules clôtures OHLC ne permettent pas de reconstruire une file d’attente.",
+      "sourceIds": [
+        "sec-execution",
+        "reversal"
+      ]
+    }
+  ],
+  "disclaimers": {
+    "global": "Contenu éducatif et simulations hypothétiques. Aucun conseil personnalisé, signal d’achat/vente ou rendement promis. Toute stratégie peut perdre ; les performances passées ou simulées ne préjugent pas des résultats futurs.",
+    "simulation": "Données synthétiques de démonstration sauf mention explicite d’un fichier importé. Résultats dépendants des hypothèses de coûts et d’exécution. Fiscalité, profondeur du carnet, financement et contraintes d’emprunt ne sont pas nécessairement modélisés.",
+    "professional": "Les protocoles de recherche proposés sont des hypothèses. Les références académiques documentent des résultats dans des univers et périodes particuliers ; elles ne certifient ni ces paramètres ni leur rentabilité actuelle.",
+    "risk": "Risque de perte en capital. Le levier amplifie gains et pertes ; la vente à découvert d’actions peut produire une perte théoriquement illimitée. Les protections dépendent du produit, de la juridiction, du statut client et du prestataire.",
+    "scope": "Parcours couvrant les fondamentaux et plusieurs méthodes avancées, sans prétendre être exhaustif ou exempt de toute erreur. Sources consultées le 24 octobre 2026."
+  }
+};
+;
+(function(root){
+'use strict';
+const frames=[{id:'MN',label:'Mensuel',binance:'1M',td:'1month',ms:30*864e5},{id:'W',label:'Hebdomadaire',binance:'1w',td:'1week',ms:7*864e5},{id:'D',label:'Journalier',binance:'1d',td:'1day',ms:864e5},{id:'H4',label:'4 heures',binance:'4h',td:'4h',ms:144e5},{id:'H1',label:'1 heure',binance:'1h',td:'1h',ms:36e5},{id:'M15',label:'15 minutes',binance:'15m',td:'15min',ms:9e5},{id:'M5',label:'5 minutes',binance:'5m',td:'5min',ms:3e5},{id:'M1',label:'1 minute',binance:'1m',td:'1min',ms:6e4}];
+const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+const sd=a=>a.length<2?0:Math.sqrt(a.reduce((s,v)=>s+(v-mean(a))**2,0)/(a.length-1));
+function endTime(t,frame){if(frame==='MN'){let d=new Date(t);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)-1}return t+frames.find(f=>f.id===frame).ms-1}
+function validate(bars,now=Date.now()){if(!Array.isArray(bars)||bars.length<60||bars.length>20000)throw Error('Il faut 60 à 20 000 bougies OHLC.');let last=-Infinity;return bars.map((b,i)=>{let {t,end,open,high,low,close}=b;if(![t,end,open,high,low,close].every(Number.isFinite)||t<=last||end<t||Math.min(open,high,low,close)<=0||low>Math.min(open,close)||high<Math.max(open,close)||high<low||b.volume!=null&&(!Number.isFinite(b.volume)||b.volume<0))throw Error('Bougie '+(i+1)+' invalide : dates croissantes, prix OHLC cohérents et volume positif requis.');last=t;return {...b}}).filter(b=>b.end<=now)}
+function ema(values,n){let out=[],v;for(let i=0;i<values.length;i++){v=i===0?values[i]:values[i]*2/(n+1)+v*(1-2/(n+1));out.push(v)}return out}
+function indicators(bars){let c=bars.map(b=>b.close),fast=ema(c,20),slow=ema(c,50),atr=[],rsi=[],a=0,g=0,l=0;
+for(let i=0;i<bars.length;i++){let tr=i?Math.max(bars[i].high-bars[i].low,Math.abs(bars[i].high-c[i-1]),Math.abs(bars[i].low-c[i-1])):bars[i].high-bars[i].low;if(i<14){a+=tr;if(i===13)a/=14}else a=(a*13+tr)/14;atr.push(i>=13?a:null);if(i>0){let gain=Math.max(0,c[i]-c[i-1]),loss=Math.max(0,c[i-1]-c[i]);if(i<=14){g+=gain;l+=loss;if(i===14){g/=14;l/=14}}else{g=(g*13+gain)/14;l=(l*13+loss)/14}}rsi.push(i>=14?(l===0?g===0?50:100:100-100/(1+g/l)):null)}return {fast,slow,atr,rsi}}
+
+function at(bars,ind,i){if(i<59)throw Error('Historique insuffisant pour ces indicateurs.');let b=bars[i],past=bars.slice(i-20,i),hi=Math.max(...past.map(b=>b.high)),lo=Math.min(...past.map(b=>b.low)),peak=Math.max(...bars.slice(Math.max(0,i-99),i+1).map(b=>b.close));let atr=ind.atr[i],prevAtr=ind.atr[i-1],ret=b.close/bars[i-1].close-1,dd=1-b.close/peak;let returns=bars.slice(i-40,i+1).map((b,j,a)=>j?Math.log(b.close/a[j-1].close):null).filter(x=>x!==null),v1=sd(returns.slice(-20)),v0=sd(returns.slice(0,20)),volRatio=v0?v1/v0:null;let rules=[
+{label:'Prix sous EMA50',points:25,active:b.close<ind.slow[i],family:'tendance'},
+{label:'EMA20 sous EMA50',points:15,active:ind.fast[i]<ind.slow[i],family:'tendance'},
+{label:'Clôture sous le plus bas des 20 barres précédentes',points:20,active:b.close<lo,family:'rupture'},
+{label:'Repli depuis le sommet des 100 barres ≥ 4 ATR',points:15,active:peak-b.close>=4*atr,family:'amplitude'},
+{label:'Baisse de la dernière barre ≥ 2 ATR précédents',points:15,active:bars[i-1].close-b.close>=2*prevAtr,family:'choc'},
+{label:'Volatilité des 20 rendements ≥ 1,8× celle des 20 précédents',points:10,active:volRatio!==null&&volRatio>=1.8,family:'volatilité'}];
+let upRules=[{label:'Prix au-dessus EMA50',points:25,active:b.close>ind.slow[i]},{label:'EMA20 au-dessus EMA50',points:15,active:ind.fast[i]>ind.slow[i]},{label:'Clôture au-dessus des 20 plus hauts précédents',points:20,active:b.close>hi},{label:'Hausse dernière barre ≥ 2 ATR précédents',points:15,active:b.close-bars[i-1].close>=2*prevAtr},{label:'RSI compris entre 50 et 70',points:15,active:ind.rsi[i]>=50&&ind.rsi[i]<=70},{label:'Volume > 1,5× moyenne des 20 volumes précédents',points:10,active:b.volume!=null&&past.every(x=>x.volume!=null)&&b.volume>mean(past.map(x=>x.volume))*1.5}];
+return {t:b.t,end:b.end,close:b.close,fast:ind.fast[i],slow:ind.slow[i],atr,rsi:ind.rsi[i],hi,lo,ret,dd,volRatio,down:rules.filter(r=>r.active).reduce((s,r)=>s+r.points,0),up:upRules.filter(r=>r.active).reduce((s,r)=>s+r.points,0),rules,upRules,trend:b.close>ind.fast[i]&&ind.fast[i]>ind.slow[i]?'Hausse':b.close<ind.fast[i]&&ind.fast[i]<ind.slow[i]?'Baisse':'Mixte'}}
+function analyze(bars){if(bars.length<60)throw Error('Moins de 60 bougies clôturées disponibles.');let ind=indicators(bars);return {...at(bars,ind,bars.length-1),n:bars.length}}
+function wilson(k,n){if(!n)return null;let p=k/n,z=1.96,d=1+z*z/n,c=(p+z*z/(2*n))/d,h=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n))/d;return [Math.max(0,c-h),Math.min(1,c+h)]}
+function evaluate(bars,{threshold=60,horizon=5,atrMultiple=2,direction='down'}={}){if(!Number.isInteger(horizon)||horizon<1||horizon>100||![threshold,atrMultiple].every(Number.isFinite)||atrMultiple<=0||threshold<0||threshold>100||!['up','down'].includes(direction))throw Error('Paramètres d’évaluation invalides.');let ind=indicators(bars),start=Math.max(60,Math.floor(bars.length*.7)),events=[],baseline=[];
+for(let i=start;i+horizon<bars.length;i+=horizon){let x=at(bars,ind,i),ret=bars[i+horizon].close/bars[i].close-1,limit=x.atr/x.close*atrMultiple,fall=ret<=-limit,rise=ret>=limit;baseline.push({fall,rise,ret});if((direction==='up'?x.up:x.down)>=threshold)events.push({date:new Date(bars[i].t).toISOString(),score:direction==='up'?x.up:x.down,ret,fall,rise})}
+let hits=events.filter(e=>direction==='up'?e.rise:e.fall).length,baseHits=baseline.filter(e=>direction==='up'?e.rise:e.fall).length;return {start,n:events.length,hits,falseAlerts:events.length-hits,baselineN:baseline.length,baselineHits:baseHits,rate:events.length?hits/events.length:null,baseRate:baseline.length?baseHits/baseline.length:null,ci:wilson(hits,events.length),events,horizon,atrMultiple,direction}}
+function correlation(a,b,window=60){let map=new Map(b.map(x=>[x.t,x.close])),pairs=[];for(let i=1;i<a.length;i++){let prev=map.get(a[i-1].t),curr=map.get(a[i].t);if(prev&&curr)pairs.push([Math.log(a[i].close/a[i-1].close),Math.log(curr/prev)])}pairs=pairs.slice(-window);if(pairs.length<20)return {n:pairs.length,r:null};let x=pairs.map(p=>p[0]),y=pairs.map(p=>p[1]),mx=mean(x),my=mean(y),den=Math.sqrt(x.reduce((s,v)=>s+(v-mx)**2,0)*y.reduce((s,v)=>s+(v-my)**2,0));return {n:pairs.length,r:den?pairs.reduce((s,p)=>s+(p[0]-mx)*(p[1]-my),0)/den:null}}
+function parseCSV(text,frame,now=Date.now()){let lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/),sep=lines[0].includes(';')?';':',',head=lines.shift().split(sep).map(x=>x.trim().toLowerCase()),get=(cells,key)=>cells[head.indexOf(key)]?.trim();if(!['time','open','high','low','close'].every(k=>head.includes(k)))throw Error('Colonnes requises : time,open,high,low,close ; volume et end_time facultatives.');let bars=lines.map((line,i)=>{let cells=line.split(sep),raw=get(cells,'time');if(!/^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d{1,3})?)?(Z|[+-]\d\d:\d\d)$/.test(raw))throw Error('Ligne '+(i+2)+' : time doit être ISO avec fuseau, ex. 2026-10-01T12:00:00Z.');let t=Date.parse(raw),num=k=>Number((get(cells,k)||'').replace(',','.')),rawEnd=get(cells,'end_time'),end=rawEnd?Date.parse(rawEnd):endTime(t,frame);return {t,end,open:num('open'),high:num('high'),low:num('low'),close:num('close'),volume:get(cells,'volume')?num('volume'):null}});return validate(bars,now)}
+function binance(rows,now=Date.now()){if(!Array.isArray(rows))throw Error('Réponse crypto invalide.');return validate(rows.map(r=>({t:+r[0],open:+r[1],high:+r[2],low:+r[3],close:+r[4],volume:+r[5],end:+r[6]})),now)}
+function twelve(json,now=Date.now()){if(json.status==='error'||!json.values)throw Error(json.message||'Réponse fournisseur invalide.');let rows=[...json.values].reverse();return validate(rows.slice(0,-1).map((r,i)=>({t:Date.parse(r.datetime.replace(' ','T')+(r.datetime.length<=10?'T00:00:00Z':'Z')),end:Date.parse(rows[i+1].datetime.replace(' ','T')+(rows[i+1].datetime.length<=10?'T00:00:00Z':'Z'))-1,open:+r.open,high:+r.high,low:+r.low,close:+r.close,volume:r.volume===undefined?null:+r.volume})),now)}
+function demo(frame='D',seed=42,n=320,now=Date.now()){let f=frames.find(f=>f.id===frame),r=root.Engine?.rng?root.Engine.rng(seed):(()=>.5),d=new Date(now),end=frame==='MN'?Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1):Math.floor(now/f.ms)*f.ms;let p=100;return Array.from({length:n},(_,i)=>{let t=frame==='MN'?Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-n+i,1):end-(n-i)*f.ms,open=p;p*=Math.exp((r()-.5)*.045+(i<170?.001:-.0005));let high=Math.max(open,p)*(1+r()*.009),low=Math.min(open,p)*(1-r()*.009);return {t,end:endTime(t,frame),open,high,low,close:p,volume:1000+r()*1000}})}
+function macroParse(text){let rows=text.trim().split(/\r?\n/).slice(1).map(l=>l.split(','));return rows.filter(r=>r[1]&&r[1]!=='.'&&Number.isFinite(+r[1])&&/^\d{4}-\d\d-\d\d$/.test(r[0])).map(r=>({date:r[0],value:+r[1]}))}
+function assessMacro(series){let specs=[['VIXCLS',25,'≥ 25 points : volatilité implicite élevée, sans direction imposée'],['BAMLH0A0HYM2',5,'≥ 5 points de % : spread HY élevé selon notre seuil de veille'],['T10Y2Y',0,'< 0 point de % : courbe 10 ans–2 ans inversée, sans calendrier de crise']];return specs.map(([id,threshold,rule])=>{let a=series[id]||[],last=a.at(-1);return {id,rule,last,active:last?(id==='T10Y2Y'?last.value<threshold:last.value>=threshold):null}})}
+
+function defensive(bars,{threshold=60,wait=5,feeBps=8}={}){if(!Number.isInteger(wait)||wait<1||wait>100||feeBps<0||feeBps>500||threshold<0||threshold>100)throw Error('Paramètres de simulation invalides.');let ind=indicators(bars),start=Math.max(60,Math.floor(bars.length*.7)),capital=10000,cash=10000,units=0,until=-1,trades=0,costs=0,peak=10000,dd=0,rate=feeBps/10000,curve=[];
+for(let i=start;i<bars.length;i++){let a=at(bars,ind,i-1);if(a.down>=threshold)until=i+wait;let hold=i>=until&&i!==bars.length-1,price=bars[i].close;if(!hold&&units){let gross=units*price,cost=gross*rate;cash=gross-cost;units=0;costs+=cost;trades++}else if(hold&&!units){units=cash/(price*(1+rate));let cost=units*price*rate;costs+=cost;cash=0;trades++}capital=cash+units*price;peak=Math.max(peak,capital);dd=Math.max(dd,1-capital/peak);curve.push({date:new Date(bars[i].t).toISOString(),value:capital})}
+let benchmark=10000/(1+rate)*bars.at(-1).close/bars[start].close*(1-rate);return {capital,return:capital/10000-1,benchmark,dd,costs,trades,curve,start}}
+
+
+function evaluateSnapshot(snapshot,bars){let index=bars.findIndex(b=>b.t===snapshot.t);if(index<0||!Number.isInteger(snapshot.horizon)||snapshot.horizon<1||index+snapshot.horizon>=bars.length)return null;let b=bars[index+snapshot.horizon];return {date:b.end,ret:b.close/snapshot.close-1,fall:b.close-snapshot.close<=-2*snapshot.atr}}
+const api={evaluateSnapshot,defensive,frames,endTime,validate,ema,indicators,at,analyze,wilson,evaluate,correlation,parseCSV,binance,twelve,demo,macroParse,assessMacro};root.RadarCore=api;if(typeof module!=='undefined')module.exports=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+;
+(function(){
+'use strict';
+const R=RadarCore, fnum=(n,d=2)=>n==null?'—':num(n,d), fpct=n=>n==null?'—':pct(n), stamp=t=>new Date(t).toLocaleString('fr-FR',{timeZone:'Europe/Paris',dateStyle:'short',timeStyle:'short'}), cache=new Map;let state={market:'crypto',symbol:'BTCUSDT',frame:'MN',provider:'binance',apiKey:'',auto:false,threshold:60,macro:{},journal:[],alerts:[],busy:false},viewToken=0;
+const assets={crypto:[['BTCUSDT','Bitcoin / USDT'],['ETHUSDT','Ether / USDT'],['SOLUSDT','Solana / USDT']],equity:[['SPY','SPY — ETF de suivi du S&P 500'],['QQQ','QQQ — ETF de suivi du Nasdaq-100'],['AAPL','Apple'],['MSFT','Microsoft']],forex:[['EUR/USD','Euro / dollar'],['GBP/USD','Livre / dollar'],['USD/JPY','Dollar / yen']]};
+try{state.journal=JSON.parse(localStorage.getItem('ea-radar-journal')||'[]')}catch{}
+const key=()=>state.provider+'|'+state.symbol+'|'+state.frame;
+const get=frame=>cache.get(state.provider+'|'+state.symbol+'|'+(frame||state.frame));
+const save=()=>{try{localStorage.setItem('ea-radar-journal',JSON.stringify(state.journal))}catch{}};
+const quote=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+function error(message){let el=$('#radarStatus');if(el){el.className='notice warn';el.textContent=message}}
+function status(message){let el=$('#radarStatus');if(el){el.className='notice';el.textContent=message}}
+function render(){const token=++viewToken;state.auto=false;state.busy=false;
+$('#main').innerHTML=title('06 / OBSERVATOIRE PERSONNEL','Du mois à la minute.','Un poste d’analyse pour relier les horizons, détecter des changements et tester vos anticipations. Les conditions affichées sont des mesures explicables ; leur valeur prédictive reste à vérifier.')+
+'<section class="section" style="padding-top:0"><div class="radar-banner"><span class="tag">ESPACE PERSONNEL / ANALYSE & SIMULATION</span><div><strong id="radarMode">AUCUNE DONNÉE CHARGÉE</strong><small>Rafraîchissement tant que cette page reste ouverte. Aucun ordre réel.</small></div></div><div class="workspace radar-workspace"><aside class="controls"><h3>Univers de travail</h3><label>Classe d’actifs<select id="rMarket"><option value="crypto">Cryptos</option><option value="equity">Actions & suivi d’indices</option><option value="forex">Forex</option></select></label><label>Instrument<select id="rAsset"></select></label><label>Symbole personnalisé<input id="rSymbol" maxlength="40" aria-label="Symbole personnalisé"></label><label>Source<select id="rProvider"><option value="binance">Binance — crypto spot public</option><option value="twelve">Twelve Data — clé personnelle</option><option value="csv">CSV personnel</option><option value="demo">Démo synthétique explicite</option></select></label><label id="keyWrap">Clé de données Twelve Data<input type="password" id="rApiKey" autocomplete="off" placeholder="En mémoire pendant cette session"></label><label>Unité analysée<select id="rFrame">'+R.frames.map(f=>'<option value="'+f.id+'">'+f.id+' · '+f.label+'</option>').join('')+'</select></label><div class="export"><button class="btn" id="rFetch">Actualiser cette unité ↗</button><button class="btn ghost" id="rAll">Charger les 8 horizons ↓</button></div><label class="checkline"><input type="checkbox" id="rAuto"> Surveiller cette unité toutes les 60 s</label><p class="hint">Les quotas et retards dépendent du fournisseur. Les ETF SPY/QQQ sont des instruments de suivi, pas les indices eux-mêmes. Pour un indice direct, saisir un symbole autorisé par votre abonnement. La classe choisie ne valide pas le symbole.</p><label>CSV OHLC de cette unité<input type="file" id="rCSV" accept=".csv,text/csv"></label><p class="hint">time,open,high,low,close,volume. Horodatage ISO avec fuseau. Les données sont associées au symbole et à l’unité affichés.</p><button class="btn ghost" id="rTemplate">Exemple CSV ↓</button><div class="export"><button class="text-link" id="rHelp" type="button">Sources et connexion</button></div></aside><div class="results"><div id="radarStatus" class="notice" role="status">Commencez par une source et un instrument. La démo est toujours signalée comme synthétique.</div><div class="radar-horizons" id="rHorizons"></div><div id="rMain"></div><canvas id="rChart" class="chart" role="img" aria-label="Clôtures et EMA20 de l’instrument sélectionné"></canvas><p class="hint">Courbe verte : clôtures · Pointillés : EMA20. Prix dans la devise de cotation.</p><div id="rNarrative"></div></div></div><div class="radar-tabs"><button data-pane="evidence" class="selected">Conditions mesurées</button><button data-pane="evaluation">Évaluation historique</button><button data-pane="macro">Contexte macro</button><button data-pane="relations">Corrélations</button><button data-pane="journal">Journal d’anticipations</button><button data-pane="method">Méthode & limites</button></div><div id="rPane"></div></section>';
+$('#rMarket').value=state.market;$('#rFrame').value=state.frame;$('#rProvider').value=state.provider;$('#rApiKey').value=state.apiKey;let pane='evidence',chartCleanupIndex=-1;
+function symbols(){let a=assets[state.market];$('#rAsset').innerHTML=a.map(([v,l])=>'<option value="'+v+'">'+esc(l)+'</option>').join('');if(a.some(a=>a[0]===state.symbol))$('#rAsset').value=state.symbol;$('#rSymbol').value=state.symbol}
+function sourceUI(){$('#keyWrap').hidden=state.provider!=='twelve';$('#rAuto').disabled=!['binance','twelve'].includes(state.provider);if($('#rAuto').disabled){$('#rAuto').checked=false;state.auto=false}$('#rAll').disabled=state.provider==='csv';$('#rFetch').disabled=state.provider==='csv'}
+function current(){return get()}
+function redraw(){if(token!==viewToken)return;let rec=current();$('#radarMode').textContent=rec?(rec.synthetic?'DÉMO SYNTHÉTIQUE':rec.source.toUpperCase())+' · '+state.symbol+' · '+state.frame:'AUCUNE DONNÉE POUR '+state.symbol+' / '+state.frame;
+$('#rHorizons').innerHTML=R.frames.map(f=>{let x=get(f.id),a=x?.analysis;return '<button data-rf="'+f.id+'" class="'+(f.id===state.frame?'active':'')+'"><b>'+f.id+'</b><small>'+(!a?'Non chargé':a.trend)+'</small><span>'+(!a?'—':fnum(a.down,0)+'/100')+'</span></button>'}).join('');$$('[data-rf]').forEach(b=>b.onclick=()=>{state.frame=b.dataset.rf;$('#rFrame').value=state.frame;redraw()});
+if(rec){let a=rec.analysis,age=Math.max(0,(Date.now()-a.end)/36e5);let stale=Date.now()-a.end>R.frames.find(f=>f.id===state.frame).ms*1.5;$('#rMain').innerHTML=metrics([['Pression baissière / 100',fnum(a.down,0),a.down>=60?'negative':''],['Conditions haussières / 100',fnum(a.up,0),a.up>=60?'positive':''],['RSI14 (0–100)',fnum(a.rsi)],['ATR14 / prix',fpct(a.atr/a.close)]])+'<p class="hint"><b>'+esc(rec.source)+'</b> · '+a.n+' bougies clôturées · dernière borne de fin : '+stamp(a.end)+' · âge calendaire '+fnum(age,1)+' h. '+(rec.bars.slice(-21).some(b=>b.volume==null)?'Volume indisponible sur cette fenêtre : le critère volume reste non évalué ; le score haussier n’est pas renormalisé. ':'')+(a.n<150?'Historique de chauffe court : sensibilité accrue à l’initialisation des EMA. ':'')+(stale?'RETARD POSSIBLE : contrôler horaires et calendrier de cotation. ':'')+esc(rec.note)+'</p>';if(chartCleanupIndex>=0)cleanups[chartCleanupIndex]?.();chartCleanupIndex=cleanups.length;lineChart($('#rChart'),rec.bars.slice(-150).map(b=>b.close),R.indicators(rec.bars).fast.slice(-150),rec.bars.slice(-150).map(b=>new Date(b.t).toISOString().slice(0,16).replace('T',' ')));
+$('#rChart').hidden=false;let monthly=get('MN'),daily=get('D');$('#rNarrative').innerHTML='<div class="notice"><b>Lecture conditionnelle</b><br>'+(!monthly?'Le mensuel manque : contexte de long terme non établi. ':'Mensuel : '+monthly.analysis.trend.toLowerCase()+'. ')+(!daily?'Le journalier manque : structure intermédiaire non établie. ':'Journalier : '+daily.analysis.trend.toLowerCase()+'. ')+state.frame+' : '+a.trend.toLowerCase()+'. '+(a.trend==='Mixte'?'Les critères de tendance divergent ; documentez le conflit avant de conclure.':'Cette tendance décrite peut se retourner ; elle ne prédit pas la prochaine bougie.')+'<br>Scénario de hausse : une clôture au-dessus de '+fnum(a.hi,5)+' dépasserait le plus haut des 20 barres précédentes. Scénario de baisse : une clôture sous '+fnum(a.lo,5)+' casserait leur plus bas. Ces repères évoluent à chaque barre, et ne sont pas des ordres.<br><small>Les horizons sont imbriqués. Leurs confirmations ne sont pas indépendantes. Les snapshots peuvent dater de moments différents.</small></div>';
+}else{$('#rMain').innerHTML='<div class="radar-empty"><h3>Observer avant de conclure.</h3><p>Chargez le mensuel, puis descendez les horizons. Chaque unité conserve son historique et sa provenance pendant cette session.</p></div>';$('#rChart').hidden=true;$('#rNarrative').innerHTML=''}
+drawPane()}
+function drawPane(){if(token!==viewToken)return;let rec=current(),a=rec?.analysis,el=$('#rPane');$$('[data-pane]').forEach(b=>b.classList.toggle('selected',b.dataset.pane===pane));
+if(pane==='evidence'){el.innerHTML=a?'<div class="details-grid"><div><h3>Pression baissière : '+a.down+'/100</h3><p class="hint">Somme de conditions de prix corrélées, sans calibration probabiliste. Cassure et choc sont déjà observés, donc réactifs. Aucun lien causal n’est démontré.</p>'+a.rules.map(r=>'<div class="rule"><span class="'+(r.active?'negative':'')+'">'+(r.active?'●':'○')+'</span><p>'+r.label+'</p><b>'+r.points+' pts</b></div>').join('')+'</div><div><h3>Conditions haussières : '+a.up+'/100</h3><p class="hint">Les deux scores peuvent être élevés simultanément. Ils ne totalisent pas 100 %.</p>'+a.upRules.map(r=>'<div class="rule"><span class="'+(r.active?'positive':'')+'">'+(r.active?'●':'○')+'</span><p>'+r.label+'</p><b>'+r.points+' pts</b></div>').join('')+'</div></div><div class="export"><button class="btn ghost" id="rFreeze">Figer cette anticipation dans le journal ↓</button></div><h3 style="margin-top:30px">Derniers changements observés</h3><div id="rAlerts">'+(state.alerts.length?state.alerts.slice(-15).reverse().map(x=>'<div class="rule"><small>'+stamp(x.at)+'</small><p>'+esc(x.message)+'</p></div>').join(''):'<p class="hint">Aucun changement détecté pendant cette session. Le premier chargement établit une référence.</p>')+'</div>':'<p class="empty">Chargez une unité pour examiner les conditions.</p>';$('#rFreeze')?.addEventListener('click',()=>freeze())}
+if(pane==='evaluation'){el.innerHTML='<div class="section-head"><div><h3>Tester les conditions directionnelles</h3><p class="hint">Une alerte utile doit faire mieux qu’une fréquence de référence, et survivre à de nouvelles données.</p></div></div><form id="rEvalForm" class="eval-form"><label>Événement étudié<select id="rDirection"><option value="down">Baisse</option><option value="up">Hausse</option></select></label>'+field('rThreshold','Seuil de score / 100',state.threshold,0,100,1)+field('rHorizon','Horizon (barres)',5,1,50,1)+field('rMultiple','Amplitude cible (× ATR initial)',2,.1,10,.1)+'<button class="btn" type="submit">Évaluer les derniers 30 % ↗</button></form><div id="rEvalResult"></div><div class="notice"><b>Réaction simulée : passage en liquidités</b><p>La règle observe le score de la barre précédente. Si le seuil est atteint, la position fictive est fermée à la clôture suivante ; le retour en exposition attend H barres sans nouvelle alerte. Taille fixe entre deux opérations, capital initial de 10 000 unités de cotation, frais + glissement de 8 pb par côté. Aucun levier, financement, dividende ni exécution intrabar.</p><button class="btn ghost" type="button" id="rPaperTest">Comparer cette réaction à conserver l’actif ↗</button><div id="rPaperResult"></div></div><div class="notice">Événement cible : rendement de clôture à clôture à H barres ≤ −K × ATR initial / prix initial pour une baisse, ou ≥ +K × ATR initial / prix initial pour une hausse. Il ne mesure ni krach, ni perte intrabar, ni rentabilité d’une stratégie. Échantillonnage à pas H pour limiter les chevauchements ; cela ignore les alertes entre les points testés. La dépendance et les régimes restent présents. Modifier les paramètres après lecture du résultat réutilise la validation.</div>';
+$('#rPaperTest').onclick=()=>{try{if(!rec)throw Error('Chargez des données.');let v=R.defensive(rec.bars,{threshold:+$('#rThreshold').value,wait:+$('#rHorizon').value});$('#rPaperResult').innerHTML=metrics([['Réaction simulée nette',fpct(v.return)],['Conservation nette',fpct(v.benchmark/10000-1)],['Drawdown réaction',fpct(v.dd)],['Entrées + sorties',v.trades]])+'<p class="hint">Derniers 30 % ; métriques en devise de cotation. Simulation exploratoire : ce résultat n’est pas une recommandation. '+(rec.synthetic?'Marché synthétique.':'Données non authentifiées par ce site.')+'</p>'}catch(e){$('#rPaperResult').textContent=e.message}};$('#rEvalForm').onsubmit=e=>{e.preventDefault();try{if(!rec)throw Error('Chargez des données.');state.threshold=+$('#rThreshold').value;let v=R.evaluate(rec.bars,{threshold:state.threshold,horizon:+$('#rHorizon').value,atrMultiple:+$('#rMultiple').value,direction:$('#rDirection').value});$('#rEvalResult').innerHTML=metrics([['Alertes évaluées',v.n],['Cible atteinte',v.rate===null?'—':fpct(v.rate)],['Fréquence de référence',fpct(v.baseRate)],['Cible non atteinte',v.falseAlerts]])+'<div class="notice">'+(v.ci?'Intervalle indicatif de Wilson à 95 % : '+fpct(v.ci[0])+'–'+fpct(v.ci[1])+'. ':'Pas d’alerte évaluable. ')+(v.n<30?'Moins de 30 alertes : précision statistique faible. ':'La dépendance des observations peut rendre cet intervalle trop étroit.')+'<br>'+v.baselineN+' points de référence évalués sur les mêmes dates et avec la même règle. '+(rec.synthetic?'Ces fréquences viennent de données synthétiques : aucune portée sur un marché réel.':'Résultat descriptif sur votre échantillon, sans garantie de stabilité future.')+'</div>'}catch(err){$('#rEvalResult').textContent=err.message}}}
+if(pane==='macro'){let cards=R.assessMacro(state.macro);el.innerHTML='<div class="section-head"><div><h3>Température macro — États-Unis</h3><p class="hint">Ce volet US est partiel : il ne représente pas toute la macro mondiale et ne déclenche aucune transaction.</p></div><button class="btn ghost" id="rLoadMacro">Actualiser FRED ↻</button></div><div class="cards">'+cards.map(m=>'<article class="card"><span class="tag">'+m.id+'</span><h3>'+(!m.last?'Non chargé':fnum(m.last.value))+'</h3><p>'+m.rule+'</p><p class="hint">'+(m.last?'Observation : '+m.last.date+' · '+(m.active?'Condition de veille active':'Condition non active'):'Aucune observation disponible')+'</p><a class="text-link" href="https://fred.stlouisfed.org/series/'+m.id+'" target="_blank" rel="noopener">Source, unités et droits ↗</a></article>').join('')+'</div><div class="notice">Seuils éditoriaux de veille (VIX ≥ 25, spread HY ≥ 5 points de %, courbe 10–2 ans < 0), jamais des seuils universels de krach. Le VIX mesure une volatilité implicite, pas une direction. Les séries sont publiées avec délai et parfois révisées. Leurs valeurs récentes ne sont pas des données macro temps réel.</div><div class="details-grid"><div><h3>Relier les causes possibles</h3><p>Taux attendus → financement et actualisation → consommation, bénéfices et valorisations. La direction du change dépend notamment des écarts entre économies et des primes de risque.</p><p>Stress de crédit → financement plus difficile → réduction possible du risque. Une hausse simultanée du VIX et des spreads est un contexte à examiner, sans prouver la cause du prochain mouvement.</p><a class="text-link" href="https://www.ecb.europa.eu/mopo/intro/transmission/html/index.en.html" target="_blank" rel="noopener">Transmission monétaire — BCE ↗</a></div><div><h3>Informations à documenter</h3><p>Pour inflation, emploi et décisions de banques centrales : publié, consensus, révisions, heure de diffusion et réaction des taux. Le consensus et un calendrier économique complet ne sont pas connectés dans cette version.</p><p>Une surprise macro doit être jugée par rapport à l’attente disponible avant publication. Ne pas reconstruire cette attente après coup.</p></div></div>';
+$('#rLoadMacro').onclick=async()=>{let b=$('#rLoadMacro');b.disabled=true;let results=await Promise.allSettled(['VIXCLS','BAMLH0A0HYM2','T10Y2Y'].map(async id=>{let url=localBridge()?'/api/fred?id='+id:'https://fred.stlouisfed.org/graph/fredgraph.csv?id='+id;let res=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!res.ok)throw Error(id+' : HTTP '+res.status);let rows=R.macroParse(await res.text());if(!rows.length)throw Error('Aucune observation '+id);state.macro[id]=rows}));if(token!==viewToken)return;drawPane();let failed=results.filter(r=>r.status==='rejected');status(failed.length?failed.length+' série(s) indisponible(s). Les requêtes FRED directes peuvent être bloquées ; utilisez le lancement local fourni.':'Séries FRED actualisées. Vérifiez les dates de chaque observation.');b.disabled=false}}
+if(pane==='relations'){let entries=[...cache.entries()].filter(([k,x])=>k.endsWith('|'+state.frame)&&x!==rec&&x.synthetic===rec?.synthetic);el.innerHTML='<h3>Corrélation de rendements synchronisés</h3><p>Comparaison uniquement entre bougies aux horodatages identiques, sur la même unité. Les données synthétiques et observées ne sont jamais mélangées.</p>'+(!rec?'<p>Chargez d’abord un instrument.</p>':!entries.length?'<div class="notice">Chargez un autre instrument sur '+state.frame+', puis revenez à celui-ci. Les deux historiques restent disponibles pendant la session.</div>':'<div class="table-wrap"><table><thead><tr><th>Autre série</th><th>20 rendements</th><th>60 rendements</th><th>120 rendements</th></tr></thead><tbody>'+entries.map(([k,x])=>'<tr><td>'+esc(k)+'</td>'+[20,60,120].map(n=>{let c=R.correlation(rec.bars,x.bars,n);return '<td>'+(c.r===null?'Non estimable':fnum(c.r,3))+' · n='+c.n+'</td>'}).join('')+'</tr>').join('')+'</tbody></table></div>')+'<div class="notice">Comparer les fenêtres aide à observer l’instabilité. Horaires, jours fériés, devises et lieux de cotation peuvent rendre une comparaison trompeuse. Ni corrélation ni avance temporelle ne démontrent une causalité. Aucun test de cointégration n’est effectué ici.</div>'}
+if(pane==='journal'){el.innerHTML='<div class="section-head"><h3>Décisions figées, résultats à vérifier.</h3><button class="btn ghost" id="rExportJournal">Exporter le journal ↓</button></div><p>Chaque entrée conserve les mesures, la source et l’heure de capture. Les nouvelles entrées sont évaluées automatiquement après cinq bougies supplémentaires de la même source et unité, lors d’une actualisation. Ajoutez votre scénario avant de voir la suite. Le journal reste dans ce navigateur ; exportez-le pour le sauvegarder.</p><div class="table-wrap"><table><thead><tr><th>Capture</th><th>Instrument / unité</th><th>Pression ↓ / conditions ↑</th><th>Scénario écrit</th><th>Origine</th><th>Après H barres</th></tr></thead><tbody>'+state.journal.slice().reverse().map(j=>'<tr><td>'+stamp(j.at)+'</td><td>'+esc(j.symbol)+' / '+j.frame+'</td><td>'+j.down+' / '+j.up+'</td><td style="white-space:normal;min-width:260px">'+esc(j.note)+'</td><td>'+esc(j.source)+'</td><td>'+(j.outcome?fpct(j.outcome.ret)+' · '+(j.outcome.fall?'baisse ≥ 2 ATR':'cible de baisse non atteinte'):'En attente de données')+'</td></tr>').join('')+'</tbody></table></div><div class="export"><button class="btn ghost" id="rFreezeJournal" '+(!rec?'disabled':'')+'>Ajouter l’observation actuelle ↓</button></div>';$('#rExportJournal').onclick=()=>download('edge-atlas-journal.csv','capture,symbol,frame,source,bar_end,down,up,close,scenario,outcome_return\n'+state.journal.map(j=>[new Date(j.at).toISOString(),j.symbol,j.frame,j.source,new Date(j.end).toISOString(),j.down,j.up,j.close,j.note,j.outcome?.ret??''].map(quote).join(',')).join('\n'));$('#rFreezeJournal').onclick=freeze}
+if(pane==='method'){el.innerHTML=method()}
+}
+function freeze(){let rec=current();if(!rec)return;let a=rec.analysis;$('#lessonContent').innerHTML='<div class="eyebrow">JOURNAL PERSONNEL</div><h2>Écrire avant de savoir.</h2><p>'+esc(state.symbol)+' / '+state.frame+' · clôture '+fnum(a.close,5)+' · '+esc(rec.source)+'</p><p class="hint">Évaluation descriptive après 5 nouvelles bougies clôturées : rendement observé et baisse éventuelle d’au moins 2 ATR initiaux. Les notes libres ne sont pas notées par une IA.</p><label>Scénario, horizon, faits qui l’invalideraient<textarea id="rJournalNote" rows="5" maxlength="2000" placeholder="Si… alors… ; je reconsidère si…"></textarea></label><div class="export"><button class="btn" id="rSaveNote">Figer cette observation ↓</button></div>';$('#lessonDialog').showModal();$('#rSaveNote').onclick=()=>{state.journal.push({at:Date.now(),symbol:state.symbol,frame:state.frame,source:rec.source,end:a.end,t:a.t,atr:a.atr,horizon:5,down:a.down,up:a.up,close:a.close,note:$('#rJournalNote').value});state.journal=state.journal.slice(-1000);save();$('#lessonDialog').close();status('Observation et scénario figés dans le journal local.');pane='journal';drawPane()}}
+async function fetchFrame(frame){if(token!==viewToken)throw Error('Analyse interrompue.');let requested={symbol:state.symbol,provider:state.provider,frame},bars,source,note='',synthetic=false;
+if(requested.provider==='demo'){bars=R.demo(frame,Array.from(requested.symbol+frame).reduce((v,c)=>(v*31+c.charCodeAt(0))>>>0,42));source='Démo synthétique';synthetic=true;note='Séries fictives indépendantes par unité et instrument, sans cohérence d’agrégation ni valeur prédictive réelle.'}
+else if(requested.provider==='binance'){if(!/^[A-Z0-9]{4,25}$/.test(requested.symbol))throw Error('Binance attend un symbole comme BTCUSDT.');let params=new URLSearchParams({symbol:requested.symbol,interval:R.frames.find(f=>f.id===frame).binance,limit:'500'});let url=localBridge()?'/api/binance?'+params:'https://api.binance.com/api/v3/klines?'+params;let response=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!response.ok)throw Error('Flux crypto : HTTP '+response.status+' (disponibilité selon région et fournisseur).');bars=R.binance(await response.json());source='Binance spot';note='Bougies dont la fin fournisseur est passée. USDT et USD ne sont pas identiques.'}
+else if(requested.provider==='twelve'){if(!state.apiKey.trim())throw Error('Saisissez votre clé de données Twelve Data ou importez un CSV.');let p=new URLSearchParams({symbol:requested.symbol,interval:R.frames.find(f=>f.id===frame).td,outputsize:'500',timezone:'UTC',order:'desc'});let url=localBridge()?'/api/twelve?'+p:'https://api.twelvedata.com/time_series?'+p+'&apikey='+encodeURIComponent(state.apiKey.trim());let response=await fetch(url,{signal:AbortSignal.timeout(25000),headers:localBridge()?{'X-Data-Key':state.apiKey.trim()}:undefined});if(!response.ok)throw Error('Twelve Data : HTTP '+response.status);let json=await response.json();bars=R.twelve(json);source='Twelve Data';note='Dernière bougie exclue par prudence. Intraday demandé en UTC ; D/W/MN : dates de séance du marché. Droits, retards et ajustements selon le flux ; pas de validation automatique des opérations sur titres.'}
+else throw Error('Choisissez un fichier CSV.');
+let analysis=R.analyze(bars),cacheKey=requested.provider+'|'+requested.symbol+'|'+frame,old=cache.get(cacheKey);cache.set(cacheKey,{bars,analysis,source,note,synthetic,loadedAt:Date.now()});let journalChanged=false;for(let j of state.journal){if(j.symbol!==requested.symbol||j.frame!==frame||j.source!==source||j.outcome||!j.t)continue;let outcome=R.evaluateSnapshot(j,bars);if(outcome){j.outcome=outcome;journalChanged=true}}if(journalChanged)save();if(old&&old.analysis.end!==analysis.end&&((old.analysis.down<state.threshold&&analysis.down>=state.threshold)||old.analysis.trend!==analysis.trend||(old.analysis.up<state.threshold&&analysis.up>=state.threshold))){state.alerts.push({at:Date.now(),message:requested.symbol+' / '+frame+' : '+old.analysis.trend+' → '+analysis.trend+' ; pression '+analysis.down+'/100 ; '+source});state.alerts=state.alerts.slice(-100)}}
+async function load(all=false){if(state.busy)return;let symbol=state.symbol,provider=state.provider;state.busy=true;$('#rFetch').disabled=true;$('#rAll').disabled=true;try{let frames=all?R.frames.map(f=>f.id):[state.frame],errors=[];for(let i=0;i<frames.length;i++){if(token!==viewToken||symbol!==state.symbol||provider!==state.provider)break;status('Chargement '+frames[i]+' · '+(i+1)+'/'+frames.length+'…');try{await fetchFrame(frames[i])}catch(err){errors.push(frames[i]+' : '+err.message)}if(token!==viewToken)break;redraw();if(state.provider==='twelve'&&i<frames.length-1)await new Promise(resolve=>setTimeout(resolve,9000))}if(token===viewToken){if(errors.length)error(errors.join(' | '));else status('Analyse actualisée. Les horodatages indiquent la fraîcheur réelle, indépendamment de l’heure du téléchargement.')}}finally{state.busy=false;if(token===viewToken)sourceUI()}}
+symbols();sourceUI();redraw();$('#rMarket').onchange=()=>{state.market=$('#rMarket').value;state.symbol=assets[state.market][0][0];state.provider=state.market==='crypto'?'binance':'twelve';$('#rProvider').value=state.provider;symbols();sourceUI();redraw()};$('#rAsset').onchange=()=>{state.symbol=$('#rAsset').value;$('#rSymbol').value=state.symbol;redraw()};$('#rSymbol').onchange=()=>{state.symbol=$('#rSymbol').value.trim().toUpperCase().slice(0,40);redraw()};$('#rProvider').onchange=()=>{state.provider=$('#rProvider').value;sourceUI();redraw()};$('#rFrame').onchange=()=>{state.frame=$('#rFrame').value;redraw()};$('#rApiKey').oninput=()=>state.apiKey=$('#rApiKey').value;$('#rFetch').onclick=()=>load();$('#rAll').onclick=()=>load(true);$('#rAuto').onchange=()=>{state.auto=$('#rAuto').checked;status(state.auto?'Surveillance active pour cette unité, toutes les 60 secondes, tant que le radar reste ouvert.':'Surveillance arrêtée.')};let timer=setInterval(()=>{if(state.auto&&!state.busy&&document.visibilityState==='visible')load()},60000);cleanups.push(()=>{clearInterval(timer);state.auto=false;viewToken++});$$('[data-pane]').forEach(b=>b.onclick=()=>{pane=b.dataset.pane;drawPane()});$('#rHelp').onclick=()=>{pane='method';drawPane();$('#rPane').scrollIntoView({behavior:'smooth'})};
+$('#rCSV').onchange=async e=>{let file=e.target.files[0];if(!file)return;try{if(file.size>8e6)throw Error('CSV limité à 8 Mo.');let bars=R.parseCSV(await file.text(),state.frame),analysis=R.analyze(bars);state.provider='csv';$('#rProvider').value='csv';cache.set(key(),{bars,analysis,source:'Import personnel non vérifié',note:'Heures déclarées dans le CSV. Ajustements et caractère complet à vérifier.',synthetic:false,loadedAt:Date.now()});sourceUI();redraw();status('Historique importé : '+bars.length+' bougies clôturées.')}catch(err){error(err.message)}};
+$('#rTemplate').onclick=()=>{let rows=R.demo(state.frame,42,100);download('modele-OHLC-'+state.frame+'.csv','time,open,high,low,close,volume,end_time\n'+rows.map(b=>[new Date(b.t).toISOString(),b.open,b.high,b.low,b.close,b.volume,new Date(b.end).toISOString()].join(',')).join('\n'));status('Modèle CSV téléchargé : données synthétiques, à remplacer par votre historique.')};
+}
+function localBridge(){return location.protocol.startsWith('http')&&['127.0.0.1','localhost'].includes(location.hostname)&&location.port==='4173'}
+function method(){return '<div class="readable"><h3>Ce qui est calculé</h3><p>EMA20 et EMA50 : lissage exponentiel de coefficient 2/(n+1), initialisé au premier cours. RSI14 : première valeur après 14 variations, puis lissage de Wilder ; ATR14 : moyenne initiale de 14 True Ranges, puis lissage de Wilder. Les 60 premières bougies constituent une chauffe minimale, pas une convergence parfaite. Les plus hauts/bas de rupture excluent la bougie en cours d’analyse. Le score de pression est la somme des points des six conditions affichées. Ses poids et seuils sont éditoriaux et non optimisés ; aucun score n’est une probabilité. Plusieurs conditions réagissent à un mouvement déjà engagé. Leur capacité à précéder un autre mouvement doit être évaluée. Les données macro ne sont pas intégrées à ce score technique : elles éclairent séparément le contexte.</p><h3>Les huit horizons</h3><p>MN : régime et grandes fragilités. W : structure. D : scénario tactique. H4/H1 : évolution du scénario. M15/M5 : configuration. M1 : observation d’exécution. Les bougies courtes n’apportent pas automatiquement une meilleure précision prédictive. Les fenêtres représentent des nombres de bougies, donc des durées très différentes selon l’unité.</p><h3>Connexion des données</h3><p>Crypto : accès public Binance spot, sous réserve de disponibilité. Actions, ETF, Forex et indices autorisés : clé personnelle Twelve Data. L’accès temps réel, l’historique et les marchés dépendent de votre abonnement ; aucun abonnement n’est souscrit par ce site. La clé n’est pas enregistrée dans le stockage local et n’est pas exportée. Elle est transmise uniquement au fournisseur, directement ou via le serveur local fourni.</p><p>Le fichier HTML peut être ouvert directement. Si des requêtes sont bloquées par le navigateur, extrayez le dossier personnel fourni et lancez DEMARRER.cmd. Il nécessite Node.js et écoute uniquement sur 127.0.0.1:4173. Les endpoints locaux lisent des sources prédéfinies, sans accès à un courtier. Ne publiez pas le serveur local sur internet.</p><h3>Qualité et fraîcheur</h3><p>Seules les bougies clôturées sont utilisées. Binance fournit la fin de chaque bougie. Twelve Data : la plus récente est systématiquement exclue ; la suivante sert de borne supérieure à la précédente. Pour D/W/MN, les dates de séance restent celles du marché, sans reconstruction du calendrier de cotation. Le CSV doit indiquer des heures ISO avec fuseau ; end_time est recommandé pour les horaires de séance. Les trous, volumes atypiques, splits et dividendes ne sont pas corrigés automatiquement.</p><h3>Automatisation réelle de cette version</h3><p>Actualisation et détection de changements pendant que le radar est ouvert et visible. La surveillance s’arrête en quittant ce panneau ou en fermant le navigateur ; la mise en veille de l’ordinateur la suspend également. Les alertes restent dans la page ; aucune notification téléphone, aucun envoi d’email et aucun passage d’ordre ne sont connectés.</p><h3>Évaluation et journal</h3><p>Les derniers 30 % sont examinés par pas de H bougies. À chaque point, les indicateurs utilisent uniquement le passé. La fréquence d’atteinte de la cible est comparée à celle de tous les points de référence. L’intervalle de Wilson suppose une indépendance approximative qui peut être fausse sur les marchés. Une mesure crédible nécessite un historique plus long, des périodes inédites et des tests par régime. Le journal ne permet pas de réécrire les entrées depuis l’interface ; effacer les données du navigateur les supprime.</p><h3>Documentation des sources</h3><p><a class="text-link" href="https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints" target="_blank" rel="noopener">Binance : bougies ↗</a> · <a class="text-link" href="https://twelvedata.com/docs" target="_blank" rel="noopener">Twelve Data : API ↗</a> · <a class="text-link" href="https://support.twelvedata.com/en/articles/5745849-timezones" target="_blank" rel="noopener">Fuseaux ↗</a> · <a class="text-link" href="https://fred.stlouisfed.org" target="_blank" rel="noopener">FRED ↗</a></p><p>Utilisation personnelle. Les fournisseurs conservent leurs droits sur les données. Les fichiers importés et les exemples ne constituent pas une validation de qualité.</p></div>'}
+window.RadarPanel={render};
+})();
+
+;
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)], E=Engine;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n), num=(n,d=2)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:d}).format(n), pct=n=>num(n*100)+' %';
+let read=new Set;try{read=new Set(JSON.parse(localStorage.getItem('ea-read')||'[]'))}catch{}
+let data=E.synthetic(),dataName='DÉMO SYNTHÉTIQUE · 480 jours calendaires',lastBacktest=null,cleanups=[],quizIndex=0,quizScore=0,quizAnswered=false;
+const title=(n,h,p)=>'<div class="page-title"><div class="eyebrow">'+n+'</div><h1>'+h+'</h1><p>'+p+'</p></div>';
+const metrics=items=>'<div class="metric-grid">'+items.map(([l,v,c])=>'<div class="metric"><small>'+l+'</small><strong class="'+(c||'')+'">'+v+'</strong></div>').join('')+'</div>';
+const srcLinks=ids=>(ids||[]).map(id=>{let s=CONTENT.sources.find(s=>s.id===id);return s?'<a class="inline-source" href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer">'+esc(s.title)+' ↗</a>':''}).join(' ');
+const art=(id,label,bottom,axes,cls='')=>'<div class="hero-art '+cls+'"><div class="art-top"><span>'+label+'</span><span class="pill">3D INTERACTIVE</span></div><canvas id="'+id+'" tabindex="0" role="img" aria-label="Surface 3D des résultats. Faire glisser ou utiliser les flèches du clavier pour la tourner."></canvas><div class="art-bottom"><div><small>EXPLORER LA SENSIBILITÉ</small><strong>'+bottom+'</strong></div><div class="axis-note">'+axes+'<br>Glisser / touches ← → ↑ ↓</div></div></div>';
+const tf=[
+['MN','Régime long','Le mensuel avant le bruit','Étudier croissance, inflation, conditions financières, valorisations et grands scénarios. Une fragilité mensuelle peut durer : elle ne date pas un krach. Définir ce qui confirmera ou invalidera le scénario, puis resserrer les horizons.'],
+['W','Régime','Le cadre hebdomadaire','Commencer par la croissance, l’inflation, la politique monétaire et les grands niveaux. Une tendance hebdomadaire ne dicte pas le sens de chaque minute. Écrire un scénario central, un scénario adverse et ce qui invaliderait la thèse.'],
+['D','Structure','Cartographier avant d’agir','Identifier tendance ou range, volatilité, zones de prix et événements du calendrier. Ne pas confondre un ancien support avec une garantie de rebond. Utiliser uniquement les bougies déjà clôturées.'],
+['H4','Contexte','Choisir le contexte tactique','Situer le prix dans la structure quotidienne : impulsion, correction, congestion. Si H4 et D divergent, documenter la divergence ; elle peut signaler une correction ou un changement de régime.'],
+['H1','Scénario','Définir une invalidation','Transformer le contexte en hypothèse testable : condition d’entrée, niveau d’invalidation, objectif, durée maximale et risque total. Ne pas déplacer le stop pour éviter d’admettre une erreur.'],
+['M15','Zone','Attendre une configuration','Observer l’approche d’une zone et la volatilité locale. Définir avant le trade ce qui constitue une cassure ou un rejet. Plusieurs indicateurs du même prix ne sont pas des confirmations indépendantes.'],
+['M5','Exécution','Vérifier le coût du signal','Comparer distance du stop, spread, frais et glissement. Vérifier la session, la liquidité et les annonces. Un bon scénario peut devenir inexploitable lorsque les coûts absorbent l’espérance.'],
+['M1','Déclencheur','La minute n’est pas une certitude','M1 désigne une bougie d’une minute. Le bruit, le bid-ask, la latence et la priorité dans la file d’ordres deviennent déterminants. Un backtest sur clôtures journalières ne valide jamais un signal M1. L’absence de trade est une décision valable.']
+];
+function flow(){return '<div class="flow">'+tf.map((t,i)=>'<button data-tf="'+i+'" class="'+(!i?'active':'')+'" aria-pressed="'+(!i)+'"><b>'+t[0]+'</b><small>'+t[1]+'</small></button>').join('')+'</div><div class="flow-detail" id="flowDetail"></div>'}
+function bindFlow(){const show=i=>{let t=tf[i];$('#flowDetail').innerHTML='<span class="tag">'+t[0]+' / '+t[1]+'</span><h3>'+t[2]+'</h3><p>'+t[3]+'</p>';$$('[data-tf]').forEach(b=>{b.classList.toggle('active',+b.dataset.tf===i);b.setAttribute('aria-pressed',+b.dataset.tf===i)})};$$('[data-tf]').forEach(b=>b.onclick=()=>show(+b.dataset.tf));show(0)}
+function home(){
+$('#main').innerHTML='<section class="hero"><div class="hero-copy"><div class="eyebrow">LE LABORATOIRE DES DÉCISIONS</div><h1>Le marché<br>ne promet<br><em>rien.</em><br>Comprenez-le.</h1><p>Du mois à la minute. Explorez les mécanismes, mettez vos hypothèses à l’épreuve et apprenez à mesurer ce que vous risquez.</p><div class="actions"><a class="btn" href="#radar">Ouvrir mon radar <span>↗</span></a><a class="text-link" href="#laboratoire">Ouvrir le laboratoire</a></div><p class="hero-note">LONG & SHORT · DÉBUTANT À AVANCÉ · SOURCES OUVERTES</p></div>'+art('heroCanvas','EXPÉRIENCE 001 / ROBUSTESSE','Une surface. Pas une promesse.','X · fenêtre rapide<br>Y · fenêtre lente<br>Z · rendement net simulé')+'</section><div class="ticker"><span><b>01</b> COMPRENDRE LES MÉCANISMES</span><span><b>02</b> FORMULER UNE HYPOTHÈSE</span><span><b>03</b> MESURER LE RISQUE</span><span><b>04</b> CHERCHER À LA RÉFUTER</span></div><section class="section"><div class="section-head"><div><div class="eyebrow">VOTRE TERRAIN D’EXPLORATION</div><h2>Moins de certitudes.<br>Plus de méthode.</h2></div><p>Un atlas pour commencer. Des protocoles pour aller plus loin. Des expériences pour confronter les deux.</p></div><div class="cards"><article class="card"><span class="num">01 / COMPRENDRE</span><h3>Du moteur macro<br>au carnet d’ordres.</h3><p>Long, short, taux, corrélations, liquidité et analyse multi-horizons : relier les concepts avant de relier les points d’un graphique.</p><a class="text-link" href="#apprendre">Ouvrir la bibliothèque ↗</a></article><article class="card"><span class="num">02 / EXPÉRIMENTER</span><h3>Faites parler<br>vos hypothèses.</h3><p>Dimensionnez une position, explorez ses pertes possibles et testez une règle sur données synthétiques ou votre propre historique.</p><a class="text-link" href="#laboratoire">Entrer dans le laboratoire ↗</a></article><article class="card"><span class="num">03 / SE CHALLENGER</span><h3>Avoir raison<br>ne suffit pas.</h3><p>Détectez un biais, calculez une espérance et distinguez un récit convaincant d’une relation réellement démontrée.</p><a class="text-link" href="#defis">Relever le défi ↗</a></article></div></section><section class="section" style="padding-top:0"><div class="section-head"><div><div class="eyebrow">ZOOM PROGRESSIF</div><h2>Un monde. Huit échelles.</h2></div><p>Un protocole de lecture, pas une recette de rendement. Sélectionnez une échelle pour comprendre son rôle.</p></div>'+flow()+'</section><div class="ribbon"><strong>Votre premier avantage :<br>savoir ce que vous ignorez.</strong><p>Le trading comporte un risque de perte. Les résultats simulés ne préjugent pas des performances futures. Aucun outil de cet atlas ne constitue un conseil personnalisé.</p><a class="text-link" href="#sources">Lire les limites ↗</a></div>';
+bindFlow();let grid=[];for(let y=0;y<17;y++){let row=[];for(let x=0;x<17;x++)row.push(E.backtest(E.synthetic(),{fast:3+x*2,slow:40+y*5}).return);grid.push(row)}surface($('#heroCanvas'),grid)}
+function library(){
+$('#main').innerHTML=title('01 / COMPRENDRE','L’atlas des marchés.','Du premier ordre à l’analyse des régimes. Chaque fiche sépare le mécanisme, ses limites et les questions à poser avant de prendre un risque.')+'<section class="section" style="padding-top:0"><div class="toolbar"><div class="segmented" id="levels"><button class="selected" data-level="all">Tout explorer</button><button data-level="beginner">Fondations</button><button data-level="advanced">Approfondir</button></div><input type="search" class="search" id="search" placeholder="Macro, short, M1, corrélation…" aria-label="Rechercher une notion"><span class="progress" id="progress"></span></div><div class="cards" id="lessons"></div><div class="notice">Votre progression est conservée uniquement dans ce navigateur. Lire une fiche ne certifie ni une compétence professionnelle ni une aptitude à risquer de l’argent.</div><h2 style="margin-top:40px">De la macro à M1.</h2>'+flow()+'<div class="notice warn">Le multi-timeframe structure une analyse ; il ne prouve pas une efficacité prédictive. Attention au futur caché : une bougie D en cours ne doit pas être traitée comme déjà clôturée dans un test M1.</div></section>';
+let level='all';function filter(){let q=$('#search').value.toLocaleLowerCase('fr');let lessons=CONTENT.lessons.filter(l=>(level==='all'||(level==='beginner'?/début|fond|begin/i.test(l.level):!/début|fond|begin/i.test(l.level)))&&[l.title,l.summary,...l.body].join(' ').toLocaleLowerCase('fr').includes(q));$('#lessons').innerHTML=lessons.length?lessons.map(l=>'<article class="card lesson-card"><span class="tag">'+esc(l.level)+' / '+(read.has(l.id)?'LU ✓':'À EXPLORER')+'</span><h3>'+esc(l.title)+'</h3><p>'+esc(l.summary)+'</p><button data-lesson="'+esc(l.id)+'">Lire la fiche ↗</button></article>').join(''):'<p class="empty">Aucune fiche ne correspond. Essayez un terme plus général.</p>';$('#progress').textContent=read.size+' / '+CONTENT.lessons.length+' FICHES LUES';$$('[data-lesson]').forEach(b=>b.onclick=()=>lesson(b.dataset.lesson,filter))}
+$$('[data-level]').forEach(b=>b.onclick=()=>{level=b.dataset.level;$$('[data-level]').forEach(x=>x.classList.toggle('selected',x===b));filter()});$('#search').oninput=filter;filter();bindFlow()}
+function lesson(id,refresh){let l=CONTENT.lessons.find(x=>x.id===id);$('#lessonContent').innerHTML='<div class="eyebrow">'+esc(l.level)+'</div><h2>'+esc(l.title)+'</h2><p><b>'+esc(l.summary)+'</b></p>'+l.body.map(p=>'<p>'+esc(p)+'</p>').join('')+'<div class="notice">'+srcLinks(l.sourceIds)+'</div><button class="btn" id="markRead">'+(read.has(id)?'Fiche lue ✓':'Marquer comme lue')+'</button>';$('#markRead').onclick=()=>{read.add(id);try{localStorage.setItem('ea-read',JSON.stringify([...read]))}catch{}$('#markRead').textContent='Fiche lue ✓';refresh?.()};$('#lessonDialog').showModal()}
+function strategies(){
+$('#main').innerHTML=title('02 / HYPOTHÈSES DE RECHERCHE','L’avantage se démontre.','Des approches connues et des pistes plus spécialisées. Leur potentiel dépend du régime, de l’exécution, des coûts et de la capacité à les tester honnêtement.')+'<section class="section" style="padding-top:0"><div class="notice warn">Aucune de ces fiches n’est un signal d’achat ou de vente. Les travaux historiques documentent des phénomènes sur certains marchés et certaines périodes ; ils ne garantissent pas qu’une variante exploitable reste rentable aujourd’hui.</div>'+CONTENT.strategies.map((s,i)=>'<article class="strategy"><div><span class="tag">'+String(i+1).padStart(2,'0')+' / '+esc(s.level)+'</span><h3>'+esc(s.title)+'</h3>'+srcLinks(s.sourceIds)+'</div><dl><dt>Mécanisme</dt><dd>'+esc(s.idea)+'</dd><dt>Protocole</dt><dd>'+esc(s.rules)+'</dd><dt>Échec possible</dt><dd>'+esc(s.failure)+'</dd><dt>À vérifier</dt><dd>'+esc(s.validation)+'</dd></dl></article>').join('')+'<div class="ribbon"><div><h3>Testez une règle, pas un récit.</h3><p>Le laboratoire propose deux règles simples de moyennes mobiles pour apprendre les biais. Les stratégies de cette bibliothèque ne sont pas toutes implémentées.</p></div><a class="btn" href="#backtest">Ouvrir le backtest ↗</a></div></section>'}
+function field(id,label,value,min,max,step=1){return '<label>'+label+'<input id="'+id+'" type="number" value="'+value+'" min="'+min+'" '+(max!==null?'max="'+max+'"':'')+' step="'+step+'" required></label>'}
+function labNav(active){return '<div class="toolbar"><div class="segmented"><button data-route="laboratoire" class="'+(active==='sim'?'selected':'')+'">Position long / short</button><button data-route="backtest" class="'+(active==='back'?'selected':'')+'">Backtest & robustesse</button><button data-route="macro" class="'+(active==='macro'?'selected':'')+'">Scénarios macro</button></div></div>'}
+function bindNav(){$$('[data-route]').forEach(b=>b.onclick=()=>location.hash=b.dataset.route)}
+function simulator(){
+$('#main').innerHTML=title('03 / LABORATOIRE','Le risque prend forme.','Définissez un scénario. Le dimensionnement inclut les frais, le glissement et, pour le short, un coût d’emprunt simplifié. Les unités fractionnaires servent uniquement à la pédagogie.')+'<section class="section" style="padding-top:0">'+labNav('sim')+'<div class="workspace"><form class="controls" id="simForm"><h3>Votre hypothèse</h3><label style="margin-bottom:18px">Direction<select id="side"><option value="long">Long — anticiper une hausse</option><option value="short">Short — anticiper une baisse</option></select></label><div class="form-grid">'+field('capital','Capital (€)',10000,1,1e9)+field('risk','Budget de risque (%)',1,.01,10,.01)+field('entry','Prix d’entrée (€)',100,.01,1e6,.01)+field('stop','Stop envisagé (€)',96,.01,1e6,.01)+field('target','Objectif (€)',112,.01,1e6,.01)+field('exit','Sortie du scénario (€)',108,.01,1e6,.01)+field('fee','Frais / côté (pb)',5,0,1000,.1)+field('slip','Glissement / côté (pb)',3,0,1000,.1)+field('leverage','Levier maximal (×)',1,1,20,1)+field('borrow','Emprunt short (% / an)',3,0,200,.1)+field('days','Durée (jours)',5,0,3650,1)+'</div><p class="hint">1 point de base (pb) = 0,01 %. Frais appliqués à l’entrée et à la sortie. Le levier plafonne l’exposition ; il ne crée pas un avantage statistique.</p><button class="btn" type="submit">Calculer le scénario ↗</button><p id="simError" class="error" role="alert"></p></form><div class="results"><div id="simMetrics"></div>'+art('simCanvas','POSITION / CARTE DES ISSUES','Le prix × la taille.','X · variation de prix −20 à +20 %<br>Y · taille 0 à 2×<br>Z · P&L net (€)','lab-art')+'<p class="hint">La surface montre le résultat de la position selon le prix de sortie et un multiplicateur de quantité. La zone au-delà de 1× peut dépasser votre budget ou votre plafond d’exposition. Rotation au clavier ou à la souris.</p><div id="simDetails"></div></div></div><div class="notice warn">Le stop est un niveau envisagé, pas une garantie de prix d’exécution. Un gap peut dépasser la perte calculée. Ce modèle linéaire n’intègre ni liquidation, ni appels de marge, ni frais de financement du long, ni disponibilité d’emprunt. Il ne décrit pas des options, des futures à multiplicateur ni tous les CFD. Un short action peut subir une perte théoriquement illimitée.</div><details><summary>Voir les formules et les hypothèses</summary><p>Quantité = minimum du budget de risque / perte unitaire au stop (coûts inclus) et du capital × levier / prix d’entrée. P&L brut = quantité × (sortie − entrée) pour un long ; le signe est inversé pour un short. P&L net = P&L brut − coûts d’exécution − emprunt short. Le risque au stop est calculé en supposant l’exécution à ce prix. Le capital est exprimé en euros et l’actif aussi : aucun change n’est simulé.</p></details></section>';
+bindNav();$('#side').onchange=()=>{let short=$('#side').value==='short',entry=+$('#entry').value;$('#stop').value=(entry*(short?1.04:.96)).toFixed(2);$('#target').value=(entry*(short?.88:1.12)).toFixed(2);$('#exit').value=(entry*(short?.92:1.08)).toFixed(2);update()};
+let dispose=null;function update(){try{if(!$('#simForm').checkValidity()){ $('#simForm').reportValidity();return }let o={};['capital','risk','entry','stop','target','exit','fee','slip','leverage','borrow','days'].forEach(k=>o[k]=+$('#'+k).value);o.side=$('#side').value;let r=E.simulate(o);$('#simError').textContent='';$('#simMetrics').innerHTML=metrics([['P&L net du scénario',money(r.pnl),r.pnl>=0?'positive':'negative'],['Perte au stop estimée',money(r.loss)],['Ratio gain / risque net',num(r.rr)+' R'],['Quantité théorique',num(r.q,3)]]);$('#simDetails').innerHTML='<div class="notice">Exposition : <b>'+money(r.notional)+'</b> · Marge initiale simplifiée : <b>'+money(r.margin)+'</b> · Coûts du scénario : <b>'+money(r.costs)+'</b> · Capital final théorique : <b>'+money(r.equity)+'</b>.<br>Si le plafond de levier contraint la taille, le risque utilisé est inférieur au budget.</div>';let grid=[];for(let y=0;y<17;y++){let row=[];for(let x=0;x<17;x++){let exit=o.entry*(.8+x*.025),sign=o.side==='long'?1:-1;row.push(y/8*(r.q*(exit-o.entry)*sign-r.q*(o.entry+exit)*(o.fee+o.slip)/10000-(o.side==='short'?r.q*o.entry*o.borrow/100*o.days/365:0)))}grid.push(row)}dispose?.();dispose=surface($('#simCanvas'),grid)}catch(err){$('#simError').textContent=err.message;$('#simMetrics').innerHTML='';$('#simDetails').innerHTML='';dispose?.();let c=$('#simCanvas');c.getContext('2d').clearRect(0,0,c.width,c.height)}}
+$('#simForm').onsubmit=e=>{e.preventDefault();update()};update()}
+
+
+function backtestPage(){
+$('#main').innerHTML=title('03 / LABORATOIRE','Une courbe n’est pas une preuve.','Testez des règles explicites, comptez les coûts et séparez l’exploration de la validation. Importez vos clôtures quotidiennes ou commencez sur un marché entièrement synthétique.')+'<section class="section" style="padding-top:0">'+labNav('back')+'<div class="workspace"><form class="controls" id="btForm"><h3>Protocole de test</h3><label>Règle<select id="btStrategy"><option value="trend">Suivi de tendance (moyennes)</option><option value="revert">Retour à la moyenne (inversion)</option></select></label><label style="margin-top:14px">Exposition<select id="btMode"><option value="both">Long + short</option><option value="long">Long + liquidités</option></select></label><div class="form-grid" style="margin-top:14px">'+field('fast','Fenêtre rapide (jours)',15,2,200,1)+field('slow','Fenêtre lente (jours)',60,3,500,1)+field('btFee','Frais / côté (pb)',5,0,500,.1)+field('btSlip','Glissement / côté (pb)',3,0,500,.1)+field('btBorrow','Emprunt short (% / an)',3,0,200,.1)+'</div><label style="margin-top:14px">Période évaluée<select id="btPeriod"><option value="test">Validation — derniers 30 %</option><option value="train">Exploration — premiers 70 %</option><option value="all">Historique complet</option></select></label><p class="hint">Capital initial : 10 000 €. Notionnel à l’entrée limité au capital disponible, frais compris. Quantité fixe jusqu’à la sortie. Le risque relatif au capital peut augmenter en cours de position.</p><button class="btn" type="submit">Lancer le backtest ↗</button><p class="error" id="btError" role="alert"></p><hr style="border:0;border-top:1px solid var(--line);margin:24px 0"><label>Importer un CSV quotidien<input type="file" id="csv" accept=".csv,text/csv"></label><p class="hint">82–10 000 lignes. En-têtes date,close. Dates AAAA-MM-JJ croissantes. Prix ajustés des opérations sur titres à préparer vous-même. Fichier traité dans le navigateur.</p><button class="btn ghost" id="demoData" type="button">Recharger la démo</button><p id="dataInfo" class="hint"></p></form><div class="results"><div id="btMetrics" aria-live="polite"></div><div class="eyebrow" style="margin:24px 0 6px">CAPITAL SIMULÉ / EUROS</div><canvas id="equityChart" class="chart" role="img" aria-label="Évolution du capital de la stratégie et de l’achat conservation"></canvas><p class="hint"><span style="color:var(--green)">━ Stratégie nette</span> · <span style="color:#8d7754">┄ Achat-conservation net</span> · Mêmes dates d’entrée et de sortie.</p><div id="btSecondary"></div>'+art('btCanvas','ROBUSTESSE / EXPLORATION 70 %','Cherchez un plateau.','X · fenêtre rapide<br>Y · fenêtre lente<br>Z · rendement net','lab-art')+'<p class="hint" id="surfaceCaption"></p><div class="export"><button class="btn ghost" id="exportTrades" disabled>Exporter les transactions ↓</button><button class="btn ghost" id="exportCurve" disabled>Exporter le capital ↓</button><button class="btn ghost" id="exportData">CSV des prix ↓</button></div></div></div><div class="notice warn"><b>Démo ≠ données historiques.</b> Le marché de démonstration est généré avec une graine fixe et trois dérives successives. Il n’est calibré sur aucun actif. Un import n’est pas authentifié ni corrigé automatiquement. Un bon résultat sur ces données ne démontre aucun potentiel de gain réel.</div><div class="details-grid"><details open><summary>Chronologie et règles exactes</summary><p>Au jour t, la position détenue subit le rendement de clôture t−1 à clôture t. Le signal est calculé exclusivement avec les clôtures jusqu’à t−1 ; il est exécuté à la clôture t. Si la moyenne rapide dépasse la lente : long pour le suivi de tendance, short pour son inversion. En sens opposé : short ou liquidités selon le mode. Égalité : liquidités. Toute position restante est clôturée à la dernière observation.</p><p>Les frais et le glissement en points de base sont appliqués sur chaque entrée et sortie, y compris lors d’un retournement. L’emprunt short utilise les jours calendaires entre observations, sur une base de 365 jours. Liquidités non rémunérées.</p></details><details open><summary>Ce que le modèle ne démontre pas</summary><p>Modèle linéaire à quantité constante par transaction, sans simulation de carnet, de marge, de financement long ni de dividendes explicites. Le test s’arrête si le capital devient nul ou négatif ; une valeur négative représente une dette théorique. Les liquidations réelles ne sont pas simulées. Stops, limites, intrabar, M1, latence, contraintes d’emprunt et taxes ne sont pas modélisés.</p><p>Les rendements ne sont pas annualisés. Drawdown : baisse maximale depuis un sommet du capital observé aux clôtures. Profit factor : somme des gains nets / valeur absolue des pertes nettes des trades clos. Il n’est pas défini sans trade ; infini si gains sans pertes, ce qui n’est pas une preuve de fiabilité.</p></details><details><summary>Validation et surapprentissage</summary><p>La séparation 70/30 est chronologique. La validation repart de 10 000 € sans position, avec les observations antérieures pour initialiser les moyennes. Si la fenêtre lente dépasse le début de validation, celle-ci commence plus tard. La surface 3D utilise exclusivement l’exploration. Multiplier les réglages après avoir vu la validation la transforme en nouvel échantillon d’apprentissage : réservez alors d’autres données inédites. Ce découpage n’est pas un walk-forward.</p></details><details><summary>Checklist pour un travail professionnel</summary><p>Documenter univers point-in-time, radiations, ajustements, devises, frais, emprunt et financement. Conserver une période inconnue ; tester plusieurs régimes et des coûts dégradés ; estimer l’incertitude avec dépendance temporelle ; comparer à des baselines et à une exposition au risque comparable. Contrôler turnover, capacité, concentration des gains et stabilité hors échantillon. Le laboratoire est un outil pédagogique, pas un moteur de production.</p></details></div><div id="tradeTable"></div></section>';
+bindNav();$('#dataInfo').textContent=dataName;let dispose=null;
+function run(){try{if(!$('#btForm').checkValidity()){$('#btForm').reportValidity();return}let o={fast:+$('#fast').value,slow:+$('#slow').value,fee:+$('#btFee').value,slip:+$('#btSlip').value,borrow:+$('#btBorrow').value,mode:$('#btMode').value,strategy:$('#btStrategy').value};let split=Math.floor(data.length*.7),period=$('#btPeriod').value;let selected=period==='train'?data.slice(0,split):data;o.start=period==='test'?split:0;let r=E.backtest(selected,o);lastBacktest={r,o,data:selected,name:dataName};$('#btError').textContent='';$('#btMetrics').innerHTML=metrics([['Rendement net simulé',pct(r.return),r.return>=0?'positive':'negative'],['Drawdown maximal',pct(r.dd),'negative'],['Transactions closes',num(r.trades.length,0)],['Coûts modélisés',money(r.costs)]]);$('#btSecondary').innerHTML='<div class="notice"><b>'+esc(dataName)+'</b><br>Période effective : '+selected[r.begin].date+' → '+selected[r.end].date+' · Capital final : '+money(r.equity)+' · Achat-conservation : '+pct(r.benchmark/10000-1)+'<br>Taux de réussite : '+pct(r.winRate)+' · Profit factor : '+(r.pf===null?'non défini':r.pf===Infinity?'∞ (aucune perte)':num(r.pf))+' · '+(r.trades.length<30?'Échantillon de transactions réduit : résultat fragile.':'La taille de l’échantillon ne suffit pas à établir la robustesse.')+'</div>';
+let rate=(o.fee+o.slip)/10000,basePrice=selected[r.begin].close,benchmark=r.curve.map((p,i)=>i===0?10000:10000/(1+rate)*selected[r.begin+i-1].close/basePrice*(i===r.curve.length-1?1-rate:1));lineChart($('#equityChart'),r.curve.map(p=>p.value),benchmark,r.curve.map(p=>p.date));
+let train=data.slice(0,split),slowMin=Math.min(40,train.length-20),slowMax=Math.min(120,train.length-3),fastMin=3,fastMax=Math.min(35,slowMin-1),grid=[];for(let y=0;y<11;y++){let row=[];for(let x=0;x<11;x++)row.push(E.backtest(train,{...o,start:0,fast:Math.round(fastMin+x*(fastMax-fastMin)/10),slow:Math.round(slowMin+y*(slowMax-slowMin)/10)}).return);grid.push(row)}dispose?.();dispose=surface($('#btCanvas'),grid);let flat=grid.flat();$('#surfaceCaption').textContent='Exploration uniquement · Rapide '+fastMin+'–'+fastMax+' jours ; lente '+slowMin+'–'+slowMax+' jours. Rendements : '+pct(Math.min(...flat))+' à '+pct(Math.max(...flat))+'. Chaque paire a sa propre période de chauffe : les dates effectives peuvent varier. Le relief compare des expériences, pas des rendements futurs.';
+$('#exportTrades').disabled=false;$('#exportCurve').disabled=false;$('#tradeTable').innerHTML='<details><summary>Journal des transactions ('+r.trades.length+')</summary><div class="table-wrap"><table><thead><tr><th>Entrée</th><th>Sortie</th><th>Direction</th><th>P&L net (€)</th></tr></thead><tbody>'+r.trades.slice(-100).map(t=>'<tr><td>'+t.entry+'</td><td>'+t.exit+'</td><td>'+(t.side>0?'Long':'Short')+'</td><td class="'+(t.pnl>=0?'positive':'negative')+'">'+money(t.pnl)+'</td></tr>').join('')+'</tbody></table></div><p class="hint">100 dernières transactions affichées. Export complet disponible.</p></details>'}catch(e){$('#btError').textContent=e.message;lastBacktest=null;$('#btMetrics').innerHTML='';$('#btSecondary').innerHTML='';$('#tradeTable').innerHTML='';$('#exportTrades').disabled=true;$('#exportCurve').disabled=true;dispose?.();for(let id of ['btCanvas','equityChart']){let c=$('#'+id);c.getContext('2d').clearRect(0,0,c.width,c.height)}$('#surfaceCaption').textContent='Corrigez les paramètres pour recalculer la surface.'}}
+$('#btForm').onsubmit=e=>{e.preventDefault();run()};$('#csv').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{if(f.size>2e6)throw Error('Fichier limité à 2 Mo.');let parsed=E.parseCSV(await f.text());data=parsed;dataName='IMPORT UTILISATEUR · '+parsed.length+' observations · non vérifié';$('#dataInfo').textContent=dataName;$('#slow').value=Math.min(60,Math.floor(data.length*.7)-3);$('#fast').value=Math.min(15,+$('#slow').value-1);run()}catch(err){$('#btError').textContent=err.message}};$('#demoData').onclick=()=>{data=E.synthetic();dataName='DÉMO SYNTHÉTIQUE · 480 jours calendaires';$('#dataInfo').textContent=dataName;$('#csv').value='';run()};$('#exportData').onclick=()=>download('edge-atlas-prix.csv','date,close\n'+data.map(d=>d.date+','+d.close.toFixed(6)).join('\n'));$('#exportTrades').onclick=()=>{if(lastBacktest)download('edge-atlas-transactions.csv','entry,exit,side,pnl_eur\n'+lastBacktest.r.trades.map(t=>[t.entry,t.exit,t.side>0?'long':'short',t.pnl.toFixed(4)].join(',')).join('\n'))};$('#exportCurve').onclick=()=>{if(lastBacktest)download('edge-atlas-capital.csv','date,equity_eur\n'+lastBacktest.r.curve.map(p=>p.date+','+p.value.toFixed(4)).join('\n'))};run()}
+function download(name,text){let a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+const scenarios=[
+{title:'Inflation supérieure au consensus',chain:'Surprise inflationniste → révision possible du sentier de taux → modification des taux d’actualisation et des conditions de financement → réévaluation des actifs.',rates:'Les rendements courts peuvent monter si le marché anticipe une banque centrale plus restrictive.',equity:'Les valorisations de duration longue peuvent souffrir, mais les bénéfices, le secteur et les positions initiales modulent la réaction.',fx:'Une devise peut être soutenue par un différentiel de taux attendu plus élevé. Le risque et les anticipations déjà intégrées peuvent inverser ce mouvement.',check:'Comparer publié / consensus / précédent révisé ; composition de l’indice ; réaction des taux à 2 ans ; évolution du dollar ; heure et liquidité.',trap:'« Inflation en hausse = actions en baisse » est une simplification. Une statistique élevée mais inférieure aux attentes peut déclencher une réaction opposée.'},
+{title:'Ralentissement de la croissance',chain:'Demande et activité plus faibles → révision des bénéfices et du risque de crédit → anticipation possible d’un assouplissement → effets concurrents sur valorisation et revenus.',rates:'Les taux peuvent baisser si les anticipations de politique monétaire dominent. Une prime de risque ou une inflation persistante peut empêcher cette baisse.',equity:'Des taux plus bas peuvent soutenir les multiples, tandis que des bénéfices attendus plus faibles pèsent sur les prix.',fx:'Les flux de refuge et les écarts de politique monétaire comptent autant que la croissance isolée d’un pays.',check:'Croiser emploi, enquêtes, consommation et crédit. Séparer indicateurs avancés, contemporains et retardés ; vérifier les révisions.',trap:'Une mauvaise statistique peut être accueillie favorablement si elle réduit les taux attendus sans augmenter beaucoup le risque de récession.'},
+{title:'Choc énergétique sur l’offre',chain:'Contrainte d’offre → hausse possible de l’énergie → pression sur les coûts et le pouvoir d’achat → arbitrage plus difficile entre inflation et activité.',rates:'La réaction dépend de la persistance anticipée du choc, des effets de second tour et de la réponse de la banque centrale.',equity:'Producteurs et consommateurs d’énergie peuvent réagir différemment. La capacité à transmettre les coûts aux clients devient centrale.',fx:'L’effet dépend notamment du statut d’importateur ou d’exportateur et de la devise de facturation ; aucune règle universelle.',check:'Distinguer choc d’offre et hausse liée à la demande ; regarder stocks, courbe à terme, marges et dépendance énergétique.',trap:'La même hausse du pétrole peut accompagner une expansion ou dégrader l’activité selon sa cause.'},
+{title:'Stress de liquidité',chain:'Besoin de trésorerie ou hausse des exigences de marge → ventes et réduction du levier → profondeur moindre → mouvements plus grands et possibles boucles de rétroaction.',rates:'Les obligations souveraines peuvent bénéficier d’un refuge ou subir des ventes forcées. Liquidité et risque de crédit ne sont pas identiques.',equity:'La réduction des positions peut rapprocher temporairement les mouvements d’actifs habituellement différents.',fx:'Les besoins de financement en devises peuvent dominer les mécanismes ordinaires de taux et de croissance.',check:'Observer spreads bid-ask, profondeur, volatilité, conditions de financement et concentration des expositions.',trap:'Une corrélation historique faible ne garantit pas une protection pendant une liquidation forcée.'}
+];
+function macroPage(){
+$('#main').innerHTML=title('03 / LABORATOIRE','Du choc au scénario.','Explorer une chaîne de transmission, puis chercher ce qui pourrait la casser. Cette carte qualitative ne prédit aucun prix et n’attribue aucune probabilité.')+'<section class="section" style="padding-top:0">'+labNav('macro')+'<div class="toolbar"><label style="min-width:300px">Choisir un choc hypothétique<select id="scenario">'+scenarios.map((s,i)=>'<option value="'+i+'">'+s.title+'</option>').join('')+'</select></label></div><div id="macroContent"></div><div class="notice">Corrélation ≠ causalité. Deux actifs peuvent répondre à un troisième facteur. Une relation peut changer selon le régime, l’horizon, la devise de mesure et l’échantillon. Le raisonnement ci-dessus est une grille conditionnelle, pas une estimation causale.</div><h2 style="margin-top:45px">Puis resserrer la focale.</h2>'+flow()+'<p class="hint">Mécanismes pédagogiques à rapprocher des fiches macro et causalité de la bibliothèque. Les sources institutionnelles sont regroupées dans <a class="text-link" href="#sources">Sources & risques</a>.</p></section>';bindNav();bindFlow();function show(){let s=scenarios[+$('#scenario').value];$('#macroContent').innerHTML='<div class="notice"><b>CHAÎNE POSSIBLE</b><br>'+s.chain+'</div><div class="cards">'+[['TAUX & OBLIGATIONS',s.rates],['ACTIONS & CRÉDIT',s.equity],['DEVISES & FLUX',s.fx]].map(([t,p])=>'<article class="card"><span class="tag">'+t+'</span><p>'+p+'</p></article>').join('')+'</div><div class="details-grid"><div><h3>Ce qu’il faut observer</h3><p>'+s.check+'</p></div><div><h3>Le raccourci à éviter</h3><p>'+s.trap+'</p></div></div>'}$('#scenario').onchange=show;show()}
+
+
+const questions=[
+{level:'Fondations',q:'Une position short de 10 actions est ouverte à 100 € et rachetée à 110 €. Quel est le résultat brut ?',a:['+100 €','−100 €','−10 €'],ok:1,why:'Short : quantité × (entrée − sortie). 10 × (100 − 110) = −100 €, avant frais et emprunt.'},
+{level:'Gestion du risque',q:'Capital : 10 000 €. Budget de risque : 0,5 %. Entrée : 100 €. Stop : 98 €. Quelle quantité théorique, hors frais ?',a:['50 unités','250 unités','25 unités'],ok:2,why:'Le budget est de 50 €. La distance au stop est de 2 € : 50 / 2 = 25 unités. Un gap peut néanmoins dépasser la perte planifiée.'},
+{level:'Espérance',q:'40 % de trades gagnent 2R, 60 % perdent 1R. Les coûts moyens sont 0,25R. Quelle espérance nette ?',a:['−0,05R','+0,20R','+0,55R'],ok:0,why:'0,4 × 2 − 0,6 × 1 − 0,25 = −0,05R. Une règle profitable avant frais peut ne plus l’être après coûts.'},
+{level:'Exécution',q:'Votre stop est à 98 €. Après une annonce, la première cotation exécutable est à 94 €. Que garantit un stop au marché ?',a:['Une sortie à 98 €','Le déclenchement selon les conditions de l’ordre, sans prix garanti','Une annulation automatique'],ok:1,why:'Le stop devient un ordre au marché après déclenchement. Le prix d’exécution peut être bien plus défavorable. Les modalités exactes dépendent du courtier et du marché.'},
+{level:'Macroéconomie',q:'L’inflation publiée dépasse le consensus. Les actions montent pourtant. Quelle lecture est la plus rigoureuse ?',a:['Le marché se trompe forcément','L’inflation fait toujours monter les actions','Examiner composantes, révisions, taux anticipés et informations simultanées'],ok:2,why:'Une annonce contient plusieurs informations. La réaction dépend du changement d’anticipations et des autres facteurs, pas d’un lien mécanique entre deux chiffres.'},
+{level:'Causalité',q:'Le dollar et un indice actions montent ensemble pendant 20 jours. Que peut-on conclure ?',a:['Le dollar cause la hausse des actions','Une association sur cet échantillon ; un facteur commun peut l’expliquer','La relation restera positive demain'],ok:1,why:'Une corrélation ne prouve ni causalité ni stabilité. Il faut regarder rendements, fenêtres, événements communs, incertitude et régimes.'},
+{level:'Backtest',q:'Un signal utilise la clôture du jour t. Le test achète à l’ouverture du même jour t. Quel est le problème ?',a:['Une utilisation d’information future','Un simple coût de courtage manquant','Aucun si le résultat est positif'],ok:0,why:'La clôture n’était pas connue à l’ouverture du même jour. Cette fuite d’information rend le résultat inexploitable.'},
+{level:'Recherche avancée',q:'Parmi 1 000 réglages, un seul est excellent et ses voisins échouent. Votre prochaine action ?',a:['Augmenter le levier sur ce réglage','Publier seulement le meilleur résultat','Examiner surapprentissage, stabilité et validation réellement indépendante'],ok:2,why:'La sélection parmi beaucoup d’essais favorise les résultats chanceux. Un pic isolé exige de la méfiance, pas une augmentation du risque.'},
+{level:'Multi-unités',q:'Dans un test M1 à 10 h, vous utilisez la clôture définitive de la bougie D du même jour. Est-ce valide ?',a:['Non, cette clôture est encore future','Oui, D est un horizon supérieur','Oui, si M1 confirme'],ok:0,why:'Une bougie supérieure encore ouverte ne peut pas fournir sa valeur finale. Il faut utiliser l’état disponible à l’instant de décision ou la dernière bougie clôturée.'},
+{level:'Microstructure',q:'Sur une bougie M1, le plus haut touche la cible et le plus bas touche le stop. Les seules données OHLC disent-elles lequel a été touché en premier ?',a:['La cible si la bougie est verte','Non ; il faut des données plus fines ou une convention explicite','Le stop est toujours touché en premier'],ok:1,why:'OHLC ne fournit pas l’ordre des événements intrabougie. Choisir systématiquement le scénario favorable surestime les résultats.'},
+{level:'Portefeuille',q:'Deux positions ont des notionnels égaux et opposés. Le risque est-il annulé ?',a:['Oui, le net est nul','Oui, si les actifs ont été corrélés','Non : basis, exécution, financement et rupture de relation subsistent'],ok:2,why:'Un faible net peut masquer un grand brut. Deux jambes distinctes conservent des risques propres et communs, y compris une divergence persistante.'},
+{level:'Décision',q:'Votre scénario est plausible, mais le spread dépasse la moitié de l’objectif et une annonce arrive. Quelle décision respecte le mieux une méthode de recherche prudente ?',a:['Entrer plus gros pour compenser','Attendre ou s’abstenir, puis documenter les conditions','Retirer le stop'],ok:1,why:'Un scénario n’impose pas une transaction. Si les coûts ou les risques d’exécution invalident l’hypothèse économique, s’abstenir reste cohérent.'}
+];
+function quizPage(){
+$('#main').innerHTML=title('04 / MISE À L’ÉPREUVE','Challengez vos certitudes.','Douze situations, du calcul de base aux biais de recherche. Chaque réponse révèle le raisonnement. Le score mesure ce quiz, pas votre aptitude à trader.')+'<section class="section" style="padding-top:0"><div id="quiz"></div></section>';renderQuiz()}
+function renderQuiz(){
+if(quizIndex>=questions.length){let best=0;try{best=+localStorage.getItem('ea-best')||0;localStorage.setItem('ea-best',Math.max(best,quizScore))}catch{}$('#quiz').innerHTML='<div class="question"><span class="tag">DÉBRIEF / 12 SITUATIONS</span><h2>'+quizScore+' / '+questions.length+'</h2><p>'+ (quizScore>=10?'Des bases solides sur ce questionnaire. La prochaine étape : rédiger et tenter de réfuter un protocole reproductible.':'Revenez aux mécanismes qui vous ont surpris, puis retestez votre raisonnement.')+'</p><p class="hint">Meilleur score dans ce navigateur : '+Math.max(best,quizScore)+' / 12. Ce résultat n’est ni une certification ni une recommandation de prise de risque.</p><div class="actions"><button class="btn" id="restart">Recommencer ↻</button><a class="text-link" href="#apprendre">Retourner à l’atlas</a></div></div>';$('#restart').onclick=()=>{quizIndex=0;quizScore=0;renderQuiz()};return}
+let q=questions[quizIndex];quizAnswered=false;$('#quiz').innerHTML='<div class="question"><div class="eyebrow">DÉFI '+String(quizIndex+1).padStart(2,'0')+' / 12 · '+q.level+'</div><h3>'+q.q+'</h3><div class="answers">'+q.a.map((a,i)=>'<button class="answer" data-answer="'+i+'"><span style="font:11px monospace;margin-right:12px">'+String.fromCharCode(65+i)+'</span>'+a+'</button>').join('')+'</div><div id="feedback" aria-live="polite"></div><div class="actions"><button class="btn" id="nextQ" hidden>Défi suivant →</button><span class="hint">Score : '+quizScore+' / '+quizIndex+'</span></div></div>';$$('[data-answer]').forEach(b=>b.onclick=()=>{if(quizAnswered)return;quizAnswered=true;let correct=+b.dataset.answer===q.ok;if(correct)quizScore++;$$('[data-answer]').forEach(x=>{x.disabled=true;if(+x.dataset.answer===q.ok)x.classList.add('correct')});if(!correct)b.classList.add('wrong');$('#feedback').innerHTML='<div class="notice">'+(correct?'<b>Exact.</b> ':'<b>À revoir.</b> ')+q.why+'</div>';$('#nextQ').hidden=false;$('#nextQ').textContent=quizIndex===questions.length-1?'Voir le débrief →':'Défi suivant →'});$('#nextQ').onclick=()=>{quizIndex++;renderQuiz()}}
+function sourcesPage(){
+$('#main').innerHTML=title('05 / TRANSPARENCE','Savoir d’où l’on parle.','Des sources vérifiables, des hypothèses visibles et des limites explicites. Cet atlas est une base de travail, pas une encyclopédie exhaustive ni une garantie d’absence d’erreur.')+'<section class="section" style="padding-top:0"><div class="readable"><div class="notice warn"><b>Avertissement sur les risques</b><br>'+esc(CONTENT.disclaimers.global)+' '+esc(CONTENT.disclaimers.risk)+'</div><h3>Le statut de ce site</h3><p>EDGE ATLAS propose une formation générale et des outils de calcul pédagogiques. Il ne tient compte d’aucune situation personnelle, ne transmet aucun ordre et ne recommande aucun prestataire. Les exemples de capital, de taille ou de levier ne sont pas des recommandations. Aucune rémunération, affiliation ou certification professionnelle n’est revendiquée ici.</p><h3>Des protections qui dépendent du produit</h3><p>La vente à découvert d’actions peut entraîner une perte théoriquement illimitée. Les protections du solde négatif applicables à certains CFD particuliers dans le cadre européen ne s’étendent pas automatiquement à tous les instruments ni aux clients professionnels. Vérifiez juridiction, agrément, statut et conditions contractuelles.</p>'+srcLinks(['amf-cfd','esma-2026','sec-short'])+'<h3>Qu’est-ce qui est réellement simulé ?</h3><p>Le simulateur de position calcule une exposition linéaire, ses coûts et un résultat à un prix de sortie choisi. Le backtest compare des moyennes mobiles sur une série de clôtures quotidiennes. Les surfaces 3D sont calculées à partir de ces modèles ; ce ne sont ni des prévisions ni des probabilités. Le module macro est un ensemble de scénarios qualitatifs conditionnels.</p><p>Les données de démonstration sont synthétiques et reproductibles. Vos CSV restent dans votre navigateur, en mémoire, et disparaissent au rechargement. Le radar peut charger des données externes, selon la source et les droits d’accès ; la fraîcheur est indiquée par les dates. Les hypothèses détaillées et omissions sont affichées dans chaque outil.</p><h3>Portée éditoriale et actualisation</h3><p>Sources consultées le 24 octobre 2026. Les règles, les publications et les produits évoluent : consultez les sources d’origine avant une décision. Les protocoles proposés sont des exercices de recherche ; une source sur une famille de stratégies ne valide pas nos paramètres. Ni les sources ni leurs auteurs ne cautionnent ce site.</p><h3>Confidentialité et stockage local</h3><p>Le site enregistre les fiches marquées lues, le meilleur score du quiz et le journal d’anticipations dans le stockage local de votre navigateur. Le site n’utilise aucun outil de suivi publicitaire. Les polices peuvent être chargées depuis Google Fonts, ce qui implique une requête réseau vers ce fournisseur ; une police système est utilisée si elles sont indisponibles. Les liens externes ouvrent des services tiers.</p><button id="clearProgress" class="btn ghost">Effacer ma progression locale</button><p id="clearStatus" class="hint" role="status"></p></div><div class="section-head" style="margin-top:58px"><h2>La bibliothèque des sources.</h2><p>Institutions, régulateurs et travaux de recherche. Les fiches renvoient aux références correspondantes.</p></div>'+CONTENT.sources.map((s,i)=>'<div class="source"><small>'+String(i+1).padStart(2,'0')+'</small><div><a href="'+esc(s.url)+'" target="_blank" rel="noopener noreferrer">'+esc(s.title)+'</a><p>'+esc(new URL(s.url).hostname)+'</p></div><span>↗</span></div>').join('')+'</section>';$('#clearProgress').onclick=()=>{try{localStorage.removeItem('ea-read');localStorage.removeItem('ea-best')}catch{}read.clear();quizIndex=0;quizScore=0;$('#clearStatus').textContent='Progression et meilleur score effacés dans ce navigateur.'}}
+function surface(canvas,grid){
+if(!canvas)return()=>{};let ctx=canvas.getContext('2d'),yaw=-.55,pitch=.65,down=false,lastX=0,lastY=0;let vals=grid.flat(),min=Math.min(...vals),max=Math.max(...vals),span=max-min||1,w=0,h=0;let observer;
+function draw(){w=canvas.clientWidth;h=canvas.clientHeight;if(!w||!h)return;let dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);let scale=Math.min(w*.34,h*.44);
+function project(x,y,z){let rx=x*Math.cos(yaw)-y*Math.sin(yaw),ry=x*Math.sin(yaw)+y*Math.cos(yaw);let py=ry*Math.sin(pitch)-z*Math.cos(pitch),depth=ry*Math.cos(pitch)+z*Math.sin(pitch),p=3.8/(3.8+depth*.3);return {x:w/2+rx*scale*p,y:h*.49+py*scale*p,depth}}
+ctx.lineWidth=.6;ctx.strokeStyle='#b3d8b322';for(let i=-5;i<=5;i++){let a=project(i/4,-1.25,-.7),b=project(i/4,1.25,-.7);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();a=project(-1.25,i/4,-.7);b=project(1.25,i/4,-.7);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+let n=grid.length,m=grid[0].length,pts=grid.map((row,y)=>row.map((v,x)=>project(x/(m-1)*2-1,y/(n-1)*2-1,(v-min)/span*1.1-.55))),faces=[];
+for(let y=0;y<n-1;y++)for(let x=0;x<m-1;x++){let corners=[pts[y][x],pts[y][x+1],pts[y+1][x+1],pts[y+1][x]];faces.push({corners,depth:corners.reduce((s,p)=>s+p.depth,0)/4,t:(grid[y][x]-min)/span})}faces.sort((a,b)=>b.depth-a.depth);for(let f of faces){ctx.beginPath();f.corners.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle='hsl('+(155-f.t*70)+' 42% '+(16+f.t*26)+'% / .85)';ctx.fill();ctx.strokeStyle='hsl('+(140-f.t*65)+' 76% '+(38+f.t*28)+'% / .78)';ctx.lineWidth=.65;ctx.stroke()}
+for(let y=0;y<n;y+=4)for(let x=0;x<m;x+=4){let p=pts[y][x];ctx.fillStyle='#dcff83';ctx.beginPath();ctx.arc(p.x,p.y,1.5,0,Math.PI*2);ctx.fill()}
+ctx.font='10px monospace';ctx.fillStyle='#b6cbbd';let xaxis=project(1.22,-1,-.55),yaxis=project(-1,1.22,-.55);ctx.fillText('X',xaxis.x,xaxis.y);ctx.fillText('Y',yaxis.x,yaxis.y);let z=project(-1,-1,.72);ctx.fillText('Z',z.x,z.y)}
+const pointerdown=e=>{down=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)},pointermove=e=>{if(!down)return;yaw+=(e.clientX-lastX)*.007;pitch=Math.max(.15,Math.min(1.3,pitch+(e.clientY-lastY)*.005));lastX=e.clientX;lastY=e.clientY;draw()},pointerup=()=>down=false,key=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();if(e.key==='ArrowLeft')yaw-=.1;if(e.key==='ArrowRight')yaw+=.1;if(e.key==='ArrowUp')pitch=Math.min(1.3,pitch+.1);if(e.key==='ArrowDown')pitch=Math.max(.15,pitch-.1);draw()};
+canvas.addEventListener('pointerdown',pointerdown);canvas.addEventListener('pointermove',pointermove);canvas.addEventListener('pointerup',pointerup);canvas.addEventListener('pointercancel',pointerup);canvas.addEventListener('keydown',key);observer=new ResizeObserver(draw);observer.observe(canvas);draw();let dispose=()=>{observer.disconnect();canvas.removeEventListener('pointerdown',pointerdown);canvas.removeEventListener('pointermove',pointermove);canvas.removeEventListener('pointerup',pointerup);canvas.removeEventListener('pointercancel',pointerup);canvas.removeEventListener('keydown',key)};cleanups.push(dispose);return dispose}
+function lineChart(canvas,series,benchmark,dates){const ctx=canvas.getContext('2d');function draw(){let w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);let all=[...series,...benchmark],lo=Math.min(...all),hi=Math.max(...all),pad=(hi-lo)*.12||100;lo-=pad;hi+=pad;let left=58,right=15,top=20,bottom=30;const y=v=>top+(hi-v)/(hi-lo)*(h-top-bottom),x=i=>left+i/(series.length-1)*(w-left-right);ctx.font='10px monospace';for(let i=0;i<=4;i++){let v=lo+(hi-lo)*i/4;ctx.strokeStyle='#cbd2c4';ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(left,y(v));ctx.lineTo(w-right,y(v));ctx.stroke();ctx.fillStyle='#59665f';ctx.fillText(num(v,0),0,y(v)+4)}function plot(s,color,dashed){ctx.beginPath();s.forEach((v,i)=>i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v)));ctx.strokeStyle=color;ctx.lineWidth=2;ctx.setLineDash(dashed?[5,4]:[]);ctx.stroke()}plot(benchmark,'#8d7754',true);plot(series,'#2d715d',false);ctx.setLineDash([]);ctx.fillStyle='#59665f';ctx.fillText(dates[0],left,h-6);ctx.fillText(dates.at(-1),w-85,h-6)}let ro=new ResizeObserver(draw);ro.observe(canvas);draw();cleanups.push(()=>ro.disconnect())}
+function route(){cleanups.forEach(f=>f());cleanups=[];let hash=location.hash.slice(1)||'accueil';let routes={accueil:home,radar:()=>RadarPanel.render(),apprendre:library,strategies,laboratoire:simulator,backtest:backtestPage,macro:macroPage,defis:quizPage,sources:sourcesPage};(routes[hash]||home)();$$('nav a').forEach(a=>{let active=a.hash==='#'+hash||(a.hash==='#laboratoire'&&['backtest','macro'].includes(hash));a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});window.scrollTo(0,0)}
+$('#lessonDialog .close').onclick=()=>$('#lessonDialog').close();$('#lessonDialog').addEventListener('click',e=>{if(e.target===$('#lessonDialog')){let r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close()}});
+window.addEventListener('hashchange',route);route();
+
+</script></body></html>

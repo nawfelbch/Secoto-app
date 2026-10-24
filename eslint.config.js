@@ -14,6 +14,8 @@ export default defineConfig([
     'ios/App/App/public',
     'deliverables',
     'store',
+    // Projet personnel séparé (EDGE ATLAS), hors application SECOTO.
+    'edge-atlas',
     '**/.fuse_hidden*',
   ]),
   {
