@@ -1100,8 +1100,11 @@ details.mission-card[open] { border-color: var(--border-strong); }
   /* Sur mobile : formulaire au-dessus, apercu en dessous, tout defile. */
   .doc-modal-body { grid-template-columns: 1fr; grid-template-rows: auto auto; overflow-y: auto; }
   .doc-modal-form { border-right: 0; border-bottom: 1px solid var(--border-soft); overflow: visible; }
-  .doc-modal-preview { overflow: visible; }
-  .doc-modal-preview iframe { height: 62vh; }
+  .doc-modal-preview { overflow: visible; position: relative; z-index: 0; }
+  /* iOS : un iframe dans une zone qui défile peut rester dessiné à une
+     ancienne position, par-dessus les champs. Calque propre et défilement natif. */
+  .doc-modal-preview iframe { height: 62vh; transform: translateZ(0); }
+  .doc-modal-body { -webkit-overflow-scrolling: auto; }
   .doc-modal-foot { position: sticky; bottom: 0; background: var(--glass-strong); }
 }
 
