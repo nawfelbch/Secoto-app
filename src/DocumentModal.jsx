@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { isNativePlatform } from "./platform/runtime";
 import {
   renderDevisHtml,
@@ -138,6 +140,15 @@ export default function DocumentModal({ kind, mission, transporter = {}, onClose
   // le document passe par la feuille de partage du téléphone (Enregistrer dans
   // Fichiers, Imprimer, Mail, WhatsApp…).
   async function partagerFichier() {
+    // App native : fichier écrit dans le cache du téléphone, puis feuille de
+    // partage iOS / Android.
+    try {
+      const { uri } = await Filesystem.writeFile({ path: fileName, data: html, directory: Directory.Cache, encoding: Encoding.UTF8 });
+      await Share.share({ title: TITLES[kind], url: uri, dialogTitle: TITLES[kind] });
+      return true;
+    } catch (e) {
+      if (/cancel/i.test(String(e?.message || ""))) return true;
+    }
     const file = new File([html], fileName, { type: "text/html" });
     if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
       try {
