@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
+import { isNativePlatform } from "./platform/runtime";
 import {
   renderDevisHtml,
   renderBonMissionHtml,
@@ -78,6 +81,7 @@ export default function DocumentModal({ kind, mission, transporter = {}, onClose
 
   const [numbering, setNumbering] = useState(false);
   const [numError, setNumError] = useState("");
+  const [sortieInfo, setSortieInfo] = useState("");
 
   function setOpt(key, value) { setOpts((p) => ({ ...p, [key]: value })); }
   function setField(key, value) { setDraft((p) => ({ ...p, [key]: value })); }
@@ -132,15 +136,50 @@ export default function DocumentModal({ kind, mission, transporter = {}, onClose
 
   const fileName = `${opts.numero || DOC_PREFIX[kind]}.html`;
 
+  // L'app iPhone / Android n'a ni impression ni gestionnaire de téléchargement :
+  // le document passe par la feuille de partage du téléphone (Enregistrer dans
+  // Fichiers, Imprimer, Mail, WhatsApp…).
+  async function partagerFichier() {
+    // App native : fichier écrit dans le cache du téléphone, puis feuille de
+    // partage iOS / Android.
+    try {
+      const { uri } = await Filesystem.writeFile({ path: fileName, data: html, directory: Directory.Cache, encoding: Encoding.UTF8 });
+      await Share.share({ title: TITLES[kind], url: uri, dialogTitle: TITLES[kind] });
+      return true;
+    } catch (e) {
+      if (/cancel/i.test(String(e?.message || ""))) return true;
+    }
+    const file = new File([html], fileName, { type: "text/html" });
+    if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: TITLES[kind] });
+        return true;
+      } catch (e) {
+        if (e?.name === "AbortError") return true;
+      }
+    }
+    setSortieInfo("Impression et téléchargement indisponibles dans l’application : ouvrez app.secoto-transport.fr dans Safari ou sur un ordinateur, puis ce document.");
+    return false;
+  }
+
   function handlePrint() {
+    setSortieInfo("");
+    if (isNativePlatform()) { partagerFichier(); return; }
     const frame = document.getElementById("secoto-doc-frame");
-    if (!frame?.contentWindow) return;
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
+    try {
+      // Cadre « allow-modals allow-same-origin » : print() est permis, aucun
+      // script du document ne peut s'exécuter (pas d'allow-scripts).
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch {
+      setSortieInfo("Impression impossible dans ce navigateur : utilisez « Télécharger », puis imprimez le fichier.");
+    }
   }
 
   function handleDownload() {
     if (!html) return;
+    setSortieInfo("");
+    if (isNativePlatform()) { partagerFichier(); return; }
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -278,13 +317,14 @@ export default function DocumentModal({ kind, mission, transporter = {}, onClose
                 id="secoto-doc-frame"
                 title="Aperçu du document"
                 srcDoc={html}
-                sandbox=""
+                sandbox="allow-modals allow-same-origin"
                 referrerPolicy="no-referrer"
               />
             )}
           </div>
         </div>
 
+        {sortieInfo && <div className="alert" role="status" style={{ margin: "0 16px 8px" }}>{sortieInfo}</div>}
         <footer className="doc-modal-foot">
           <button type="button" className="btn ghost" onClick={onClose}>Fermer</button>
           <div className="actions-row" style={{ marginTop: 0, flexWrap: "wrap" }}>
