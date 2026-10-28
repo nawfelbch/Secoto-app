@@ -1,5 +1,7 @@
 // SECOTO 097 — Aucun numéro SIREN / SIRET de SECOTO sur un support client
 // tant que la nouvelle immatriculation n'est pas active.
+// 28/10/2026 : immatriculation de nouveau active — le SIRET revient sur les
+// documents (devis, facture, bon de mission). Les autres supports suivront.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -9,6 +11,7 @@ const RACINE = new URL("..", import.meta.url).pathname;
 const NUMERO = /951[\s. -]?857[\s. -]?531|95185753100028/;
 // Tout ce qui part chez le client, le transporteur ou le prospect.
 const DOSSIERS = ["src", "public", "templates", "netlify", "deliverables/secoto-kit-commercial/sources", "index.html"];
+const DOCUMENTS = ["templates/devis.html", "templates/facture.html", "templates/bon-de-mission.html"];
 
 function fichiers(chemin) {
   const abs = join(RACINE, chemin);
@@ -18,15 +21,22 @@ function fichiers(chemin) {
 
 test("aucun support ne contient l'ancien numéro", () => {
   const texte = /\.(jsx?|mjs|html|css|json|txt|md|svg|toml)$/;
-  const trouves = DOSSIERS.flatMap(fichiers).filter((f) => texte.test(f))
+  const trouves = DOSSIERS.flatMap(fichiers).filter((f) => texte.test(f) && !DOCUMENTS.includes(f))
     .filter((f) => NUMERO.test(readFileSync(join(RACINE, f), "utf8")));
   assert.deepEqual(trouves, []);
 });
 
 test("la mention remplace le numéro sur les documents et pages légales", () => {
-  for (const f of ["templates/devis.html", "templates/facture.html", "templates/bon-de-mission.html",
-    "public/cgu.html", "public/politique-confidentialite.html", "public/conditions-transporteur.html", "src/LegalNoticesPanel.jsx"]) {
+  for (const f of ["public/cgu.html", "public/politique-confidentialite.html", "public/conditions-transporteur.html", "src/LegalNoticesPanel.jsx"]) {
     assert.match(readFileSync(join(RACINE, f), "utf8"), /[Ii]mmatriculation en cours de mise à jour/, f);
+  }
+});
+
+test("documents : le SIRET actif remplace la mention provisoire", () => {
+  for (const f of DOCUMENTS) {
+    const t = readFileSync(join(RACINE, f), "utf8");
+    assert.match(t, /SIRET 951 857 531 00028/, f);
+    assert.doesNotMatch(t, /[Ii]mmatriculation en cours de mise à jour/, f);
   }
 });
 
