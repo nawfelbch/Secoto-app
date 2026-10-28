@@ -143,6 +143,8 @@ import { modifierMissionAdmin } from "./lib/missionsPropositions";
 import LiveSharingControl from "./ondemand/LiveSharingControl";
 import LiveTrackingView from "./ondemand/LiveTrackingView";
 import { DispatchPreferencesPanel, OffersPanel, OfferPopupHost } from "./ondemand/PartnerOffers";
+import EspecesAEncaisser from "./ondemand/EspecesAEncaisser";
+import { eurosEnCentimes } from "./lib/especes";
 import PaiementDirectPanel from "./ondemand/PaiementDirectPanel";
 import { acceptMission, admin as adminOD, adminCarrierMembers, carrierOverview, carrierSuggest, claimAnonQuote, connectOnboarding, declineMission, featureFlags, formatCents, libelleReglement, myOffers, reglementArriveeActif, takeAnonQuote } from "./lib/onDemand";
 import "./ondemand/ondemand.css";
@@ -260,6 +262,10 @@ const MISSION_TRANSPORTER_COLUMNS = [
   // Entreprise de transport : qui encaisse, et qui execute.
   "carrier_company_id", "carrier_employee_id", "urgent",
 ].join(",");
+// 119 : total à encaisser, rempli par la base UNIQUEMENT pour une course réglée
+// en espèces. Si la base n'a pas encore la colonne, on relit sans elle.
+const MISSION_TRANSPORTER_COLUMNS_119 = `${MISSION_TRANSPORTER_COLUMNS},especes_a_encaisser`;
+const sansColonne119 = (r, relire) => (r.error && /especes_a_encaisser/.test(r.error.message || "") ? relire() : r);
 const PUBLIC_MISSION_BASE_COLUMNS = [
   "id", "public_ref", "type", "vehicle_category", "status", "progress_status", "from_city", "to_city",
   "vehicle", "distance_km", "created_at",
@@ -996,6 +1002,10 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
       <p><strong>Immatriculation :</strong> {mission.plate || "Non renseignée"}</p>
       {/* 111 : le transporteur doit savoir s'il encaisse des espèces. */}
       <p className={`od-reglement${mission.paymentMethod === "especes" ? " is-especes" : ""}`}><strong>Règlement :</strong> {libelleReglement(mission.paymentMethod)}</p>
+      {/* 119 : espèces — le total à encaisser en grand, puis sa part et celle de SECOTO. */}
+      {visiblePricing === "transporter" && mission.paymentMethod === "especes" && mission.status !== "cancelled" && (
+        <EspecesAEncaisser totalCents={eurosEnCentimes(mission.especesAEncaisser)} partTransporteurCents={eurosEnCentimes(mission.carrierPay)} />
+      )}
       {/* Montants visibles uniquement par l'admin (cloisonnement marge/coût). */}
       {visiblePricing === "admin" && (
         <>
@@ -2928,7 +2938,8 @@ export default function App() {
       } else {
         const [publicResult, privateResult, requestsResult, applicationsResult, documentsResult, trackingEventsResult, trackingPhotosResult] = await Promise.all([
           fetchPublicMissions(DATA_PAGE_SIZE),
-          supabase.from("secoto_missions_transporter_v2").select(MISSION_TRANSPORTER_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
+          supabase.from("secoto_missions_transporter_v2").select(MISSION_TRANSPORTER_COLUMNS_119).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE)
+            .then((r) => sansColonne119(r, () => supabase.from("secoto_missions_transporter_v2").select(MISSION_TRANSPORTER_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE))),
           supabase.from("mission_requests").select(REQUEST_COLUMNS).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("mission_applications").select(APPLICATION_COLUMNS).order("proposed_price", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
           supabase.from("documents").select(DOCUMENT_COLUMNS).eq("account_id", currentAccount.id).order("created_at", { ascending: false }).limit(DATA_PAGE_SIZE),
@@ -3780,11 +3791,13 @@ export default function App() {
         if (action?.type !== "tracking") continue;
         let mission = missions.find((candidate) => candidate.id === action.missionId);
         if (!mission) {
-          const { data } = await supabase
+          const lire = (colonnes) => supabase
             .from("secoto_missions_transporter_v2")
-            .select(MISSION_TRANSPORTER_COLUMNS)
+            .select(colonnes)
             .eq("id", action.missionId)
             .maybeSingle();
+          const premier = await lire(MISSION_TRANSPORTER_COLUMNS_119);
+          const { data } = await sansColonne119(premier, () => lire(MISSION_TRANSPORTER_COLUMNS));
           mission = data ? missionFromDb(data) : null;
         }
         if (!mission || isMissionDeliveryValidated(mission)) {
@@ -5640,6 +5653,7 @@ export default function App() {
                             <div className="card-top">
                               <span className="badge">{mission.publicRef}</span>
                               <span className={`status status-${mission.status}`}>{labelStatus(mission.status)}</span>
+                              {mission.paymentMethod === "especes" && <span className="od-pill is-warn">💶 Espèces</span>}
                             </div>
                             <h3>{mission.fromCity || "Départ"} → {mission.toCity || "Arrivée"}</h3>
                             <PublicMissionInfo mission={mission} />

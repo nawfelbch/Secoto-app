@@ -8,6 +8,7 @@ import {
   OFFRE_LIBELLE, setAccepteDelaiLong, mesReglements, declarerEspeces,
 } from "../lib/onDemand";
 import { payCommission } from "../lib/payments";
+import EspecesAEncaisser from "./EspecesAEncaisser";
 
 // 099 : offre de la mission (Express, Standard, Éco) — jamais le prix client.
 function OffreBadge({ offre }) {
@@ -16,16 +17,11 @@ function OffreBadge({ offre }) {
 }
 import { randomIdempotencyKey } from "../lib/fileSafety";
 
-// 100 : règlement en espèces à la livraison — ce que le transporteur encaisse et reverse.
+// 100 / 119 : règlement en espèces — le total à encaisser en grand, puis le
+// détail (sa part, la marge SECOTO à reverser par carte ou virement depuis l'application).
 function EspecesInfo({ offer }) {
   if (offer?.mode_reglement !== "especes") return null;
-  return (
-    <div className="alert" role="note">
-      <strong>Règlement en espèces à la livraison.</strong> Vous encaissez {formatCents(offer.especes_a_encaisser_cents)} auprès du client,
-      dont {formatCents(offer.commission_a_reverser_cents)} de marge SECOTO à reverser sous 7 jours (carte ou virement, depuis l’application).
-      Votre rémunération reste de {formatCents(offer.partner_pay_cents)}.
-    </div>
-  );
+  return <EspecesAEncaisser totalCents={offer.especes_a_encaisser_cents} partTransporteurCents={offer.partner_pay_cents} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +361,7 @@ export function OffersPanel({ focusOfferId, onOpenMission, onOpenBank, paiementD
             <div className="card-top"><span className="badge">{o.mode === "plateau" ? "Plateau" : "Convoyage"}</span>{o.offre && <OffreBadge offre={o.offre} />}{o.mode_reglement === "especes" && <span className="od-pill is-warn">Espèces</span>}<strong>{formatCents(o.partner_pay_cents)}</strong></div>
             <h3>{o.pickup.city} → {o.delivery.city}</h3>
             <p>{o.vehicle?.model} · {formatDateTime(o.pickup_at)}{o.distance_km ? ` · ${o.distance_km} km` : ""}</p>
+            {o.mode_reglement === "especes" && o.especes_a_encaisser_cents != null && <p className="od-especes-ligne"><strong>💶 À encaisser en espèces : {formatCents(o.especes_a_encaisser_cents)}</strong></p>}
             <div className="actions-row"><button className="btn primary small" type="button" onClick={() => setOpen(o.id)}>Voir la mission</button></div>
           </article>
         ))}

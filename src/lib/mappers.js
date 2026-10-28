@@ -103,6 +103,8 @@ export function missionFromDb(row) {
     commissionAmount: row.commission_amount ?? null,
     transportAmount: row.transport_amount ?? null,
     clientTotalDue: row.client_total_due ?? null,
+    // 119 : vue transporteur, rempli seulement pour une course réglée en espèces.
+    especesAEncaisser: row.especes_a_encaisser ?? null,
     paymentStatus: row.payment_status || "not_required",
     commissionPaidAt: row.commission_paid_at || null,
     cancelledAt: row.cancelled_at || null,

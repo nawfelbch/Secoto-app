@@ -181,3 +181,15 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .od-contacts p { margin: 2px 0; }
 .od-contacts-lieu { border: 1px solid var(--border, rgba(255,255,255,0.1)); border-radius: 12px; padding: 8px 12px; margin: 8px 0; display: grid; gap: 8px; }
 .od-contacts-lieu legend { font-weight: 700; padding: 0 4px; }
+
+/* 119 : course réglée en espèces — total à encaisser en grand, puis le détail. */
+.od-especes { margin: 12px 0; padding: 14px 16px; border-radius: var(--radius-md); border: 2px solid var(--warn); background: var(--warn-soft); min-width: 0; }
+.od-especes p { margin: 0; }
+.od-especes-titre { font-weight: 800; color: var(--text); margin-bottom: 8px !important; }
+.od-especes-total { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.od-especes-total span { color: var(--text); }
+.od-especes-total strong { font-family: var(--font-display); font-size: 1.9rem; line-height: 1.1; color: var(--text); }
+.od-especes-detail { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--border-strong); display: grid; gap: 4px; }
+.od-especes-detail li { display: flex; justify-content: space-between; gap: 12px; color: var(--muted, var(--text)); }
+.od-especes-detail strong { color: var(--text); white-space: nowrap; }
+.od-especes-note { margin-top: 8px !important; font-size: .85rem; color: var(--muted, var(--text)); }
