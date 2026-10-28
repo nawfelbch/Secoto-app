@@ -201,9 +201,9 @@ test("085 : barème de départ = prix inchangés voiture, utilitaire 1,25/1,10, 
     { client: 50000, partner: 44000 });
   const moto = await quoteCents({ vehicle: { model: "TEST MT-07", class: "moto", category: "standard", rolling: true, constraints: [] } }, 900);
   // 117 : 92 → 69 hors couloir Île-de-France ↔ 06/83/13 : plus de plafond,
-  // 400 × 0,85 + 500 × 0,68 = 680 € transporteur, × 1,2 = 816 € client.
-  assert.equal(moto.client, 81600);
-  assert.equal(moto.partner, 68000);
+  // 121 : 400 × 1,10 + 500 × 0,88 = 880 € transporteur, × 1,2 = 1 056 € client.
+  assert.equal(moto.client, 105600);
+  assert.equal(moto.partner, 88000);
   const nr = await quoteCents({ vehicle: { model: "TEST 308", class: "voiture", category: "standard", rolling: false, constraints: [] } });
   assert.equal(nr.partner, 46667);
   assert.equal(nr.client, 56000);
