@@ -25,8 +25,8 @@ begin
   if v_def ~ '\mespeces_a_encaisser\M' then return; end if;
   -- Premier « FROM missions m » : la requête principale (cf. 101).
   v_def := regexp_replace(v_def, '\s+FROM\s+(public\.)?missions\s+m\M',
-    ', (CASE WHEN coalesce((SELECT o.mode_reglement FROM public.transport_orders o WHERE o.id = m.od_order_id), m.payment_method) = ''especes''
-         THEN coalesce((SELECT o.client_price_cents / 100.0 FROM public.transport_orders o WHERE o.id = m.od_order_id), m.client_total_due, m.client_price)
+    ', (CASE WHEN coalesce((SELECT o.mode_reglement FROM public.transport_orders o WHERE o.mission_id = m.id LIMIT 1), m.payment_method) = ''especes''
+         THEN coalesce((SELECT o.client_price_cents / 100.0 FROM public.transport_orders o WHERE o.mission_id = m.id LIMIT 1), m.client_total_due, m.client_price)
        END)::numeric(12,2) AS especes_a_encaisser FROM public.missions m');
   if v_def !~ 'especes_a_encaisser FROM public\.missions m' then
     raise exception 'Vue secoto_missions_transporter_v2 : structure inattendue, migration interrompue.';
