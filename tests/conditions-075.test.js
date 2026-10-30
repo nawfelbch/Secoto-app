@@ -86,8 +86,9 @@ test("les pages légales suivent la charte SECOTO, sans mention de brouillon", (
   for (const f of ["public/cgu.html", "public/conditions-transporteur.html", "public/politique-confidentialite.html"]) {
     const html = lire(f);
     assert.match(html, /\/legal\/legal\.css/, `${f}: feuille de style SECOTO absente`);
-    assert.match(html, /[Ii]mmatriculation en cours de mise à jour/, `${f}: identification de l'éditeur absente`);
-    assert.doesNotMatch(html, /951[ .]?857[ .]?531/, `${f}: ancien SIREN encore affiché`);
+    // 123 : Kbis de nouveau valide — le SIRET remplace la mention provisoire.
+    assert.match(html, /SIRET 951 857 531 00028/, `${f}: identification de l'éditeur absente`);
+    assert.doesNotMatch(html, /[Ii]mmatriculation en cours de mise à jour/, `${f}: mention provisoire encore affichée`);
     assert.match(html, /APE 8299Z/, `${f}: code APE absent`);
     assert.doesNotMatch(html, /PROJET|à valider|\[À/i, `${f}: mention de brouillon visible`);
   }
