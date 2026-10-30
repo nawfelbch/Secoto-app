@@ -334,11 +334,27 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
             </select>
           </label>
           <label className="field"><span>Gamme</span>
-            <select value={form.vehicle.category} onChange={(e) => setVehicle({ category: e.target.value })}>
+            <select value={form.vehicle.category} onChange={(e) => setVehicle({
+              category: e.target.value,
+              // 122 : « transport fermé » n'existe qu'en prestige.
+              ...(e.target.value === "luxury" ? {} : { constraints: form.vehicle.constraints.filter((x) => x !== "transport_ferme") }),
+            })}>
               <option value="standard">Standard</option>
               <option value="luxury">Prestige / collection</option>
             </select>
           </label>
+          {form.vehicle.category === "luxury" && (
+            <label className="field field-full od-check-prestige">
+              <span>
+                <input type="checkbox" checked={form.vehicle.constraints.includes("transport_ferme")}
+                  onChange={(e) => setVehicle({ constraints: e.target.checked
+                    ? [...form.vehicle.constraints.filter((x) => x !== "transport_ferme"), "transport_ferme"]
+                    : form.vehicle.constraints.filter((x) => x !== "transport_ferme") })} />
+                {" "}Transport fermé souhaité (camion ou remorque fermé)
+              </span>
+              <small className="muted">Sans cette case, votre véhicule voyage sur un plateau ouvert, chargé et arrimé avec soin. Le transport fermé coûte plus cher.</small>
+            </label>
+          )}
           <label className="field"><span>État</span>
             <select value={form.vehicle.rolling ? "roulant" : "non_roulant"} onChange={(e) => setVehicle({ rolling: e.target.value === "roulant" })}>
               <option value="roulant">Roulant</option>
@@ -354,7 +370,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           <fieldset className="field field-full">
             <span>Contraintes</span>
             <div className="od-checks">
-              {VEHICLE_CONSTRAINTS.map((c) => (
+              {VEHICLE_CONSTRAINTS.filter((c) => !c.prestige).map((c) => (
                 <label key={c.value}>
                   <input type="checkbox" checked={form.vehicle.constraints.includes(c.value)}
                     onChange={(e) => setVehicle({ constraints: e.target.checked ? [...form.vehicle.constraints, c.value] : form.vehicle.constraints.filter((x) => x !== c.value) })} />
