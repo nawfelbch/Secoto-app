@@ -94,7 +94,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - **Hébergement** : Netlify, déploiement automatique à chaque push sur `main`.
   Site : `https://app.secoto-transport.fr`.
 - **Build mobile** : `codemagic.yaml` (`IOS_MARKETING_VERSION`, numéro de build
-  incrémenté automatiquement). Version iOS actuelle : **2.3.7** (en vérification Apple ;
+  incrémenté automatiquement). Version iOS actuelle : **2.4** (2.3.7 publiée ;
   Apple exige une vidéo de démo Apple Pay à chaque soumission).
 
 ## 5. Conventions de code
