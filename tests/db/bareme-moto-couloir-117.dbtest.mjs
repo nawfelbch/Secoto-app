@@ -31,14 +31,14 @@ test("117 : Paris ↔ 06 / 83 / 13 garde le plafond 382 €, dans les deux sens"
 });
 
 test("117 : ailleurs, plus de plafond et prix dégressif au-delà de 400 km", async () => {
-  // Chamblet → Saint-Cyr-sur-Mer, 606,3 km : 400 × 0,85 + 206,3 × 0,68 = 480,28 € ; client × 1,2.
+  // Chamblet → Saint-Cyr-sur-Mer, 606,3 km (121) : 400 × 1,10 + 206,3 × 0,88 = 621,54 € ; client × 1,2.
   const harley = await prix(moto, "03170", "83270", 606.3);
-  assert.equal(harley.transporteur, 48028);
-  assert.equal(harley.client, 57634);
+  assert.equal(harley.transporteur, 62154);
+  assert.equal(harley.client, 74585);
   assert.equal(harley.plafond, false);
-  // Moins de 400 km : inchangé (0,85 €/km).
+  // Moins de 400 km : tarif plein (121 : 1,10 €/km).
   const court = await prix(moto, "69001", "13001", 300);
-  assert.equal(court.transporteur, 25500);
+  assert.equal(court.transporteur, 33000);
   // Ancienne signature (sans destination) : plafond partout, comme avant.
   const [r] = await sql("select secoto_private.market_price('{}'::jsonb, $1::jsonb, $2::jsonb, 606.3, now() + interval '5 days') as p",
     [JSON.stringify(moto), JSON.stringify(lieu("03170"))]);

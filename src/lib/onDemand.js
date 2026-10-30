@@ -25,6 +25,8 @@ export const VEHICLE_CONSTRAINTS = [
   { value: "non_immatricule", label: "Non immatriculé" },
   { value: "acces_difficile", label: "Accès difficile au lieu de prise en charge" },
   { value: "batterie_faible", label: "Batterie faible" },
+  // 122 : prestige — camion ou remorque fermé(e) seulement si le client le demande.
+  { value: "transport_ferme", label: "Transport fermé (camion ou remorque fermé)", prestige: true },
 ];
 
 export const SLOTS = [
