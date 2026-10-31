@@ -107,6 +107,11 @@ export async function runMaintenance({ admin, stripe }) {
   const devis = await admin.rpc("secoto_devis_relances", { p_limit: 50 });
   report.relances_devis = devis.error ? { error: devis.error.message } : devis.data;
 
+  // 126 : missions sans transporteur à 48 h puis 24 h du départ -> relance
+  // e-mail des transporteurs compatibles (la base choisit qui, quand, une fois).
+  const relancesTransporteurs = await admin.rpc("secoto_relances_transporteurs", { p_limit: 200 });
+  report.relances_transporteurs = relancesTransporteurs.error ? { error: relancesTransporteurs.error.message } : relancesTransporteurs.data;
+
   // 090 : contacts laissés avant le prix, effacés après douze mois sans commande
   // (promesse de la politique de confidentialité).
   const contacts = await admin.rpc("secoto_purge_contacts_devis");
