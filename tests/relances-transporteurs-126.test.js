@@ -31,3 +31,11 @@ test("126 : réservée au serveur et appelée par la maintenance", () => {
   assert.match(sql, /grant execute on function public\.secoto_relances_transporteurs\(integer\) to service_role/);
   assert.match(maintenance, /admin\.rpc\("secoto_relances_transporteurs", \{ p_limit: 200 \}\)/);
 });
+
+const sql127 = readFileSync(new URL("../supabase/migrations/202611010127_relances_apres_24h_de_publication.sql", import.meta.url), "utf8");
+
+test("127 : aucune relance (ni e-mail ni alerte admin) d'une mission publiée depuis moins de 24 h", () => {
+  assert.equal((sql127.match(/m\.created_at <= now\(\) - interval '24 hours'/g) || []).length, 2);
+  assert.match(sql127, /create or replace function public\.secoto_relances_transporteurs\(p_limit integer default 200\)/);
+  assert.match(sql127, /grant execute on function public\.secoto_relances_transporteurs\(integer\) to service_role/);
+});
