@@ -1594,10 +1594,28 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
   letter-spacing: normal;
 }
 
+.payment-waiver {
+  margin: 8px 0;
+  max-width: 640px;
+}
+
 .payment-waiver-why {
-  margin: 6px 0 0 30px;
-  font-size: 0.85rem;
+  margin: 4px 0 0 30px;
+  font-size: 0.82rem;
   line-height: 1.4;
+  color: var(--muted, #94a3b8);
+}
+
+.payment-waiver-why summary {
+  cursor: pointer;
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 4px 0;
+}
+
+.payment-waiver-why p {
+  margin: 4px 0 0;
 }
 
 .payment-waiver-row input[type="checkbox"] {
