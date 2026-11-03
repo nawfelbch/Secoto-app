@@ -4,6 +4,7 @@ import { formatCents, myOrders } from "../lib/onDemand";
 import { acceptPaymentWaiver, fetchPayment, payNow, watchPayment } from "../lib/payments";
 import { conversionCommande } from "../lib/mesure";
 import DecompositionPrix from "./DecompositionPrix";
+import RenonciationRetractation from "./RenonciationRetractation";
 import { OFFER_WINDOW_HOURS } from "../lib/orderCopy";
 
 // ============================================================================
@@ -72,7 +73,7 @@ export default function PaiementAFinaliser({ onPaid }) {
     try {
       if (renonciationRequise) {
         if (!renonciation) {
-          setError("Cochez la case pour lancer le transport avant la fin du délai de rétractation.");
+          setError("Cochez la case pour que nous organisions votre transport dès maintenant.");
           return;
         }
         await acceptPaymentWaiver(paiement.id);
@@ -98,10 +99,7 @@ export default function PaiementAFinaliser({ onPaid }) {
         {commande.public_ref ? ` · commande ${commande.public_ref}` : ""}
       </p>
       {renonciationRequise && (
-        <label className="payment-waiver-row">
-          <input type="checkbox" checked={renonciation} onChange={(e) => setRenonciation(e.target.checked)} />
-          <span>Je demande l’exécution immédiate du transport et renonce expressément à mon droit de rétractation de 14 jours.</span>
-        </label>
+        <RenonciationRetractation checked={renonciation} onChange={setRenonciation} arrivee={commande.debit_a_livraison === true} />
       )}
       {error && <div className="alert error">{error}</div>}
       <button

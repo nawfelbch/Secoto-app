@@ -1594,6 +1594,12 @@ html[data-theme="light"] .field input::-webkit-calendar-picker-indicator { filte
   letter-spacing: normal;
 }
 
+.payment-waiver-why {
+  margin: 6px 0 0 30px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 .payment-waiver-row input[type="checkbox"] {
   width: 20px;
   height: 20px;

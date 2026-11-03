@@ -18,6 +18,7 @@ import ContactAvantPrix from "./ContactAvantPrix";
 import ReserverExpress from "./ReserverExpress";
 import { etapeFormulaire } from "../lib/entonnoir";
 import { contactMemorise, contactValide, memoriserContact, telephoneLisible } from "../lib/contactDevis";
+import RenonciationRetractation from "./RenonciationRetractation";
 
 const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
 
@@ -549,10 +550,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           {order.funding === "card" && payment && !guaranteed && (
             <>
               {payment.waiverRequired && !payment.waiverAccepted && (
-                <label className="payment-waiver-row">
-                  <input type="checkbox" checked={waiver} onChange={(e) => setWaiver(e.target.checked)} />
-                  <span>Je demande l’exécution immédiate du transport et renonce expressément à mon droit de rétractation de 14 jours.</span>
-                </label>
+                <RenonciationRetractation checked={waiver} onChange={setWaiver} arrivee={arrivee} />
               )}
               <p className="muted">Apple Pay, Google Pay ou carte selon votre appareil et votre navigateur.</p>
               <button className="btn primary" type="button" disabled={busy || !online} onClick={pay}>
