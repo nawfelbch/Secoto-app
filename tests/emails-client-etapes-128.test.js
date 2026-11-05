@@ -27,3 +27,11 @@ test("128 : l'e-mail ne bloque jamais le statut et reste honnête sur le règlem
   assert.match(sql, /'L''Équipe SECOTO'/);
   assert.doesNotMatch(sql, /garanti|assuré/i);
 });
+
+const sql129 = readFileSync(new URL("../supabase/migrations/202611050129_avis_10_minutes_apres_livraison.sql", import.meta.url), "utf8");
+
+test("129 : demande d'avis 10 minutes après la livraison", () => {
+  assert.match(sql129, /trg_mission_review_request\(\)'::regprocedure/);
+  assert.match(sql129, /now\(\) \+ interval ''10 minutes'' \/\* 129 \*\//);
+  assert.match(sql129, /least\(due_at, created_at \+ interval '10 minutes'\)/);
+});
