@@ -143,7 +143,8 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               {["awaiting_payment", "searching_partner", "partner_locked", "partner_confirmed", "picked_up"].includes(order.status) && (
                 <ContactsSurPlace order={order} onChange={(o) => setOrders((list) => (list || []).map((x) => (x.id === o.id ? o : x)))} />
               )}
-              {order.partner_contact
+              {/* 130 : le numéro du transporteur disparaît dès la livraison. */}
+              {order.partner_contact && ["partner_confirmed", "picked_up"].includes(order.status)
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
                 : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
               {order.mission_id && ["picked_up", "delivered", "partner_confirmed"].includes(order.status) && (
