@@ -1059,7 +1059,7 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
       </div>
       <div className={`timeline-step ${mission.assignedTransporterName ? "" : "pending"}`}>
         <strong>{mission.assignedTransporterName ? `Transporteur attribué : ${mission.assignedTransporterName}` : "En attente d’un transporteur"}</strong>
-        {mission.transporterContact && <CarteTransporteur contact={mission.transporterContact} reference={mission.publicRef} />}
+        {mission.transporterContact && mission.status === "assigned" && <CarteTransporteur contact={mission.transporterContact} reference={mission.publicRef} />}
       </div>
       {steps.map((s) => {
         const ev = byType[s.key];
