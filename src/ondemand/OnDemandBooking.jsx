@@ -4,7 +4,7 @@ import DecompositionPrix from "./DecompositionPrix";
 import ReassuranceReservation from "./ReassuranceReservation";
 import OffresCartes, { OffreDecomposition } from "./OffresCartes";
 import { ChoixReglement, ZeroPreleve } from "./ReglementArrivee";
-import { memoriserOffre, offreParDefaut } from "../lib/offres";
+import { dateMinStandard, expressObligatoire, memoriserOffre, offreAutorisee, offreParDefaut } from "../lib/offres";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
   MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
@@ -255,7 +255,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
     setError("");
     try {
       const result = offres && !useSubscription
-        ? await bookQuoteOffre(quote.id, offre || offreParDefaut(offres, quote.id))
+        ? await bookQuoteOffre(quote.id, offreRetenue)
         : await bookQuote(quote.id, useSubscription);
       setOrder(result.order);
       if (result.order.payment_id) {
@@ -293,7 +293,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const devisDirect = quote?.payment_circuit === "direct";
   // 099 : trois offres -> carte enregistrée, débit à la confirmation (compte SECOTO).
   const offres = quote?.offres?.length && ["priced"].includes(quote.status) ? quote.offres : null;
-  const offreChoisie = offres ? offres.find((o) => o.cle === offre) || null : null;
+  // 132 : départ dans moins de 48 h -> Express obligatoire (Standard grisé).
+  const obligatoireExpress = Boolean(offres) && expressObligatoire(quote);
+  const offreRetenue = offres ? offreAutorisee(offres, offre || offreParDefaut(offres, quote?.id), obligatoireExpress) : null;
+  const offreChoisie = offres ? offres.find((o) => o.cle === offreRetenue) || null : null;
   const differe = order?.debit_a_confirmation === true;
   // 100 : règlement à l'arrivée -> 0 € aujourd'hui, carte enregistrée en garantie.
   const arrivee = order ? order.debit_a_livraison === true : Boolean(flags?.reglement_arrivee) && !devisDirect && !useSubscription;
@@ -480,7 +483,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>
               {offres ? (
-                <OffresCartes offres={offres} choix={offre} onChoix={choisirOffre} disabled={busy} klarna={arrivee} />
+                <OffresCartes offres={offres} choix={offreRetenue} onChoix={choisirOffre} disabled={busy} klarna={arrivee}
+                  expressObligatoire={obligatoireExpress} standardDes={obligatoireExpress ? dateMinStandard(quote) : ""}
+                  onChangerDate={() => { setQuote(null); setStep(3); }} />
               ) : (
                 <div className="od-price">
                   <span>Prix total du transport</span>
@@ -619,7 +624,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           </button>
         )}
         {step === 4 && quote && ["priced", "manual_priced"].includes(quote.status) && !anonyme && (
-          <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription)} onClick={book}>
+          <button className="btn primary" type="button" disabled={busy || !online || (!flags?.od_payments && !useSubscription) || (offres && !useSubscription && !offreRetenue)} onClick={book}>
             {busy ? "Réservation…" : useSubscription ? "Réserver sur mon forfait"
               : arrivee ? "Réserver – 0 € aujourd’hui"
               : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver et passer au paiement"}
