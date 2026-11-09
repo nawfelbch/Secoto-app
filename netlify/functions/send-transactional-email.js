@@ -6,13 +6,51 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // renonciation au droit de rétractation : la notification push ne suffit pas.
 // Balayage planifié, aucune entrée publique.
 import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
+import { buildFacturePdf, nomFichierFacture } from "../lib/facture-pdf.js";
+import { collecterFacture, corpsEmailFacture } from "../lib/facture-donnees.js";
 
 const {
   RESEND_API_KEY,
   RESEND_FROM = "SECOTO <contact.secoto@gmail.com>",
+  STRIPE_SECRET_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_URL,
 } = process.env;
+
+const FACTURE_PREFIX = "od-invoice:";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Identifiant de commande d'un e-mail de facture (clé « od-invoice:<commande> »), sinon null. */
+export function commandeDeFacture(eventKey) {
+  const key = String(eventKey || "");
+  if (!key.startsWith(FACTURE_PREFIX)) return null;
+  const id = key.slice(FACTURE_PREFIX.length);
+  return UUID.test(id) ? id : null;
+}
+
+/**
+ * 131 : la facture part en PDF (facture acquittée + justificatif de paiement).
+ * Si le PDF ne peut pas être produit, on réessaie ; au dernier essai, l'e-mail
+ * texte part seul pour que le client ait toujours sa facture.
+ */
+export async function preparerFacture(row, { admin, stripe, dernierEssai }) {
+  const orderId = commandeDeFacture(row.event_key);
+  if (!orderId) return row;
+  try {
+    if (!stripe) throw new Error("stripe_not_configured");
+    const donnees = await collecterFacture(admin, stripe, orderId);
+    const pdf = await buildFacturePdf(donnees);
+    return {
+      ...row,
+      body_text: corpsEmailFacture(donnees),
+      attachments: [{ filename: nomFichierFacture(donnees.numero), content: Buffer.from(pdf).toString("base64") }],
+    };
+  } catch (error) {
+    if (dernierEssai) return row;
+    throw new Error(`FACTURE_PDF:${String(error?.message || error).slice(0, 200)}`, { cause: error });
+  }
+}
 
 const BATCH = 20;
 
@@ -40,6 +78,7 @@ async function sendOne(row) {
       to: [row.to_email],
       subject: row.subject,
       text: row.body_text,
+      ...(row.attachments ? { attachments: row.attachments } : {}),
     }),
   });
   if (!result.ok) {
@@ -63,7 +102,7 @@ const handler = async () => {
 
   const { data: rows, error } = await admin
     .from("email_outbox")
-    .select("id,to_email,subject,body_text,attempts,max_attempts")
+    .select("id,to_email,subject,body_text,event_key,attempts,max_attempts")
     .eq("status", "pending")
     .lte("available_at", new Date().toISOString())
     .order("created_at", { ascending: true })
@@ -72,6 +111,7 @@ const handler = async () => {
 
   let sent = 0;
   let failed = 0;
+  const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
   for (const row of rows || []) {
     const attempts = row.attempts + 1;
@@ -83,7 +123,8 @@ const handler = async () => {
     if (claimError) continue;
 
     try {
-      await sendOne(row);
+      const message = await preparerFacture(row, { admin, stripe, dernierEssai: attempts >= row.max_attempts });
+      await sendOne(message);
       await admin
         .from("email_outbox")
         .update({ status: "sent", sent_at: new Date().toISOString(), last_error: null })
