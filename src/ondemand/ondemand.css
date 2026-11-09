@@ -131,6 +131,12 @@ label.od-checks {
 .od-offre-fenetre { font-weight: 600; color: var(--text); }
 .od-offre-detail { font-size: .85rem; color: var(--text-soft); }
 .od-offre-transporteurs { font-size: .8rem; color: var(--muted); }
+/* 132 : départ dans moins de 48 h -> Express obligatoire, autres offres grisées. */
+.od-offres-express { display: grid; gap: 8px; margin-bottom: 12px; }
+.od-offres-express .btn { justify-self: start; }
+.od-offre.is-grise { cursor: not-allowed; opacity: .45; filter: grayscale(1); box-shadow: none; }
+.od-offre.is-grise:hover { border-color: var(--border-strong); }
+.od-offre-grise { font-size: .82rem; font-weight: 600; color: var(--text-soft); }
 .od-offre-decompo { font-size: .82rem; line-height: 1.45; margin-top: 8px; opacity: .85; display: grid; gap: 2px; }
 @media (max-width: 560px) { .od-offres-grille { grid-template-columns: 1fr; } .od-offre { padding: 16px 14px 14px; } }
 .od-offre-pill { margin: 0 6px; }
