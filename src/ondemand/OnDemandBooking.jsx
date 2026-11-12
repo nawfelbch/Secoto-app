@@ -7,7 +7,7 @@ import { ChoixReglement, ZeroPreleve } from "./ReglementArrivee";
 import { dateMinStandard, expressObligatoire, memoriserOffre, offreAutorisee, offreParDefaut } from "../lib/offres";
 import VerifiedAddressField from "./VerifiedAddressField";
 import {
-  MANUAL_REASONS, SLOTS, VEHICLE_CLASSES, VEHICLE_CONSTRAINTS,
+  GABARITS, GABARITS_DIMENSIONS, MANUAL_REASONS, SLOTS, VEHICLE_CONSTRAINTS, classeDuGabarit, erreurDimensions,
   OFFER_WINDOW_HOURS, TVA_MENTION, MODE_REGLEMENT_LIBELLE,
   bookQuote, bookQuoteOffre, cancellationPolicy, klarnaSousPrix, fenetreLibelle, transporteursLibelle, formatCents, formatDateTime, paymentExplanation, publicQuote,
   rememberAnonQuote, requestQuote, subscriptionOverview,
@@ -25,7 +25,7 @@ const STEPS = ["Trajet", "Véhicule", "Mode", "Dates", "Prix", "Paiement"];
 const emptyForm = () => ({
   pickup: null,
   delivery: null,
-  vehicle: { model: "", class: "voiture", category: "standard", rolling: true, constraints: [], length_m: "", weight_kg: "", notes: "" },
+  vehicle: { model: "", class: "voiture", gabarit: "berline", category: "standard", rolling: true, constraints: [], length_m: "", weight_kg: "", height_m: "", notes: "" },
   // Groupage : jusqu'a deux vehicules de plus sur le meme trajet.
   extras: [],
   mode: "convoyage",
@@ -166,7 +166,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   }));
   const addExtra = () => setForm((f) => ({
     ...f,
-    extras: [...(f.extras || []), { model: "", class: "voiture", category: "standard", rolling: true, constraints: [], notes: "" }],
+    extras: [...(f.extras || []), { model: "", class: "voiture", gabarit: "berline", category: "standard", rolling: true, constraints: [], notes: "" }],
   }));
   const removeExtra = (i) => setForm((f) => ({ ...f, extras: (f.extras || []).filter((_, j) => j !== i) }));
   // Un seul vehicule non roulant suffit a exclure le convoyage.
@@ -180,6 +180,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
     }
     if (step === 1 && form.vehicle.model.trim().length < 2) return "Indiquez le modèle du véhicule.";
     if (step === 1 && (form.extras || []).some((v) => v.model.trim().length < 2)) return "Indiquez le modèle de chaque véhicule.";
+    if (step === 1 && erreurDimensions(form.vehicle)) return erreurDimensions(form.vehicle);
     if (step === 2 && form.mode === "convoyage" && !form.vehicle.rolling) return "Un véhicule non roulant se transporte sur plateau.";
     if (step === 2 && form.mode === "convoyage" && (form.extras || []).some((v) => !v.rolling)) return "Un véhicule non roulant se transporte sur plateau.";
     if (step === 3 && (!form.schedule.pickup_date || form.schedule.pickup_date < todayIso())) return "Choisissez une date de prise en charge à venir.";
@@ -203,6 +204,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           ...form.vehicle,
           length_m: form.vehicle.length_m ? Number(form.vehicle.length_m) : null,
           weight_kg: form.vehicle.weight_kg ? Number(form.vehicle.weight_kg) : null,
+          height_m: form.vehicle.height_m ? Number(String(form.vehicle.height_m).replace(",", ".")) : null,
         },
         ...((form.extras || []).length
           ? {
@@ -332,9 +334,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           <label className="field"><span>Modèle *</span>
             <input value={form.vehicle.model} maxLength={120} placeholder="Ex. Peugeot 3008" onChange={(e) => setVehicle({ model: e.target.value })} />
           </label>
-          <label className="field"><span>Catégorie</span>
-            <select value={form.vehicle.class} onChange={(e) => setVehicle({ class: e.target.value })}>
-              {VEHICLE_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          <label className="field"><span>Type de véhicule *</span>
+            <select value={form.vehicle.gabarit || "berline"} onChange={(e) => setVehicle({ gabarit: e.target.value, class: classeDuGabarit(e.target.value) })}>
+              {GABARITS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
             </select>
           </label>
           <label className="field"><span>Gamme</span>
@@ -365,12 +367,26 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               <option value="non_roulant">Non roulant</option>
             </select>
           </label>
-          <label className="field"><span>Longueur utile (m)</span>
-            <input inputMode="decimal" value={form.vehicle.length_m} onChange={(e) => setVehicle({ length_m: e.target.value.replace(",", ".") })} placeholder="Facultatif" />
-          </label>
-          <label className="field"><span>Poids (kg)</span>
-            <input inputMode="numeric" value={form.vehicle.weight_kg} onChange={(e) => setVehicle({ weight_kg: e.target.value })} placeholder="Facultatif" />
-          </label>
+          {/* 133 : poids et dimensions obligatoires pour caravane et camping-car. */}
+          {(() => {
+            const requis = GABARITS_DIMENSIONS.includes(form.vehicle.gabarit);
+            return (
+              <>
+                <label className="field"><span>{requis ? "Longueur totale, flèche comprise (m) *" : "Longueur utile (m)"}</span>
+                  <input inputMode="decimal" value={form.vehicle.length_m} onChange={(e) => setVehicle({ length_m: e.target.value.replace(",", ".") })} placeholder={requis ? "Ex. 7" : "Facultatif"} />
+                </label>
+                <label className="field"><span>{requis ? "Poids, PTAC sur la carte grise (kg) *" : "Poids (kg)"}</span>
+                  <input inputMode="numeric" value={form.vehicle.weight_kg} onChange={(e) => setVehicle({ weight_kg: e.target.value })} placeholder={requis ? "Ex. 1600" : "Facultatif"} />
+                </label>
+                {requis && (
+                  <label className="field"><span>Hauteur (m) *</span>
+                    <input inputMode="decimal" value={form.vehicle.height_m || ""} onChange={(e) => setVehicle({ height_m: e.target.value.replace(",", ".") })} placeholder="Ex. 2,6" />
+                  </label>
+                )}
+                {requis && <small className="muted field-full">Ces mesures servent au transporteur pour choisir le bon camion : au-delà de 3 t ou de 7 m, le prix est majoré.</small>}
+              </>
+            );
+          })()}
           <fieldset className="field field-full">
             <span>Contraintes</span>
             <div className="od-checks">
@@ -394,9 +410,9 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <label className="field"><span>Modèle *</span>
                   <input value={v.model} maxLength={120} placeholder="Ex. Yamaha MT-07" onChange={(e) => setExtra(i, { model: e.target.value })} />
                 </label>
-                <label className="field"><span>Catégorie</span>
-                  <select value={v.class} onChange={(e) => setExtra(i, { class: e.target.value })}>
-                    {VEHICLE_CLASSES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                <label className="field"><span>Type de véhicule</span>
+                  <select value={v.gabarit || "berline"} onChange={(e) => setExtra(i, { gabarit: e.target.value, class: classeDuGabarit(e.target.value) })}>
+                    {GABARITS.filter((g) => !GABARITS_DIMENSIONS.includes(g.value) && g.value !== "poids_lourd").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
                   </select>
                 </label>
                 <label className="field"><span>Gamme</span>
