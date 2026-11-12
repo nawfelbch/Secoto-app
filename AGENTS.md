@@ -67,6 +67,13 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 6. Ne publie jamais les justificatifs personnels des transporteurs.
 7. Ne modifie pas les anciennes migrations déjà appliquées : on **ajoute** une
    nouvelle migration.
+8. **Apple, règle 2.5.19 (fonctions dormantes)** — décision de Nawfal, 12/11/2026 :
+   les fonctions présentes mais désactivées (`subscriptions`,
+   `plateau_paiement_direct`, `commission_client` dans `secoto_feature_flags`)
+   ne doivent **jamais** être activées en production sans qu'une version iOS les
+   présentant ait d'abord été soumise et validée par Apple. Ne propose ni SQL ni
+   code qui les active sans le rappeler. Même règle pour toute nouvelle fonction
+   cachée derrière un drapeau.
 
 ## 4. Pile technique
 
