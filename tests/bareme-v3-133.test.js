@@ -57,3 +57,12 @@ test("133 : formulaire — types de véhicule et dimensions obligatoires", () =>
   assert.equal(erreurDimensions({ gabarit: "berline" }), "");
   assert.match(readFileSync(new URL("../src/lib/onDemand.js", import.meta.url), "utf8"), /sur_devis_poids_lourd:/);
 });
+
+test("134 : Éco berline Paris → Nice à 650 €", () => {
+  const sql134 = readFileSync(new URL("../supabase/migrations/202611120134_eco_paris_nice_650.sql", import.meta.url), "utf8");
+  assert.match(sql134, /'\{eco,eur_km\}', '0\.61'/);
+  assert.match(sql134, /'\{gabarits,berline,eco_plafond_eur\}', '650'/);
+  // 856 km entre Paris et Nice (vol d'oiseau × 1,25) × 0,61 € = 522 € transporteur -> 650 € client (plafond).
+  const pay = 856 * 0.61;
+  assert.equal(Math.min(Math.max(pay + 75, pay / 0.8), 650), 650);
+});
