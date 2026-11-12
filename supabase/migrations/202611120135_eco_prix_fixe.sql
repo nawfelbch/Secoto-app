@@ -3,18 +3,20 @@
 -- ----------------------------------------------------------------------------
 -- Demande de Nawfal du 12/11/2026 : l'Éco n'est plus calculée au kilomètre.
 --   · 650 € pour tout trajet en France ;
---   · 750 € de la France vers l'étranger, et inversement.
+--   · 550 € pour un trajet court en France (300 km ou moins) ;
+--   · 800 € de la France vers l'étranger, et inversement.
 -- Toujours de ville à ville : le client dépose et récupère lui-même son
 -- véhicule (grande ville la plus proche en France ; ville de l'adresse à
 -- l'étranger). Rémunération transporteur = prix − marge (20 %, jamais sous
--- 75 €) : 520 € en France, 600 € à l'international.
+-- 75 €) : 520 € en France (440 € pour un trajet court), 640 € à l'international.
 -- Éco n'est affichée que si elle est moins chère que Standard. Pas d'Éco pour
 -- caravane / camping-car ; moto seulement sur l'axe Île-de-France ↔ Côte d'Azur.
 -- Déjà appliqué en production le 12/11/2026. Rejouable.
 -- ============================================================================
 
 update public.app_settings
-   set value = jsonb_set(jsonb_set(value, '{eco,prix_france_eur}', '650'), '{eco,prix_international_eur}', '750')
+   set value = jsonb_set(jsonb_set(jsonb_set(jsonb_set(value, '{eco,prix_france_eur}', '650'), '{eco,prix_international_eur}', '800'),
+                         '{eco,prix_court_eur}', '550'), '{eco,court_max_km}', '300')
  where key = 'bareme_v3';
 
 create or replace function secoto_private.offre_eco_v3(q public.transport_quotes, p_std_client integer)
@@ -31,7 +33,7 @@ declare
   v_client integer;
   v_pay integer;
 begin
-  -- 135 : Éco = prix fixe (650 € en France, 750 € France ↔ étranger), plus de calcul au km.
+  -- 135 : Éco = prix fixe (650 € en France, 550 € si 300 km ou moins, 800 € France ↔ étranger), plus de calcul au km.
   if v_gab is null or not (coalesce(e -> 'coef', '{}'::jsonb) ? v_gab) then return null; end if;
   if not coalesce((q.vehicle ->> 'rolling')::boolean, true) then return null; end if;
   if not v_fr_a and not v_fr_b then return null; end if;
@@ -41,7 +43,12 @@ begin
   v_arr := case when v_fr_b then secoto_private.ville_eco(q.delivery) else jsonb_build_object('nom', q.delivery ->> 'city') end;
   if v_dep ->> 'nom' is null or v_arr ->> 'nom' is null or v_dep ->> 'nom' = v_arr ->> 'nom' then return null; end if;
   v_client := round(coalesce((e ->> case when v_intl then 'prix_international_eur' else 'prix_france_eur' end)::numeric,
-                             case when v_intl then 750 else 650 end) * 100)::int;
+                             case when v_intl then 800 else 650 end) * 100)::int;
+  -- Trajet court en France (300 km ou moins) : 550 €.
+  if not v_intl and coalesce((q.route ->> 'distance_km')::numeric, 0) > 0
+     and (q.route ->> 'distance_km')::numeric <= coalesce((e ->> 'court_max_km')::numeric, 300) then
+    v_client := round(coalesce((e ->> 'prix_court_eur')::numeric, 550) * 100)::int;
+  end if;
   v_pay := v_client - greatest(round(coalesce((b ->> 'marge_min_eur')::numeric, 75) * 100)::int,
                                round(v_client * coalesce((e ->> 'marge_pct')::numeric, 20) / 100)::int);
   -- Éco n'a de sens que moins chère que Standard.
