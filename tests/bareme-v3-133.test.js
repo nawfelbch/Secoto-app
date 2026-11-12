@@ -76,3 +76,9 @@ test("135 : Éco à prix fixe, 550 € (≤ 300 km), 650 € en France, 800 € 
   assert.match(sql135, /if not v_fr_a and not v_fr_b then return null/);
   assert.match(sql135, /v_client >= coalesce\(p_std_client, 0\)/);
 });
+
+test("136 : rémunération Éco fixe, 400 € en France et 640 € à l'international", () => {
+  const sql136 = readFileSync(new URL("../supabase/migrations/202611120136_eco_remuneration_fixe.sql", import.meta.url), "utf8");
+  assert.match(sql136, /'\{eco,transporteur_france_eur\}', '400'\), '\{eco,transporteur_international_eur\}', '640'/);
+  assert.match(sql136, /case when v_intl then 640 else 400 end/);
+});
