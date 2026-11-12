@@ -66,3 +66,12 @@ test("134 : Éco berline Paris → Nice à 650 €", () => {
   const pay = 856 * 0.61;
   assert.equal(Math.min(Math.max(pay + 75, pay / 0.8), 650), 650);
 });
+
+test("135 : Éco à prix fixe, 650 € en France et 750 € avec l'étranger", () => {
+  const sql135 = readFileSync(new URL("../supabase/migrations/202611120135_eco_prix_fixe.sql", import.meta.url), "utf8");
+  assert.match(sql135, /'\{eco,prix_france_eur\}', '650'/);
+  assert.match(sql135, /'\{eco,prix_international_eur\}', '750'/);
+  assert.doesNotMatch(sql135.split("create or replace function")[1], /eur_km/);
+  assert.match(sql135, /if not v_fr_a and not v_fr_b then return null/);
+  assert.match(sql135, /v_client >= coalesce\(p_std_client, 0\)/);
+});
