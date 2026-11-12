@@ -82,3 +82,14 @@ test("136 : rémunération Éco fixe, 400 € en France et 640 € à l'internat
   assert.match(sql136, /'\{eco,transporteur_france_eur\}', '400'\), '\{eco,transporteur_international_eur\}', '640'/);
   assert.match(sql136, /case when v_intl then 640 else 400 end/);
 });
+
+test("137 : Éco en places sur le porte-voitures, ouverte à tous les PL", () => {
+  const sql137 = readFileSync(new URL("../supabase/migrations/202611120137_eco_places_porte_voitures.sql", import.meta.url), "utf8");
+  assert.match(sql137, /'grand', 1\.5, 'utilitaire_court', 1\.5, 'utilitaire_long', 2, 'caravane', 2, 'camping_car', 2/);
+  assert.match(sql137, /'longueur_max_m', 8, 'poids_majore_kg', 3000, 'poids_majoration_places', 0\.5, 'poids_max_kg', 3500/);
+  assert.match(sql137, /v_pay := round\(v_ref \* v_places\)::int/);
+  assert.doesNotMatch(sql137.split("create or replace function secoto_private.offre_partenaire_ok")[1], /accepte_delai_long/);
+  // Caravane 2 places en France : 2 × 400 € = 800 € transporteur, 800 / 0,8 = 1 000 € client.
+  assert.equal(Math.round((2 * 400) / 0.8), 1000);
+  assert.equal(Math.round((2 * 640) / 0.8), 1600);
+});
