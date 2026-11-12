@@ -15,7 +15,7 @@ import { BADGE_STANDARD, dateCourte } from "../lib/offres";
 const ACCROCHE = {
   express: "Diffusée en priorité à tous les transporteurs vérifiés",
   standard: "Le meilleur équilibre prix / délai",
-  eco: "Porte-voitures en groupage, pour qui peut attendre",
+  eco: "De grande ville à grande ville, le moins cher",
 };
 
 export default function OffresCartes({ offres, choix, onChoix, disabled = false, klarna = false, expressObligatoire = false, standardDes = "", onChangerDate }) {
@@ -52,7 +52,12 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false,
               <span className="od-offre-fenetre">Prise en charge {fenetreLibelle(o.fenetre_h)}</span>
               {grise
                 ? <span className="od-offre-grise">Indisponible pour cette date : départ à partir du {dateCourte(standardDes)}</span>
-                : <span className="od-offre-detail">À domicile · {ACCROCHE[o.cle] || ""}</span>}
+                : o.cle === "eco" && o.ville_depot
+                  ? <span className="od-offre-detail od-offre-eco-regles">
+                      <strong>Dépôt à {o.ville_depot} · retrait à {o.ville_retrait}</strong>
+                      <span>Vous déposez et récupérez vous-même le véhicule dans ces grandes villes (pas de prise en charge à votre adresse). Prise en charge sous 15 jours.</span>
+                    </span>
+                  : <span className="od-offre-detail">À domicile · {ACCROCHE[o.cle] || ""}</span>}
               {!grise && <span className="od-offre-transporteurs">{transporteursLibelle(o.transporteurs)}</span>}
             </label>
           );

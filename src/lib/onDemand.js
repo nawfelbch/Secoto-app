@@ -18,6 +18,8 @@ export const VEHICLE_CLASSES = [
   { value: "autre", label: "Autre" },
 ];
 
+export { GABARITS, GABARITS_DIMENSIONS, classeDuGabarit, erreurDimensions } from "./gabarits.js";
+
 export const VEHICLE_CONSTRAINTS = [
   { value: "sans_cle", label: "Clé indisponible" },
   { value: "garde_au_sol_basse", label: "Garde au sol basse" },
@@ -37,6 +39,8 @@ export const SLOTS = [
 
 export const MANUAL_REASONS = {
   prix_automatique_desactive: "Le prix de ce trajet est établi par SECOTO.",
+  sur_devis_poids_lourd: "Bus, camion et poids lourd : SECOTO vous établit un devis personnalisé.",
+  sur_devis_plus_3_5_t: "Au-delà de 3,5 t, SECOTO vous établit un devis personnalisé.",
   aucun_bareme_actif: "Ce mode de transport fait l’objet d’un devis personnalisé.",
   itineraire_indisponible: "L’itinéraire n’a pas pu être calculé automatiquement.",
   international_hors_zone: "Pour ce trajet international, SECOTO étudie votre demande et vous établit un prix personnalisé.",

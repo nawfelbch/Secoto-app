@@ -199,3 +199,6 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .od-especes-detail li { display: flex; justify-content: space-between; gap: 12px; color: var(--muted, var(--text)); }
 .od-especes-detail strong { color: var(--text); white-space: nowrap; }
 .od-especes-note { margin-top: 8px !important; font-size: .85rem; color: var(--muted, var(--text)); }
+/* 133 : règles de l'offre Éco visibles sur la carte. */
+.od-offre-eco-regles { display: grid; gap: 4px; }
+.od-offre-eco-regles strong { color: var(--text); font-size: .85rem; }
