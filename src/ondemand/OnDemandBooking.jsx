@@ -378,10 +378,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <label className="field"><span>{requis ? "Poids, PTAC sur la carte grise (kg) *" : "Poids (kg)"}</span>
                   <input inputMode="numeric" value={form.vehicle.weight_kg} onChange={(e) => setVehicle({ weight_kg: e.target.value })} placeholder={requis ? "Ex. 1600" : "Facultatif"} />
                 </label>
-                {requis && (
-                  <label className="field"><span>Hauteur (m) *</span>
-                    <input inputMode="decimal" value={form.vehicle.height_m || ""} onChange={(e) => setVehicle({ height_m: e.target.value.replace(",", ".") })} placeholder="Ex. 2,6" />
+                {(requis || form.vehicle.gabarit === "utilitaire") && (
+                  <label className="field"><span>{requis ? "Hauteur (m) *" : "Hauteur (m)"}</span>
+                    <input inputMode="decimal" value={form.vehicle.height_m || ""} onChange={(e) => setVehicle({ height_m: e.target.value.replace(",", ".") })} placeholder={requis ? "Ex. 2,6" : "Facultatif — ex. 1,9"} />
                   </label>
+                )}
+                {form.vehicle.gabarit === "utilitaire" && (
+                  <small className="muted field-full">Indiquez la longueur et la hauteur : un petit utilitaire (5 m maximum et 2 m de haut maximum) paie moins cher en offre Éco.</small>
                 )}
                 {requis && <small className="muted field-full">Ces mesures servent au transporteur pour choisir le bon camion : au-delà de 3 t ou de 7 m, le prix est majoré.</small>}
               </>

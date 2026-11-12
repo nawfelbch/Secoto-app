@@ -93,3 +93,9 @@ test("137 : Éco en places sur le porte-voitures, ouverte à tous les PL", () =>
   assert.equal(Math.round((2 * 400) / 0.8), 1000);
   assert.equal(Math.round((2 * 640) / 0.8), 1600);
 });
+
+test("137 : hauteur proposée aussi pour les utilitaires (facultative)", () => {
+  const booking = readFileSync(new URL("../src/ondemand/OnDemandBooking.jsx", import.meta.url), "utf8");
+  assert.match(booking, /\(requis \|\| form\.vehicle\.gabarit === "utilitaire"\)/);
+  assert.equal(erreurDimensions({ gabarit: "utilitaire" }), "");
+});
