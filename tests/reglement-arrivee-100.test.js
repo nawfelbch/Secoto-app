@@ -262,7 +262,8 @@ test("textes : 0 € aujourd'hui, modes proposés, consignes à la livraison", (
   assert.equal(copy.paymentStateLabel({ ...order, payment_status: "requires_capture" }), "Carte enregistrée — 0 € prélevé");
   const livre = { ...order, status: "delivered", payment_status: "requires_capture" };
   assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "carte" }), /vont être prélevés sur votre carte/);
-  assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "klarna" }), /plusieurs fois avec Klarna/);
+  assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "klarna" }), /^Réglez 480\s?€ avec Klarna/);
+  assert.doesNotMatch(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "klarna" }), /plusieurs fois|3 ×/);
   assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "virement" }), /^Virez 480/);
   assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "especes" }), /en espèces au transporteur/);
   assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "especes", especes_statut: "non_recu" }), /ne pas avoir reçu/);

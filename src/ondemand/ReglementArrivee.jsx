@@ -83,7 +83,7 @@ export function ReglementLivraison({ order, busy = false, onPayer }) {
       {order.reglement_a_payer && (
         <div className="actions-row">
           <button className="btn primary small" type="button" disabled={busy} onClick={onPayer}>
-            {order.mode_reglement === "klarna" ? "Payer en plusieurs fois (Klarna)" : "Payer maintenant"}
+            {order.mode_reglement === "klarna" ? "Payez avec Klarna" : "Payer maintenant"}
           </button>
           {virement && <small className="muted">Ou réglez par carte ou Klarna, sans attendre le virement.</small>}
         </div>

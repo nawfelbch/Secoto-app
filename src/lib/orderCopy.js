@@ -62,12 +62,21 @@ export function isDiffereOrder(order) {
 }
 export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco" };
 
-// 105 : mention Klarna sous le prix (règlement à l'arrivée). Klarna décide
-// seul de l'acceptation et du nombre d'échéances : « par exemple », jamais promis.
+// 105 / 143 : mention Klarna sous le prix. Depuis le 20/11/2026 (CCD2), seul le
+// texte préapprouvé par Klarna est permis : la ligne générique « Payez avec
+// Klarna » n'exige aucune mention ; jamais de montant d'échéance (« 3 × … »).
+export const KLARNA_GENERIQUE = "Payez avec Klarna";
+// Ligne approuvée « Payez en 3 fois » + avertissement obligatoire, mot pour mot.
+export const KLARNA_3_FOIS = "Choisissez Klarna. Payez en 3 fois.";
+export const KLARNA_AVERTISSEMENT = "Attention ! Un crédit coûte de l’argent et doit être remboursé.";
 export function klarnaSousPrix(cents) {
   const total = Number(cents || 0);
   if (!(total >= 3500)) return "";
-  return `ou en plusieurs fois avec Klarna, par exemple 3 × ${formatCents(Math.ceil(total / 3))}, à la livraison`;
+  return "ou payez avec Klarna, à la livraison";
+}
+// 143 : Klarna est interdit en B2B (conditions Stripe/Klarna) : réservé aux particuliers.
+export function klarnaPossible(order) {
+  return order?.client_pro !== true;
 }
 
 // ---- 100 : règlement à l'arrivée du véhicule ----------------------------------
@@ -81,7 +90,7 @@ export function isReglementArrivee(order) {
 }
 export const MODES_REGLEMENT = [
   { cle: "carte", libelle: "Carte bancaire", detail: "Prélevée automatiquement à l’arrivée du véhicule." },
-  { cle: "klarna", libelle: "Klarna — en plusieurs fois", detail: `À l’arrivée, vous réglez en plusieurs fois avec Klarna (sous réserve d’acceptation). Sans paiement sous ${DELAI_KLARNA_H} h, la carte est prélevée.` },
+  { cle: "klarna", libelle: "Klarna", detail: `${KLARNA_3_FOIS} ${KLARNA_AVERTISSEMENT} Sans paiement sous ${DELAI_KLARNA_H} h après l’arrivée, la carte est prélevée.` },
   { cle: "virement", libelle: "Virement bancaire", detail: `À l’arrivée, vous virez à SECOTO (IBAN et référence envoyés par e-mail). Sans virement reçu sous ${DELAI_VIREMENT_H} h, la carte est prélevée.` },
   { cle: "especes", libelle: "Espèces", detail: `Vous payez le transporteur en main propre à l’arrivée (${PLAFOND_ESPECES_EUR.toLocaleString("fr-FR")} € maximum). La carte n’est prélevée que si le paiement n’est pas fait.` },
 ];
@@ -89,7 +98,7 @@ export const MODE_REGLEMENT_LIBELLE = Object.fromEntries(MODES_REGLEMENT.map((m)
 // 111 : mode de règlement choisi, lisible d'un coup d'œil (admin et transporteur).
 const REGLEMENT_COURT = {
   carte: "💳 Carte bancaire (prélevée à l’arrivée)",
-  klarna: "💳 Klarna en plusieurs fois",
+  klarna: "💳 Klarna",
   virement: "🏦 Virement bancaire",
   especes: "💶 Espèces au transporteur",
 };
@@ -99,7 +108,8 @@ export function libelleReglement(cle) {
 // Modes proposés pour cette commande : espèces dans la limite légale, virement si l'IBAN SECOTO est renseigné.
 export function modesReglementPossibles(order) {
   return MODES_REGLEMENT.filter((m) => (m.cle !== "especes" || order?.especes_possible !== false)
-    && (m.cle !== "virement" || order?.virement_possible !== false));
+    && (m.cle !== "virement" || order?.virement_possible !== false)
+    && (m.cle !== "klarna" || klarnaPossible(order)));
 }
 // Ce que le client doit faire une fois le véhicule livré.
 export function reglementLivraisonTexte(order) {
@@ -109,8 +119,8 @@ export function reglementLivraisonTexte(order) {
   if (order.mode_reglement === "especes" && order.especes_statut === "recu") return `${montant} réglés en espèces au transporteur. Rien n’a été prélevé sur votre carte.`;
   if (order.mode_reglement === "especes" && order.especes_statut !== "non_recu") return `Réglez ${montant} en espèces au transporteur. Rien n’est prélevé sur votre carte tant qu’il confirme votre paiement.`;
   if (order.mode_reglement === "especes") return `Le transporteur indique ne pas avoir reçu votre paiement : votre carte sera prélevée de ${montant}${order.reglement_echeance ? ` le ${formatDateTime(order.reglement_echeance)}` : ""}. Déjà payé ? Contactez SECOTO.`;
-  if (order.payment_status === "capture_failed") return `Le prélèvement de ${montant} n’a pas abouti. Réglez maintenant (carte ou Klarna en plusieurs fois).`;
-  if (order.mode_reglement === "klarna") return `Réglez ${montant} en plusieurs fois avec Klarna${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
+  if (order.payment_status === "capture_failed") return `Le prélèvement de ${montant} n’a pas abouti. Réglez maintenant (carte ou Klarna).`;
+  if (order.mode_reglement === "klarna") return `Réglez ${montant} avec Klarna${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
   if (order.mode_reglement === "virement") return `Virez ${montant} à SECOTO${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
   return `${montant} vont être prélevés sur votre carte enregistrée.`;
 }
@@ -185,7 +195,7 @@ export function paymentExplanation(order) {
   const amount = formatCents(order.client_price_cents ?? order.collect_cents);
   if (isReglementArrivee(order)) {
     return `0 € prélevé aujourd’hui. Vous enregistrez votre carte bancaire en garantie et vous réglez ${amount} `
-      + `à l’arrivée du véhicule, avec le mode de votre choix : carte, Klarna en plusieurs fois, virement ou espèces.`;
+      + `à l’arrivée du véhicule, avec le mode de votre choix : carte, Klarna, virement ou espèces.`;
   }
   if (isDiffereOrder(order)) {
     return `Vous enregistrez votre carte maintenant, sans aucun débit. Vous n’êtes débité de ${amount} `

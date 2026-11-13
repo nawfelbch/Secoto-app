@@ -64,7 +64,7 @@ export async function sessionCarteArrivee({ admin, stripe, data, token, descript
       currency: data.currency || "eur",
       payment_method_types: ["card"],
       setup_intent_data: { metadata, description: `Carte enregistrée — ${description}`.slice(0, 250) },
-      custom_text: { submit: { message: `0 € prélevé aujourd'hui. Vous réglez ${eur(data.amount_cents)} à l'arrivée du véhicule : par carte, virement, Klarna (plusieurs fois) ou espèces. La carte sert de garantie.` } },
+      custom_text: { submit: { message: `0 € prélevé aujourd'hui. Vous réglez ${eur(data.amount_cents)} à l'arrivée du véhicule : par carte, virement, Klarna ou espèces. La carte sert de garantie.` } },
       metadata,
       success_url: retour("carte_arrivee"),
       cancel_url: retour("annule"),

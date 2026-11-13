@@ -113,7 +113,7 @@ export default function PaiementAFinaliser({ onPaid }) {
       </button>
       {arrivee ? (
         <p className="muted" style={{ marginTop: 10 }}>
-          Vous réglez {montant} à l’arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces (choix dans votre commande).
+          Vous réglez {montant} à l’arrivée du véhicule : carte, Klarna, virement ou espèces (choix dans votre commande).
           Sans transporteur, rien n’est prélevé et la demande est annulée.
         </p>
       ) : direct ? (
