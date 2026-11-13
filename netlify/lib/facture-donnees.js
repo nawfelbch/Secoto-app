@@ -10,7 +10,8 @@
 const MARQUES = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", cartes_bancaires: "CB", discover: "Discover", diners: "Diners", jcb: "JCB", unionpay: "UnionPay" };
 const FINANCEMENT = { debit: "débit", credit: "crédit", prepaid: "prépayée" };
 const PAYS = { FR: "France", BE: "Belgique", CH: "Suisse", LU: "Luxembourg", DE: "Allemagne", ES: "Espagne", IT: "Italie", GB: "Royaume-Uni", PT: "Portugal", NL: "Pays-Bas", MA: "Maroc", DZ: "Algérie", TN: "Tunisie" };
-const KLARNA = { pay_in_installments: "paiement en plusieurs fois", pay_later: "paiement différé", pay_now: "paiement immédiat" };
+// 143 : CCD2 — on nomme seulement Klarna, sans décrire le crédit (échéances, paiement différé).
+const KLARNA = {};
 
 const departement = (place) => {
   const cp = String(place?.postcode || "").trim();
