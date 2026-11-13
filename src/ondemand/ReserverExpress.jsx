@@ -95,7 +95,7 @@ export default function ReserverExpress({ onConnexion, libelle = "Réserver", ar
         {arrivee ? (
           <>
             <li>0 € aujourd’hui : votre carte est seulement enregistrée, en garantie</li>
-            <li>Vous réglez à l’arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces</li>
+            <li>Vous réglez à l’arrivée du véhicule : carte, Klarna, virement ou espèces</li>
           </>
         ) : (
           <>

@@ -51,7 +51,7 @@ test("100 : règlement à l'arrivée — 0 € aujourd'hui, moyens de paiement, 
   const sms = messageDevisSms({ client: "Demande sans compte", trajet: "Rochefort → Quincy-sous-Sénart", amountCents: 69932,
     url: URL_LONGUE, pickupAt: "2026-12-01T07:00:00Z", mode: "plateau", validiteHeures: 48 });
   assert.match(sms, /^Bonjour,\nBonne nouvelle : votre transport sur plateau Rochefort → Quincy-sous-Sénart est prêt\. 699,32 € tout compris \(carburant et péages\), prise en charge le mardi 1 décembre\./);
-  assert.match(sms, /0 € à payer aujourd'hui\. Vous ne réglez qu'à l'arrivée de votre véhicule, par carte, en plusieurs fois avec Klarna, par virement ou en espèces\./);
+  assert.match(sms, /0 € à payer aujourd'hui\. Vous ne réglez qu'à l'arrivée de votre véhicule, par carte, avec Klarna, par virement ou en espèces\./);
   assert.match(sms, /Les places du mardi 1 décembre sont limitées : nos transporteurs organisent leurs tournées à l'avance\. Ce prix est garanti 48 h seulement\./);
   assert.match(sms, /Bloquez votre date maintenant, en 1 minute :\nhttps:\/\/app\.secoto-transport\.fr\/payer\?t=[0-9a-f-]+\n/);
   assert.match(sms, /La réservation vaut acceptation du devis\./);
@@ -60,7 +60,7 @@ test("100 : règlement à l'arrivée — 0 € aujourd'hui, moyens de paiement, 
   assert.doesNotMatch(sms, /[\u{1F300}-\u{1FAFF}]/u, "aucun emoji");
   // Au-delà de 1 000 € : pas d'espèces (article L112-6).
   const gros = messageDevisSms({ client: "", trajet: "Paris → Nice", amountCents: 132000, url: URL_LONGUE, mode: "plateau" });
-  assert.match(gros, /par carte, en plusieurs fois avec Klarna ou par virement\./);
+  assert.match(gros, /par carte, avec Klarna ou par virement\./);
   assert.doesNotMatch(gros, /espèces/);
   const { pageRenonciation } = await import("../netlify/functions/devis-pay.js");
   const page = pageRenonciation("abc123", 69932, "Rochefort → Quincy-sous-Sénart", { arrivee: true });

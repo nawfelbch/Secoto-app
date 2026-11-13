@@ -309,7 +309,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       <h2 className="od-titre">Transport à la demande</h2>
       <p className="muted od-intro">
         {arrivee
-          ? "Prix calculé sur l’itinéraire réel. 0 € aujourd’hui : vous réglez à l’arrivée du véhicule, par carte, Klarna en plusieurs fois, virement ou espèces."
+          ? "Prix calculé sur l’itinéraire réel. 0 € aujourd’hui : vous réglez à l’arrivée du véhicule, par carte, Klarna, virement ou espèces."
           : direct || devisDirect || differe || offres
           ? "Prix calculé sur l’itinéraire réel. Vous n’êtes débité que lorsqu’un transporteur indépendant accepte votre transport."
           : "Prix calculé sur l’itinéraire réel. Paiement encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte."}
@@ -517,7 +517,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               <p className="muted">
                 {(quote.vehicles?.length || 1) > 1 ? `${quote.vehicles.length} véhicules sur le même trajet. ` : ""}
                 {arrivee
-                  ? "Tout compris : 0 € aujourd’hui, réglé à l’arrivée du véhicule (carte, Klarna en plusieurs fois, virement ou espèces jusqu’à 1 000 €). "
+                  ? "Tout compris : 0 € aujourd’hui, réglé à l’arrivée du véhicule (carte, Klarna, virement ou espèces jusqu’à 1 000 €). "
                   : offres
                   ? "Tout compris, réglé en une seule fois, au moment où un transporteur confirme. "
                   : devisDirect

@@ -84,8 +84,8 @@ export function messageDevisSms({ client, trajet, amountCents, url, pickupAt, mo
   }
   // 100 : rien à payer à la réservation. Le lien reste l'action unique.
   const moyens = Number(amountCents || 0) <= PLAFOND_ESPECES_CENTS
-    ? "par carte, en plusieurs fois avec Klarna, par virement ou en espèces"
-    : "par carte, en plusieurs fois avec Klarna ou par virement";
+    ? "par carte, avec Klarna, par virement ou en espèces"
+    : "par carte, avec Klarna ou par virement";
   return [
     `Bonjour${prenom ? ` ${prenom}` : ""},`,
     `Bonne nouvelle : votre ${objet} est prêt. ${prix}`,

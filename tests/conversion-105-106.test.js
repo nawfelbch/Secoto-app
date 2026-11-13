@@ -7,7 +7,8 @@ import { klarnaSousPrix } from "../src/lib/orderCopy.js";
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 
 test("Klarna sous le prix : exemple en 3 fois, jamais promis, rien sous 35 €", () => {
-  assert.match(klarnaSousPrix(69932), /^ou en plusieurs fois avec Klarna, par exemple 3 × 233,11\s?€, à la livraison$/);
+  // 143 : texte générique Klarna (CCD2), jamais de montant d'échéance.
+  assert.equal(klarnaSousPrix(69932), "ou payez avec Klarna, à la livraison");
   assert.equal(klarnaSousPrix(2000), "");
   assert.match(lire("src/ondemand/OffresCartes.jsx"), /klarna && klarnaSousPrix\(o\.client_cents\)/);
   assert.match(lire("src/ondemand/OnDemandBooking.jsx"), /klarna=\{arrivee\}/);

@@ -95,7 +95,7 @@ export function pageRenonciation(token, montantCents, trajet, options = {}) {
 <p style="font-size:26px;font-weight:700;margin:0 0 ${arrivee ? "8px" : "20px"}">${montant} €</p>
 ${arrivee ? `<p style="margin:0 0 20px;padding:12px 14px;border-radius:10px;background:#ecfdf3;color:#05603a;line-height:1.5">
 <strong style="font-size:18px">0 € prélevé aujourd'hui</strong><br>
-Vous réglez à l'arrivée du véhicule : carte, Klarna en plusieurs fois, virement ou espèces.
+Vous réglez à l'arrivée du véhicule : carte, Klarna, virement ou espèces.
 </p>` : ""}
 <form method="post" action="?t=${token}">
 ${conditions ? `<input type="hidden" name="version" value="${echapper(conditions.version)}">
@@ -164,7 +164,7 @@ const handler = async (event) => {
   if (retour === "carte_arrivee") {
     return html(200, page(
       "Merci, votre carte est enregistrée",
-      "0 € prélevé. Votre demande part aux transporteurs vérifiés. Vous réglez à l'arrivée du véhicule : par carte, virement, Klarna (en plusieurs fois) ou espèces, au choix dans votre espace SECOTO. Vous recevez une confirmation par e-mail à chaque étape.",
+      "0 € prélevé. Votre demande part aux transporteurs vérifiés. Vous réglez à l'arrivée du véhicule : par carte, virement, Klarna ou espèces, au choix dans votre espace SECOTO. Vous recevez une confirmation par e-mail à chaque étape.",
       "ok",
     ));
   }

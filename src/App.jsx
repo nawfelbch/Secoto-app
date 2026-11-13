@@ -1560,7 +1560,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
         {arrivee ? (
           <>
             <h2 className="hero-title">Votre prix en une minute. Vous ne payez qu’à l’arrivée du véhicule.</h2>
-            <p className="hero-zero"><strong>0 € aujourd’hui</strong> · réglez à la livraison : carte, Klarna en plusieurs fois, virement ou espèces</p>
+            <p className="hero-zero"><strong>0 € aujourd’hui</strong> · réglez à la livraison : carte, Klarna, virement ou espèces</p>
             <p className="hero-sub">
               Renseignez le départ, l’arrivée et le véhicule : le prix s’affiche immédiatement.
               Vous réservez sans rien payer, la mission part à nos transporteurs vérifiés, et vous réglez une fois votre véhicule livré.
@@ -1620,7 +1620,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
           </ul>
           <p className="muted" style={{ marginTop: 14 }}>
             {arrivee
-              ? "Rien n’est prélevé à la réservation : votre carte est seulement enregistrée, en garantie. Vous réglez à l’arrivée du véhicule, par carte, Klarna en plusieurs fois, virement ou espèces (jusqu’à 1 000 €). "
+              ? "Rien n’est prélevé à la réservation : votre carte est seulement enregistrée, en garantie. Vous réglez à l’arrivée du véhicule, par carte, Klarna, virement ou espèces (jusqu’à 1 000 €). "
               : "Le paiement est encaissé et gardé en réserve 48 h, le temps qu’un transporteur accepte. Si aucun ne se rend disponible, vous êtes remboursé intégralement sous 24 h. "}
             TVA non applicable, article 293 B du CGI.
           </p>
