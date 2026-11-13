@@ -202,3 +202,20 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 /* 133 : règles de l'offre Éco visibles sur la carte. */
 .od-offre-eco-regles { display: grid; gap: 4px; }
 .od-offre-eco-regles strong { color: var(--text); font-size: .85rem; }
+
+/* 142 : chat en direct client ↔ transporteur */
+.chat-mission { margin: 12px 0; }
+.chat-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.chat-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: .75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.chat-panel { margin-top: 10px; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--glass-soft); }
+.chat-fil { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding: 4px 2px 8px; }
+.chat-msg { align-self: flex-start; max-width: 85%; padding: 8px 12px; border-radius: 14px 14px 14px 4px; background: var(--glass); border: 1px solid var(--border-soft); }
+.chat-msg.is-moi { align-self: flex-end; border-radius: 14px 14px 4px 14px; background: var(--accent-soft); border-color: var(--accent); }
+.chat-msg.is-admin { border-style: dashed; }
+.chat-meta { font-size: .72rem; color: var(--muted); margin-bottom: 2px; }
+.chat-texte { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+.chat-signaler { margin-top: 4px; padding: 0; border: 0; background: none; color: var(--muted); font-size: .72rem; text-decoration: underline; cursor: pointer; }
+.chat-signale { margin-top: 4px; font-size: .72rem; color: var(--muted); }
+.chat-form { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.chat-form textarea { flex: 1; min-width: 0; resize: vertical; font: inherit; font-size: 16px; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--glass); color: var(--text); }
+.chat-note { margin: 8px 0 0; font-size: .72rem; color: var(--muted); }
