@@ -14,6 +14,8 @@ import {
 import { memoriserOffre } from "../lib/offres";
 import { ChoixReglement, ReglementLivraison } from "./ReglementArrivee";
 import ContactsSurPlace from "./ContactsSurPlace";
+import ChatMission from "./ChatMission";
+import { chatVisibleCommande } from "../lib/chatUtil";
 
 // 099 : temps restant dans la fenêtre de prise en charge, en clair.
 function resteFenetre(fin) {
@@ -147,6 +149,8 @@ export default function MyOrdersPanel({ flags, focusOrderId = null, focusMission
               {order.partner_contact && ["partner_confirmed", "picked_up"].includes(order.status)
                 ? <CarteTransporteur contact={order.partner_contact} reference={order.public_ref} />
                 : order.partner_name && <p>Transporteur : <strong>{order.partner_name}</strong></p>}
+              {/* 142 : chat en direct avec le transporteur. */}
+              {chatVisibleCommande(order) && <ChatMission missionId={order.mission_id} roleAttendu="client" />}
               {order.mission_id && ["picked_up", "delivered", "partner_confirmed"].includes(order.status) && (
                 <EtatsDesLieuxCommande missionId={order.mission_id} refreshKey={`${order.status}:${order.updated_at}`} />
               )}

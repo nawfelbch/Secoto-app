@@ -134,6 +134,8 @@ import { emitMissionDocuments, emitFacture, syncDocTemplates } from "./lib/docFl
 import OnDemandBooking from "./ondemand/OnDemandBooking";
 import ReserverExpress from "./ondemand/ReserverExpress";
 import PaiementAFinaliser from "./ondemand/PaiementAFinaliser";
+import ChatMission from "./ondemand/ChatMission";
+import { chatVisibleMission } from "./lib/chatUtil";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
@@ -1037,6 +1039,10 @@ function PrivateMissionInfo({ mission, showPricing = false, pricingView = "none"
         />
       )}
       <p><strong>{visiblePricing === "transporter" ? "Notes :" : "Notes internes :"}</strong> {mission.notes || "Aucune note"}</p>
+      {/* 142 : chat en direct client ↔ transporteur (l'admin peut le lire et y répondre). */}
+      {["transporter", "admin"].includes(visiblePricing) && chatVisibleMission(mission) && (
+        <ChatMission missionId={mission.id} roleAttendu={visiblePricing === "admin" ? "admin" : "transporteur"} />
+      )}
     </div>
   );
 }
