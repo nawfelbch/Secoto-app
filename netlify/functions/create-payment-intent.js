@@ -149,7 +149,7 @@ const handler = async (event) => {
   // 3. Client Stripe réutilisable : c'est ce qui permet les cartes enregistrées.
   const { data: account } = await admin
     .from("accounts")
-    .select("id,email,full_name,stripe_customer_id")
+    .select("id,email,full_name,stripe_customer_id,client_type")
     .eq("id", userId)
     .single();
 
@@ -207,6 +207,7 @@ const handler = async (event) => {
       const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
         {
           ...managed,
+          ...sansKlarnaPourPro(account),  // 143
           mode: "payment",
           customer: customerId,
           line_items: [{
@@ -278,6 +279,7 @@ const handler = async (event) => {
       intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
         {
           ...managed,
+          ...sansKlarnaPourPro(account),  // 143
           amount: payment.amount_cents,
           currency: payment.currency || "eur",
           customer: customerId,
@@ -361,6 +363,11 @@ const handler = async (event) => {
 //  · Si sa banque exige une validation au moment du débit : page de paiement
 //    Stripe ouverte SUR LE COMPTE DU TRANSPORTEUR, commission SECOTO comprise.
 // ---------------------------------------------------------------------------
+// 143 : Klarna est interdit en B2B (conditions Stripe/Klarna) : jamais proposé à un compte pro.
+export function sansKlarnaPourPro(account) {
+  return account?.client_type === "pro" ? { excluded_payment_method_types: ["klarna"] } : {};
+}
+
 export async function directFlow({ admin, stripe, payment, platform, customerId, account, returnScreen, returnQuery, differe = false, feuilleKlarna = false, now = Date.now() }) {
   // 099 : même parcours pour le débit à la confirmation, mais tout se passe sur
   // le compte SECOTO (aucun compte transporteur, aucune commission séparée).
@@ -404,6 +411,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       const intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
         {
           ...managed,
+          ...sansKlarnaPourPro(account),  // 143
           amount: payment.amount_cents,
           currency: payment.currency || "eur",
           customer: customerId,
@@ -437,6 +445,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
     const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
       {
         ...managed,
+        ...sansKlarnaPourPro(account),  // 143
         mode: "payment",
         customer: customerId,
         line_items: [{
@@ -470,6 +479,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
         const intent = await createWithManagedPaymentsFallback((managed) => stripe.paymentIntents.create(
           {
             ...managed,
+            ...sansKlarnaPourPro(account),  // 143
             amount: ctx.amount_cents,
             currency: ctx.currency || "eur",
             customer: customerId,
@@ -498,6 +508,7 @@ export async function directFlow({ admin, stripe, payment, platform, customerId,
       const session = await createWithManagedPaymentsFallback((managed) => stripe.checkout.sessions.create(
         {
           ...managed,
+          ...sansKlarnaPourPro(account),  // 143
           mode: "payment",
           customer: customerId,
           line_items: [{

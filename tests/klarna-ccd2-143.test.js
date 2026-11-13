@@ -36,3 +36,13 @@ test("143 : plus aucun « Klarna en plusieurs fois » ni exemple « 3 × » dans
   assert.match(sql, /virement%4\$s ou avec Klarna/);
   assert.match(sql, /jusqu''au %6\$s/);
 });
+
+test("143 : pages de paiement Stripe sans Klarna pour un compte pro", async () => {
+  const { sansKlarnaPourPro } = await import("../netlify/functions/create-payment-intent.js");
+  assert.deepEqual(sansKlarnaPourPro({ client_type: "pro" }), { excluded_payment_method_types: ["klarna"] });
+  assert.deepEqual(sansKlarnaPourPro({ client_type: "particulier" }), {});
+  assert.deepEqual(sansKlarnaPourPro(null), {});
+  const src = lire("netlify/functions/create-payment-intent.js");
+  assert.equal((src.match(/\.\.\.sansKlarnaPourPro\(account\)/g) || []).length, 6);
+  assert.match(src, /select\("id,email,full_name,stripe_customer_id,client_type"\)/);
+});
