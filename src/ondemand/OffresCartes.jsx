@@ -16,6 +16,8 @@ const ACCROCHE = {
   express: "Diffusée en priorité à tous les transporteurs vérifiés",
   standard: "Le meilleur équilibre prix / délai",
   eco: "De grande ville à grande ville, le moins cher",
+  // 145 : tarif professionnel, visible seulement par les comptes pros.
+  pro: "Tarif professionnel · enlèvement et livraison à vos adresses",
 };
 
 export default function OffresCartes({ offres, choix, onChoix, disabled = false, klarna = false, expressObligatoire = false, standardDes = "", onChangerDate }) {

@@ -5072,6 +5072,7 @@ export default function App() {
             <section className="layout">
               <OnDemandBooking
                 flags={flags}
+                clientPro={account?.clientType === "pro"}
                 initialQuote={devisRepris}
                 reserverAussitot={reserverAussitot}
                 onBooked={() => {

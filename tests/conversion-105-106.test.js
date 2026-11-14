@@ -11,7 +11,7 @@ test("Klarna sous le prix : exemple en 3 fois, jamais promis, rien sous 35 €",
   assert.equal(klarnaSousPrix(69932), "ou payez avec Klarna, à la livraison");
   assert.equal(klarnaSousPrix(2000), "");
   assert.match(lire("src/ondemand/OffresCartes.jsx"), /klarna && klarnaSousPrix\(o\.client_cents\)/);
-  assert.match(lire("src/ondemand/OnDemandBooking.jsx"), /klarna=\{arrivee\}/);
+  assert.match(lire("src/ondemand/OnDemandBooking.jsx"), /klarna=\{arrivee( && !clientPro)?\}/);
 });
 
 test("relances et zéro devis manuel : branchés et réglables", () => {

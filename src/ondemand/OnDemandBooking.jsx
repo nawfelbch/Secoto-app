@@ -73,7 +73,7 @@ function CompteCta({ prix, onCompte }) {
   );
 }
 
-export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null, reserverAussitot = false }) {
+export default function OnDemandBooking({ flags, onBooked, initialQuote = null, anonyme = false, onNeedAccount = null, reserverAussitot = false, clientPro = false }) {
   const [step, setStep] = useState(initialQuote ? 4 : 0);
   // Repris du site vitrine (?vehicle=…&service=…) : le modele et le mode sont
   // pre-remplis. Les adresses, elles, sont toujours resaisies et verifiees.
@@ -502,14 +502,14 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>
               {offres ? (
-                <OffresCartes offres={offres} choix={offreRetenue} onChoix={choisirOffre} disabled={busy} klarna={arrivee}
+                <OffresCartes offres={offres} choix={offreRetenue} onChoix={choisirOffre} disabled={busy} klarna={arrivee && !clientPro}
                   expressObligatoire={obligatoireExpress} standardDes={obligatoireExpress ? dateMinStandard(quote) : ""}
                   onChangerDate={() => { setQuote(null); setStep(3); }} />
               ) : (
                 <div className="od-price">
                   <span>Prix total du transport</span>
                   <strong>{formatCents(quote.client_price_cents)}</strong>
-                  {arrivee && klarnaSousPrix(quote.client_price_cents) && <span className="od-klarna">{klarnaSousPrix(quote.client_price_cents)}</span>}
+                  {arrivee && !clientPro && klarnaSousPrix(quote.client_price_cents) && <span className="od-klarna">{klarnaSousPrix(quote.client_price_cents)}</span>}
                 </div>
               )}
               {anonyme && <ReserverExpress arrivee={arrivee} onConnexion={() => onNeedAccount?.(quote, "login")} libelle={arrivee ? "Réserver – 0 € aujourd’hui" : offres ? "Réserver – vous ne payez qu’à la confirmation" : "Réserver"} />}

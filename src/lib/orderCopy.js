@@ -60,7 +60,7 @@ export function isDirectOrder(order) {
 export function isDiffereOrder(order) {
   return order?.debit_a_confirmation === true;
 }
-export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco" };
+export const OFFRE_LIBELLE = { express: "Express", standard: "Standard", eco: "Éco", pro: "Navette Pro" };
 
 // 105 / 143 : mention Klarna sous le prix. Depuis le 20/11/2026 (CCD2), seul le
 // texte préapprouvé par Klarna est permis : la ligne générique « Payez avec
