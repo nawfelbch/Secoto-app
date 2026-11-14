@@ -50,7 +50,7 @@ test("131 : moyen de paiement lu dans Stripe, sans rien inventer", () => {
   const carte = moyenDePaiement({ type: "card", card: { brand: "visa", funding: "debit", last4: "6206", country: "FR", authorization_code: "566397", three_d_secure: { result: "authenticated" } } });
   assert.deepEqual(carte, { type: "carte", moyen: "Carte Visa débit •••• 6206 (France)", troisDS: true, codeAutorisation: "566397" });
   assert.equal(moyenDePaiement({ type: "card", card: { brand: "mastercard", last4: "1111", wallet: { type: "apple_pay" } } }).moyen, "Carte Mastercard •••• 1111 via Apple Pay");
-  assert.deepEqual(moyenDePaiement({ type: "klarna", klarna: { payment_method_category: "pay_in_installments" } }), { type: "klarna", moyen: "Klarna — paiement en plusieurs fois" });
+  assert.deepEqual(moyenDePaiement({ type: "klarna", klarna: { payment_method_category: "pay_in_installments" } }), { type: "klarna", moyen: "Klarna" });  // 143 : CCD2
   assert.equal(moyenDePaiement({ type: "card", card: { brand: "visa", last4: "4242" } }).troisDS, false);
 });
 

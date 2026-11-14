@@ -46,3 +46,11 @@ test("143 : pages de paiement Stripe sans Klarna pour un compte pro", async () =
   assert.equal((src.match(/\.\.\.sansKlarnaPourPro\(account\)/g) || []).length, 6);
   assert.match(src, /select\("id,email,full_name,stripe_customer_id,client_type"\)/);
 });
+
+test("143 : facture et CGU — Klarna nommé sans décrire le crédit", async () => {
+  const { moyenDePaiement } = await import("../netlify/lib/facture-donnees.js");
+  for (const c of ["pay_in_installments", "pay_later", "pay_now"]) {
+    assert.equal(moyenDePaiement({ type: "klarna", klarna: { payment_method_category: c } }).moyen, "Klarna");
+  }
+  assert.doesNotMatch(lire("public/cgu.html"), /plusieurs fois/);
+});
