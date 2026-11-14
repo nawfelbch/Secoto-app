@@ -1097,6 +1097,12 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
    Écran d'authentification (multi-rôles)
 ============================================================ */
 
+// 146 : lien « Créer mon compte pro » du site vitrine (?compte=pro) : l'app
+// s'ouvre sur l'inscription, profil « Professionnel » déjà choisi.
+function lienComptePro() {
+  try { return new URLSearchParams(window.location.search).get("compte") === "pro"; } catch { return false; }
+}
+
 function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitial = null, onMissionAccessComplete }) {
   const claimMode = Boolean(claimInvite?.token || claimInvite?.code);
   const [authMode, setAuthMode] = useState(claimMode ? "mission" : modeInitial || (repriseLien ? "signup" : "login"));
@@ -1113,7 +1119,7 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitia
   const [emploieDesConvoyeurs, setEmploieDesConvoyeurs] = useState(false);
   const [receivesStandardPlateau, setReceivesStandardPlateau] = useState(true);
   const [luxuryClosedTransportRequested, setLuxuryClosedTransportRequested] = useState(false);
-  const [clientType, setClientType] = useState("particulier");
+  const [clientType, setClientType] = useState(() => (lienComptePro() ? "pro" : "particulier"));
   // 075 : la case d'acceptation n'apparaît que si l'interrupteur est allumé.
   const [conditions, setConditions] = useState(null);
   const [conditionsCochees, setConditionsCochees] = useState(false);
@@ -1685,10 +1691,10 @@ function PasswordRecoveryScreen({ onDone }) {
 
 function PublicEntry({ pendingClaim, repriseLien = null, onMissionAccessComplete }) {
   const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
-  const [view, setView] = useState(claimMode || repriseLien ? "auth" : "landing");
+  const [view, setView] = useState(claimMode || repriseLien || lienComptePro() ? "auth" : "landing");
   // Demande faite à l'instant sans compte : l'écran de compte la rappelle
   // (trajet, prix) et s'ouvre sur « Créer un compte » ou « Connexion ».
-  const [entree, setEntree] = useState(null);
+  const [entree, setEntree] = useState(() => (lienComptePro() ? { mode: "signup" } : null));
   const effectiveView = claimMode ? "auth" : view;
   const landing = (
     <PublicLanding
