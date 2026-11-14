@@ -84,6 +84,7 @@ import FraisPanel from "./FraisPanel";
 import AddressAutocomplete from "./AddressAutocomplete";
 import ContactPanel from "./ContactPanel";
 import ClientsPanel from "./ClientsPanel";
+import ClientsProsPanel from "./ClientsProsPanel";
 import {
   AdminClaimSharePanel,
   ClientClaimRecoveryPanel,
@@ -4600,6 +4601,8 @@ export default function App() {
           { title: "Réseau", items: [
             { key: "transporters", label: "Transporteurs", icon: "users", count: transporters.length },
             { key: "clients", label: "Clients", icon: "user" },
+            // 147 : toutes les infos des clients professionnels.
+            { key: "clientsPros", label: "Clients pros", icon: "users" },
             { key: "acquisition", label: "Acquisition", icon: "chart" },
           ] },
           { title: "Réglages", items: [
@@ -5455,6 +5458,12 @@ export default function App() {
           {adminTab === "clients" && (
             <section className="layout">
               <ClientsPanel />
+            </section>
+          )}
+
+          {adminTab === "clientsPros" && (
+            <section className="layout">
+              <ClientsProsPanel />
             </section>
           )}
 
