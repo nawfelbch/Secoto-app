@@ -34,7 +34,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - **Règlement à l'arrivée** (100, interrupteur `reglement_arrivee` ALLUMÉ) :
   la carte est **enregistrée à 0 €** (Stripe SetupIntent) à la réservation, **rien
   n'est débité**, le débit a lieu **après la livraison**. Modes de règlement :
-  carte, Klarna (plusieurs fois, sous réserve d'acceptation), virement, espèces
+  carte, Klarna (particuliers seulement, voir § 9), virement, espèces
   (**1 000 € maximum**, payées au transporteur). `transport_orders.mode_reglement`,
   recopié dans `missions.payment_method` (synchronisé par la migration 111).
 - **Téléphone ou e-mail demandé juste avant le prix** pour un visiteur sans compte (090).
@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **111** → prochaine : **112**). Toujours **rejouable**
+  le dernier (actuel : **146** → prochaine : **147**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -133,7 +133,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 
 ## 6. Tests et vérifications (obligatoires avant de proposer un push)
 
-- `npm test` → tests unitaires (`tests/*.test.js`, ~533 tests, tous verts).
+- `npm test` → tests unitaires (`tests/*.test.js`, ~611 tests, tous verts).
 - `npx eslint <fichiers modifiés>` (des erreurs anciennes existent dans App.jsx).
 - `VITE_SUPABASE_URL=https://x.supabase.co VITE_SUPABASE_ANON_KEY=x npx vite build`
   (le build refuse de tourner sans ces deux variables).
@@ -175,3 +175,78 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
   en production sans rien enregistrer (tout est annulé).
 - Les limites : 3 véhicules maximum par réservation dans l'app ; au-delà, mission
   manuelle à un prix négocié (porte-voitures PL).
+
+## 9. Mise à jour du 13-14/11/2026 (migrations 143 à 146) — à lire avant toute modification
+
+### Règles décidées par Nawfal
+- **Klarna (CCD2, en vigueur en France le 20/11/2026)** : n'utiliser que les textes
+  approuvés par Klarna. Mention générique « Klarna » / « Payez avec Klarna »
+  partout. Texte du choix de mode, mot pour mot : « Choisissez Klarna. Payez en 3
+  fois. » + « Attention ! Un crédit coûte de l'argent et doit être remboursé. »
+  (`KLARNA_3_FOIS`, `KLARNA_AVERTISSEMENT` dans `src/lib/orderCopy.js`).
+  Jamais d'exemple « 3 × … € ». **Klarna interdit en B2B** : refusé pour un compte
+  `client_type = 'pro'` (base, écrans, `excluded_payment_method_types` Stripe).
+- **Rentabilité** : on raisonne en **net SECOTO** = marge − URSSAF (21,2 % de la
+  marge) − frais de paiement (5 % Klarna, ~1,5 % + 0,25 € carte, ~0,35 € SEPA).
+  Objectif 75 € nets par course particulier.
+- **Ne jamais modifier le prix d'une commande existante.**
+- **Pas d'e-mail à Auto TC.** Leboncoin : pas de lien, écrire « tapez SECOTO
+  transport sur Google ».
+- Quand Nawfal est sur téléphone : coller le SQL complet dans la réponse + lien de la PR.
+
+### 143 — Klarna CCD2 et B2B
+E-mails de devis/relances (positions `%4$s`, `%6$s` dans `format()`), relance
+carte, notification et e-mail de livraison (« Payez avec Klarna »), refus Klarna
+pour un pro dans `secoto_od_choisir_reglement`. Facture et CGU : « Klarna » seul.
+
+### 144 — Barème utilitaire, caravane, camping-car (« lourds »)
+Réglages `app_settings['bareme_v3'].lourds`. Rémunération transporteur : 375 €
+minimum jusqu'à 200 km → 700 € à 345 km → 800 € à 465 km → +1,66 €/km.
+Prix client = `ceil(((75 + 0,788 × pay) / 0,738) / 5) × 5` (75 € nets après
+URSSAF et 5 % Klarna), jamais sous le minimum du gabarit. Majorations caravane
+(+20 % > 3 t, +10 % > 7 m) et non-roulant sur la rémunération. **Express × 1,2,
+pas d'Éco.** Exemples : 80 km 505 €, 345 km 850 €, 465 km 960 €, 540 km 1 090 €.
+Fonctions : `lourds_transporteur_eur`, `lourds_client_cents`, `est_lourd`.
+
+### 145 — Navette Pro (offre `pro`, comptes pros uniquement)
+- Réglages `app_settings['navette_pro']` : prix pro = **prix transporteur + 75 €
+  (1 véhicule) ou + 60 € par véhicule (2 et plus, même commande)**. 4x4 = 1,5 place.
+- Axes : **Paris – Lyon – Côte d'Azur** (IDF, 89, 21, 71, 69, 01, 38, 26, 84, 13,
+  83, 06, Monaco ; 250-1 100 km), transporteur 480 € → **555 €**, 540 €/véhicule
+  dès 2 ; **Paris – Belgique – Allemagne** (IDF, 60, 02, 80, 62, 59 ↔ BE/DE ;
+  200-1 000 km), transporteur 500 € + 20 € de sécurité = 520 € → **595 €** / 580 €.
+- Porte à porte (enlèvement chez le pro, livraison à l'adresse de son choix),
+  voitures roulantes, fenêtre **7 jours**, proposée seulement si moins chère que
+  le Standard (elle devient alors « Recommandée »).
+- **Anti-friction** : visible uniquement pour `client_type = 'pro'` (inscription =
+  accès immédiat, aucune vérification) ou un compte entreprise ; un pro ne voit
+  pas l'Éco ; un particulier ne voit jamais la Navette Pro. Devis rattaché à un
+  compte pro après connexion → offres recalculées (`trg_quote_offres`).
+- Fonctions : `navette_pro_reglages`, `devis_compte_pro`, `navette_lieu_sur_axe`,
+  `offre_navette_pro`, `calculer_offres` (réécrite : accepte plusieurs véhicules
+  pour un pro sur axe). Contraintes `offre` / `offre_choisie` : + `'pro'`.
+- Écrans : `OFFRE_LIBELLE.pro = "Navette Pro"`, pas de mention Klarna sous les
+  prix pour un pro (`clientPro` dans `OnDemandBooking`).
+
+### 146 — Navette Pro sur le site vitrine
+`bareme_v3_public_calcul` publie un bloc `navette_pro` (prix client seulement,
+jamais la rémunération transporteur) ; le déclencheur du cache inclut
+`navette_pro`. App : lien `?compte=pro` → inscription ouverte, profil
+« Professionnel » présélectionné (`lienComptePro()` dans `App.jsx`).
+Site (dépôt `nawfelbch.github.io`) : page `/professionnels/`, simulateur pro
+(SIREN = 9 chiffres, sans autre contrôle, ni envoyé ni enregistré), exemples de
+trajets calculés au build, sélecteur « Particulier | Professionnel » sur l'accueil
+(aucun prix pro sur l'accueil).
+
+### Pas encore fait (ne pas annoncer comme disponible)
+- Prélèvement SEPA + facture mensuelle pour les pros (aujourd'hui : carte/virement).
+- Plusieurs adresses de livraison dans une commande.
+- Facture au nom du transporteur avec TVA récupérable : le circuit existe (074,
+  `partner_invoices`) mais dépend de `plateau_paiement_direct` → règle Apple § 3.8
+  + validation de l'expert-comptable ; sa ligne TVA doit porter sur la part
+  transporteur seule (à corriger avant activation).
+- Prix Standard/Express spécifiques aux pros ; hausse de l'Éco particulier
+  (idée : 85 % du Standard, masquée si l'écart < 100 €) — non validée.
+- Vagues automatiques de diffusion aux transporteurs (< 24 h) et relance Stripe
+  des 71 transporteurs non payables ; pages SEO par trajet/véhicule.
+
