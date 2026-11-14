@@ -1947,3 +1947,15 @@ body:has(.cookies-bandeau) .landing-public { padding-bottom: 76px; }
   .landing-public .deposit-card > h2 { display: none; }
   .od-anonyme > .od-titre, .od-anonyme > .od-intro { display: none; }
 }
+
+/* 147 : onglet admin « Clients pros » */
+.clientpro-kpi { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 12px 0; }
+.clientpro-kpi .kpi-card small { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
+.dir-kpi .kpi-card small { display: block; }
+.clientpro-outils { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+.clientpro-outils input { flex: 1 1 260px; min-width: 0; }
+.clientpro-outils select { flex: 0 1 220px; }
+.clientpro-table-scroll { overflow-x: auto; margin-top: 10px; }
+.clientpro-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 640px; }
+.clientpro-table th, .clientpro-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.clientpro-table th { color: var(--muted); font-weight: 600; }

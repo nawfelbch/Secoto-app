@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **146** → prochaine : **147**). Toujours **rejouable**
+  le dernier (actuel : **147** → prochaine : **148**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -250,3 +250,10 @@ trajets calculés au build, sélecteur « Particulier | Professionnel » sur l'a
 - Vagues automatiques de diffusion aux transporteurs (< 24 h) et relance Stripe
   des 71 transporteurs non payables ; pages SEO par trajet/véhicule.
 
+
+### 147 — Onglet admin « Clients pros »
+`public.secoto_admin_clients_pros()` (lecture seule, `assert_admin`) : par compte
+pro (client_type 'pro' ou compte entreprise client) identité, SIREN, provenance,
+devis, commandes (en cours / livrées / annulées), CA, marge, Navette Pro, trajets
+fréquents, 10 dernières commandes. Écran `src/ClientsProsPanel.jsx` (recherche,
+tri), logique pure `src/lib/clientsPros.js`. Menu admin → Réseau → Clients pros.
