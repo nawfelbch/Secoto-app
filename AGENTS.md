@@ -266,3 +266,10 @@ saisine en ligne sur www.cm2c.net — adhésion valable jusqu'au **16/11/2029**
 `src/LegalNoticesPanel.jsx` et les mentions légales du site. Ne concerne que les
 clients consommateurs (pas les pros).
 
+### Siège social (16/11/2026)
+**39 avenue Léon Gambetta, 92120 Montrouge** (adresse de l'attestation CM2C).
+Remplace l'ancienne adresse de Fontenay-aux-Roses dans `public/*.html`,
+`templates/*.html`, `netlify/lib/facture-pdf.js` et, sur le site,
+`src/_data/site.js`. Les adresses « Fontenay-aux-Roses » des tests et de
+l'exemple d'import d'historique sont des données de test, pas le siège.
+

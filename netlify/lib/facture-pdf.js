@@ -17,8 +17,8 @@ import { LOGO_SECOTO_PNG_BASE64 } from "./logo-secoto-png.js";
 
 export const SECOTO = {
   dirigeant: "Nawfal Benchiha",
-  adresse1: "70 avenue du Maréchal Foch",
-  adresse2: "92260 Fontenay-aux-Roses",
+  adresse1: "39 avenue Léon Gambetta",
+  adresse2: "92120 Montrouge",
   email: "contact.secoto@gmail.com",
   telephone: "07 83 27 82 31",
   siret: "951 857 531 00028",
