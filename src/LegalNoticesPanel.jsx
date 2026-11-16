@@ -130,7 +130,7 @@ export default function LegalNoticesPanel({ role }) {
           n’est pas résolu après cette réclamation écrite, le client consommateur peut
           recourir gratuitement au médiateur de la consommation dont relève SECOTO :{" "}
           <strong>CM2C</strong> (Centre de la médiation de la consommation de conciliateurs
-          de justice), 49 rue de Ponthieu, 75008 Paris — saisine en ligne sur{" "}
+          de justice), 49 rue de Ponthieu, 75008 Paris, tél. 01 89 47 00 14 — saisine en ligne sur{" "}
           <a href="https://www.cm2c.net" target="_blank" rel="noopener noreferrer">www.cm2c.net</a>,
           dans un délai d’un an à compter de la réclamation écrite (articles L.612-1 et
           suivants du Code de la consommation).
