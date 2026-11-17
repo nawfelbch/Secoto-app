@@ -2,7 +2,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // SECOTO 151 — transporteurs hors SECOTO autour du départ (Google Places).
 // Réservé aux administrateurs. Sans clé GOOGLE_PLACES_API_KEY : réponse 503
 // claire, l'écran l'indique. Les numéros déjà inscrits chez SECOTO sont retirés.
-import { authenticatedUserId, bearer, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { authenticatedUserId, bearer, geocodeFrenchAddress, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
 
 export const PLACES_URL = "https://places.googleapis.com/v1/places:searchText";
 const RECHERCHES = {
@@ -38,7 +38,12 @@ const handler = async (event) => {
   const cle = process.env.GOOGLE_PLACES_API_KEY;
   if (!cle) return json(503, { error: "sans_cle", message: "Recherche Google non configurée : ajoutez la clé GOOGLE_PLACES_API_KEY dans Netlify." });
   const body = parseBody(event) || {};
-  const lat = Number(body.lat), lng = Number(body.lng);
+  let lat = Number(body.lat), lng = Number(body.lng);
+  // 152 : missions manuelles sans coordonnées → géocodage de l'adresse de départ.
+  if ((!Number.isFinite(lat) || !Number.isFinite(lng) || (!lat && !lng)) && body.adresse) {
+    const pos = await geocodeFrenchAddress(String(body.adresse).slice(0, 300));
+    if (pos) { lat = pos.lat; lng = pos.lng; }
+  }
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json(400, { error: "position_manquante" });
   const rayon = Math.min(Math.max(Number(body.rayon_m) || 40000, 5000), 50000);
 

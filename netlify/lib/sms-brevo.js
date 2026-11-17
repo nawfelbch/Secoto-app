@@ -8,8 +8,9 @@ export function brevoSmsPayload(sms, sender = "SECOTO") {
     sender: String(sender || "SECOTO").slice(0, 11),
     recipient: String(sms.to_phone || "").replace(/^\+/, ""),
     content: String(sms.body || "").slice(0, 600),
-    type: "transactional",
-    tag: "secoto-automatisation",
+    // 152 : « marketing » pour les invitations de prospects (mention STOP obligatoire).
+    type: sms.sms_type === "marketing" ? "marketing" : "transactional",
+    tag: sms.sms_type === "marketing" ? "secoto-prospection" : "secoto-automatisation",
   };
 }
 

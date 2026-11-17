@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **151** → prochaine : **152**). Toujours **rejouable**
+  le dernier (actuel : **152** → prochaine : **153**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -313,4 +313,17 @@ suivi `od_appels` / `secoto_admin_appel_maj`) + recherche Google
 (`netlify/functions/places-transporteurs.js`, clé `GOOGLE_PLACES_API_KEY`).
 Facture transporteur avec TVA récupérable : déjà prête (078), activation =
 `commission_client` + `plateau_paiement_direct` → règle Apple § 3.8.
+
+### 152 — Politique SMS + transporteurs à appeler pour les missions (17/11/2026)
+Règle de Nawfal : **aucun SMS aux transporteurs SECOTO** (e-mail uniquement :
+la relance 12 h devient un e-mail `od-relance-mail:*`). Confirmations après
+réservation : **e-mail uniquement**. SMS autorisés :
+- client : **un seul**, 1 h après le prix obtenu, devis non réservé
+  (`devis-sms:<quote>`, lien `?reprendre=`, jamais la nuit, réglage `sms_devis_actif`) ;
+- prospects (transporteurs hors SECOTO trouvés sur Google) : invitation à
+  s'inscrire, bouton « Inviter par SMS », `secoto_admin_inviter_transporteur_sms`
+  (type `marketing`, mention `[STOP CODE]`, une fois par numéro, refusé si inscrit).
+Missions manuelles (onglet Publiées) : bloc « Transporteurs à appeler » replié
+sur chaque carte (`secoto_admin_transporteurs_a_appeler_mission`, suivi
+`mission_appels`), recherche Google par géocodage de l'adresse de départ.
 

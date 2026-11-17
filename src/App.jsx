@@ -140,6 +140,7 @@ import { chatVisibleMission } from "./lib/chatUtil";
 import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
+import TransporteursAAppeler from "./ondemand/TransporteursAAppeler";
 import EntonnoirPanel from "./ondemand/EntonnoirPanel";
 import { MissionEditPanel, PropositionAdmin, PropositionTransporteur, UrgentBadge } from "./MissionPropositions";
 import { modifierMissionAdmin } from "./lib/missionsPropositions";
@@ -4328,6 +4329,8 @@ export default function App() {
           </div>
         )}
         {options.showTracking && renderTrackingTimeline(mission)}
+        {/* 152 : mission publiée sans transporteur → liste à appeler + recherche Google, visible directement. */}
+        {isAdmin && options.showPrivate && mission.status === "published" && <TransporteursAAppeler mission={mission} />}
         {/* 103 : côté SECOTO, le détail et les actions sont repliés par défaut. */}
         {isAdmin && options.showPrivate && (
           <details className="mission-details" open={focusMissionId === mission.id}>

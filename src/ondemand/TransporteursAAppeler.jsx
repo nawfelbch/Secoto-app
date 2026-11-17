@@ -11,7 +11,7 @@ import { CLASSE_STATUT, OFFRE_APPEL as OFFRE, STATUTS_APPEL, telLien } from "../
 // Chaque appel se note en un clic : appelé, pas de réponse, intéressé, refus.
 // ============================================================================
 
-function LigneAppel({ t, onStatut, busy }) {
+function LigneAppel({ t, onStatut, busy, onInviter }) {
   return (
     <li className="od-appel">
       <div className="od-appel-tete">
@@ -29,32 +29,45 @@ function LigneAppel({ t, onStatut, busy }) {
         {STATUTS_APPEL.map((s) => (
           <button key={s.cle} type="button" className="btn ghost small" disabled={busy} onClick={() => onStatut(t, s.cle)}>{s.libelle}</button>
         ))}
+        {onInviter && (
+          <button type="button" className="btn ghost small" disabled={busy || t.invite} onClick={() => onInviter(t)}>
+            {t.invite ? "Invitation envoyée" : "Inviter par SMS"}
+          </button>
+        )}
       </div>
     </li>
   );
 }
 
-export default function TransporteursAAppeler({ order }) {
+// 152 : utilisable pour une commande de l'app (order) ou une mission manuelle (mission).
+export default function TransporteursAAppeler({ order, mission }) {
+  const id = mission ? mission.id : order.id;
+  const lire = () => (mission ? admin.transporteursAAppelerMission(id) : admin.transporteursAAppeler(id));
+  const noter = (t) => (mission ? admin.appelMissionMaj(id, t) : admin.appelMaj(id, t));
   const [data, setData] = useState(null);
   const [google, setGoogle] = useState(null);
   const [erreur, setErreur] = useState("");
   const [busy, setBusy] = useState(false);
+  // Mission manuelle : liste repliée, chargée seulement à l'ouverture (une carte par mission publiée).
+  const [ouvert, setOuvert] = useState(!mission);
 
   async function charger() {
-    try { setData(await admin.transporteursAAppeler(order.id)); setErreur(""); } catch (e) { setErreur(humanizeError(e)); }
+    try { setData(await lire()); setErreur(""); } catch (e) { setErreur(humanizeError(e)); }
   }
   useEffect(() => {
+    if (!ouvert) return undefined;
     let vivant = true;
-    admin.transporteursAAppeler(order.id)
+    lire()
       .then((d) => { if (vivant) { setData(d); setErreur(""); } })
       .catch((e) => { if (vivant) setErreur(humanizeError(e)); });
     return () => { vivant = false; };
-  }, [order.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, ouvert]);
 
   async function statut(t, cle, source = "secoto") {
     setBusy(true);
     try {
-      await admin.appelMaj(order.id, { cle: t.cle || t.id, source, nom: t.nom, telephone: t.telephone, statut: cle });
+      await noter({ cle: t.cle || t.id, source, nom: t.nom, telephone: t.telephone, statut: cle });
       await charger();
       if (source === "google") setGoogle((g) => g && g.map((x) => (x.cle === t.cle ? { ...x, appel: cle } : x)));
     } catch (e) { setErreur(humanizeError(e)); } finally { setBusy(false); }
@@ -62,22 +75,32 @@ export default function TransporteursAAppeler({ order }) {
 
   async function chercherGoogle() {
     const c = data?.commande;
-    if (!c?.lat || !c?.lng) { setErreur("Position du départ inconnue pour cette commande."); return; }
+    if ((!c?.lat || !c?.lng) && !c?.adresse_depart) { setErreur("Position du départ inconnue."); return; }
     setBusy(true);
     try {
-      const r = await admin.placesTransporteurs(c.lat, c.lng, c.mode);
+      const r = await admin.placesTransporteurs(c.lat ?? null, c.lng ?? null, c.mode, c.adresse_depart || null);
       const notes = new Map((data.appels_externes || []).map((a) => [a.cle, a.statut]));
       setGoogle((r?.transporteurs || []).map((t) => ({ ...t, appel: notes.get(t.cle) || null })));
       setErreur("");
     } catch (e) { setErreur(humanizeError(e)); } finally { setBusy(false); }
   }
 
+  // Prospect hors SECOTO : un seul SMS d'invitation à s'inscrire (refusé par la base si déjà inscrit ou déjà invité).
+  async function inviter(t) {
+    setBusy(true);
+    try {
+      const r = await admin.inviterTransporteurSms(t.telephone, t.nom);
+      if (r?.envoye || r?.raison === "Déjà invité par SMS.") setGoogle((g) => g && g.map((x) => (x.cle === t.cle ? { ...x, invite: true } : x)));
+      setErreur(r?.envoye ? "" : r?.raison || "");
+    } catch (e) { setErreur(humanizeError(e)); } finally { setBusy(false); }
+  }
+
   const liste = data?.transporteurs || [];
   return (
-    <details className="od-appels" open>
+    <details className="od-appels" open={ouvert} onToggle={(e) => setOuvert(e.currentTarget.open)}>
       <summary><strong>Transporteurs à appeler</strong>{data && <span className="muted"> · {liste.length} chez SECOTO</span>}</summary>
       {erreur && <p className="od-pill is-warn">{erreur}</p>}
-      {!data && !erreur && <p className="muted">Chargement…</p>}
+      {ouvert && !data && !erreur && <p className="muted">Chargement…</p>}
       {data && (
         <>
           <p className="muted">
@@ -92,7 +115,7 @@ export default function TransporteursAAppeler({ order }) {
           </div>
           {google && (google.length === 0
             ? <p className="muted">Aucun nouveau transporteur trouvé autour du départ.</p>
-            : <ul className="od-appels-liste">{google.map((t) => <LigneAppel key={t.cle} t={t} busy={busy} onStatut={(x, s) => statut(x, s, "google")} />)}</ul>)}
+            : <ul className="od-appels-liste">{google.map((t) => <LigneAppel key={t.cle} t={t} busy={busy} onStatut={(x, s) => statut(x, s, "google")} onInviter={inviter} />)}</ul>)}
         </>
       )}
     </details>
