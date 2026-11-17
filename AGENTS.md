@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **149** → prochaine : **150**). Toujours **rejouable**
+  le dernier (actuel : **150** → prochaine : **151**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -286,4 +286,14 @@ l'exemple d'import d'historique sont des données de test, pas le siège.
   (1,25 €/km, −25 %) n'est plus utilisé pour le plateau multi-véhicules.
 - Ligne de Nawfal : prix plus élevés, plus de casse des prix ni de recherche
   systématique de retours à vide ; l'app doit tout automatiser.
+
+### 150 — Éco en groupage seulement (17/11/2026)
+L'Éco (barèmes inchangés, `offre_eco_v3`) n'est plus proposée à chaque devis.
+Elle se débloque (`eco_debloquee`) : pour une demande à plusieurs véhicules
+(Éco = somme par véhicule, `offre_eco_groupe`), ou quand au moins 2 commandes
+(en recherche ou confirmées) partent sur le même axe à ± 3 jours
+(`eco_meme_axe` : même couloir, même sens, trajets qui se chevauchent — ex.
+A6/A7 : 1er Standard, 2e Standard, 3e voit l'Éco). Couloirs, seuil, écart :
+`app_settings['bareme_v3'].eco.groupage`. Jamais pour un pro. Site : plus d'Éco
+au simulateur (`v3.eco.sur_groupage`).
 
