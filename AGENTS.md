@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **150** → prochaine : **151**). Toujours **rejouable**
+  le dernier (actuel : **151** → prochaine : **152**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -296,4 +296,21 @@ Elle se débloque (`eco_debloquee`) : pour une demande à plusieurs véhicules
 A6/A7 : 1er Standard, 2e Standard, 3e voit l'Éco). Couloirs, seuil, écart :
 `app_settings['bareme_v3'].eco.groupage`. Jamais pour un pro. Site : plus d'Éco
 au simulateur (`v3.eco.sur_groupage`).
+
+### 151 — Automatisation (17/11/2026)
+`public.secoto_automatisation_tick()` (appelée chaque minute par od-maintenance),
+réglages `app_settings['automatisation']` (tout désactivable) :
+- commandes sans transporteur : rappel (notif) 4 h après diffusion ; SMS 12 h
+  après si départ < 7 j (file `sms_outbox`, envoi Brevo `netlify/lib/sms-brevo.js`,
+  clé `BREVO_API_KEY`) ; coup de pouce +10 % une fois, 24 h après, départ < 5 j,
+  jamais sous 50 € nets (`pay_max_cents`), pas en paiement direct ; alerte
+  admin 18 h après si départ < 3 j ;
+- client : point d'étape toutes les 12 h (4 max) tant que personne n'a confirmé ;
+- transporteurs sans Stripe ni coordonnées bancaires : relance hebdo (6 max) ;
+- pause 21 h – 7 h (sauf alerte admin). Journal : `automatisation_journal`.
+Piloter : `TransporteursAAppeler.jsx` (RPC `secoto_admin_transporteurs_a_appeler`,
+suivi `od_appels` / `secoto_admin_appel_maj`) + recherche Google
+(`netlify/functions/places-transporteurs.js`, clé `GOOGLE_PLACES_API_KEY`).
+Facture transporteur avec TVA récupérable : déjà prête (078), activation =
+`commission_client` + `plateau_paiement_direct` → règle Apple § 3.8.
 

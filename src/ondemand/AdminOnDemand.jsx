@@ -1,3 +1,4 @@
+import TransporteursAAppeler from "./TransporteursAAppeler";
 import { humanizeError } from "../lib/humanError";
 import AdminOffres from "./AdminOffres";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -213,6 +214,7 @@ function AdminOrders({ orders, busy, run, transporters, relation = false }) {
             Modifiable à tout moment, même en cours de mission. Si le prix change après encaissement,
             le complément ou le remboursement se traite à la main : rien n’est débité automatiquement.
           </p>
+          {["searching_partner", "no_partner", "awaiting_payment"].includes(o.status) && <TransporteursAAppeler order={o} />}
           <div className="actions-row">
             <button className="btn ghost small" type="button" disabled={busy} onClick={() => run(() => admin.rebroadcast(o.id), "Nouvelle diffusion lancée.")}>Rediffuser</button>
             {o.status === "partner_confirmed" && (

@@ -377,6 +377,13 @@ export const admin = {
   preparerMessage: (quoteId) => rpc("secoto_admin_devis_message_preparer", { p_quote: quoteId }),
   messageEnvoye: (quoteId, canal) => rpc("secoto_admin_devis_message_envoye", { p_quote: quoteId, p_canal: canal }),
   rebroadcast: (id) => rpc("secoto_admin_od_rebroadcast", { p_order_id: id }),
+  // 151 : transporteurs à appeler (SECOTO + Google) et suivi des appels.
+  transporteursAAppeler: (id) => rpc("secoto_admin_transporteurs_a_appeler", { p_order_id: id }),
+  appelMaj: (id, t) => rpc("secoto_admin_appel_maj", {
+    p_order_id: id, p_cle: t.cle, p_source: t.source || "secoto", p_nom: t.nom || null,
+    p_telephone: t.telephone || null, p_statut: t.statut, p_note: t.note ?? null,
+  }),
+  placesTransporteurs: (lat, lng, mode) => callFunction("places-transporteurs", { lat, lng, mode }),
   setPartnerPay: (id, cents, override, note) => rpc("secoto_admin_od_set_partner_pay", { p_order_id: id, p_partner_pay_cents: cents, p_override: override, p_note: note }),
   lockForPartner: (orderId, partnerId) => callFunction("offer-accept", { adminOrderId: orderId, partnerId }),
   replacePartner: (id, reason) => rpc("secoto_admin_od_replace_partner", { p_order_id: id, p_reason: reason }),

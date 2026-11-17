@@ -16,6 +16,7 @@ import { isDirect, processBankPayouts, processDirectPayouts, refundDirect } from
 import { envoyerConversionsMeta } from "../lib/conversions.js";
 import { processReglements } from "../lib/reglement-livraison.js";
 import { rattraperCartes } from "../lib/rattrapage-cartes.js";
+import { envoyerSmsEnAttente } from "../lib/sms-brevo.js";
 
 export async function runMaintenance({ admin, stripe }) {
   const report = { locks: [], actions: [] };
@@ -111,6 +112,16 @@ export async function runMaintenance({ admin, stripe }) {
   // e-mail des transporteurs compatibles (la base choisit qui, quand, une fois).
   const relancesTransporteurs = await admin.rpc("secoto_relances_transporteurs", { p_limit: 200 });
   report.relances_transporteurs = relancesTransporteurs.error ? { error: relancesTransporteurs.error.message } : relancesTransporteurs.data;
+
+  // 151 : automatisation — relances et SMS aux transporteurs, coup de pouce,
+  // alerte à SECOTO, point d'étape client, relance des comptes de paiement.
+  const auto = await admin.rpc("secoto_automatisation_tick");
+  report.automatisation = auto.error ? { error: auto.error.message } : auto.data;
+  try {
+    report.sms = await envoyerSmsEnAttente({ admin });
+  } catch (erreur) {
+    report.sms = { error: String(erreur?.message || erreur).slice(0, 200) };
+  }
 
   // 090 : contacts laissés avant le prix, effacés après douze mois sans commande
   // (promesse de la politique de confidentialité).
