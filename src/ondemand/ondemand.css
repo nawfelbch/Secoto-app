@@ -219,3 +219,10 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .chat-form { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
 .chat-form textarea { flex: 1; min-width: 0; resize: vertical; font: inherit; font-size: 16px; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--glass); color: var(--text); }
 .chat-note { margin: 8px 0 0; font-size: .72rem; color: var(--muted); }
+
+/* 151 : transporteurs à appeler (Piloter) */
+.od-appels { margin: 14px 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.od-appels summary { cursor: pointer; }
+.od-appels-liste { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 10px; }
+.od-appel { padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.od-appel-tete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
