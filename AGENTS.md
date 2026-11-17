@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **147** → prochaine : **148**). Toujours **rejouable**
+  le dernier (actuel : **149** → prochaine : **150**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -272,4 +272,18 @@ Remplace l'ancienne adresse de Fontenay-aux-Roses dans `public/*.html`,
 `templates/*.html`, `netlify/lib/facture-pdf.js` et, sur le site,
 `src/_data/site.js`. Les adresses « Fontenay-aux-Roses » des tests et de
 l'exemple d'import d'historique sont des données de test, pas le siège.
+
+### 148-149 — Grille du 17/11/2026 (« on arrête de casser les prix »)
+- **148 (rustine)** : plusieurs véhicules dont un lourd → devis manuel
+  (`sur_devis_plusieurs_lourds`). Reste en secours après la 149.
+- **149** : utilitaire, caravane, camping-car au km — particulier Standard
+  2,20 €/km (min 550 €), Express 2,40 €/km (≥ Standard + 10 %) ; pro Standard
+  2,00 €/km (min 500 €), Express 2,20 €/km. Toujours ≥ 75 € nets
+  (`lourds_offre_cents`). Transporteur : courbe 144, Express + 10 %.
+  Voitures : tranches 0,98 / 0,85 / 0,75 €/km (+3 à 5 %). Motos inchangées.
+  Plusieurs véhicules : chaque véhicule au barème v3, −10 % dès le 2e
+  (`bareme_v3_groupe`, branché dans `secoto_quote_create`) — l'ancien moteur
+  (1,25 €/km, −25 %) n'est plus utilisé pour le plateau multi-véhicules.
+- Ligne de Nawfal : prix plus élevés, plus de casse des prix ni de recherche
+  systématique de retours à vide ; l'app doit tout automatiser.
 

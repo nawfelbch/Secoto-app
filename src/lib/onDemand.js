@@ -41,6 +41,8 @@ export const MANUAL_REASONS = {
   prix_automatique_desactive: "Le prix de ce trajet est établi par SECOTO.",
   sur_devis_poids_lourd: "Bus, camion et poids lourd : SECOTO vous établit un devis personnalisé.",
   sur_devis_plus_3_5_t: "Au-delà de 3,5 t, SECOTO vous établit un devis personnalisé.",
+  // 148 : plusieurs utilitaires, caravanes ou camping-cars dans une même demande.
+  sur_devis_plusieurs_lourds: "Plusieurs utilitaires, caravanes ou camping-cars : SECOTO vous établit un devis personnalisé.",
   aucun_bareme_actif: "Ce mode de transport fait l’objet d’un devis personnalisé.",
   itineraire_indisponible: "L’itinéraire n’a pas pu être calculé automatiquement.",
   international_hors_zone: "Pour ce trajet international, SECOTO étudie votre demande et vous établit un prix personnalisé.",
