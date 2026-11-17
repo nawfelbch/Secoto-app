@@ -383,7 +383,14 @@ export const admin = {
     p_order_id: id, p_cle: t.cle, p_source: t.source || "secoto", p_nom: t.nom || null,
     p_telephone: t.telephone || null, p_statut: t.statut, p_note: t.note ?? null,
   }),
-  placesTransporteurs: (lat, lng, mode) => callFunction("places-transporteurs", { lat, lng, mode }),
+  placesTransporteurs: (lat, lng, mode, adresse) => callFunction("places-transporteurs", { lat, lng, mode, adresse }),
+  // 152 : même liste pour les missions manuelles (onglet Publiées) + invitation SMS des prospects.
+  transporteursAAppelerMission: (id) => rpc("secoto_admin_transporteurs_a_appeler_mission", { p_mission_id: id }),
+  appelMissionMaj: (id, t) => rpc("secoto_admin_appel_mission_maj", {
+    p_mission_id: id, p_cle: t.cle, p_source: t.source || "secoto", p_nom: t.nom || null,
+    p_telephone: t.telephone || null, p_statut: t.statut, p_note: t.note ?? null,
+  }),
+  inviterTransporteurSms: (telephone, nom) => rpc("secoto_admin_inviter_transporteur_sms", { p_telephone: telephone, p_nom: nom || null }),
   setPartnerPay: (id, cents, override, note) => rpc("secoto_admin_od_set_partner_pay", { p_order_id: id, p_partner_pay_cents: cents, p_override: override, p_note: note }),
   lockForPartner: (orderId, partnerId) => callFunction("offer-accept", { adminOrderId: orderId, partnerId }),
   replacePartner: (id, reason) => rpc("secoto_admin_od_replace_partner", { p_order_id: id, p_reason: reason }),
