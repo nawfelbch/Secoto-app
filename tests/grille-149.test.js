@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const sql = readFileSync(new URL("../supabase/migrations/202611170149_grille_lourds_pro_multi.sql", import.meta.url), "utf8");
 
 // Copie JS de lourds_offre_cents (vérifiée en production : 985 / 1 085 / 900 / 990 à 447 km).
-const cinq = (n) => Math.ceil(n / 5) * 5;
+const cinq = (n) => Math.ceil(Math.round(n * 100) / 100 / 5) * 5;
 function lourds(pay, km, pro, express, std) {
   const k = pro ? 0.015 : 0.05, u = 0.212;
   const rate = pro ? (express ? 2.2 : 2.0) : (express ? 2.4 : 2.2);
