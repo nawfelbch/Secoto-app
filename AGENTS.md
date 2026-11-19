@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **152** → prochaine : **153**). Toujours **rejouable**
+  le dernier (actuel : **153** → prochaine : **154**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -327,3 +327,15 @@ Missions manuelles (onglet Publiées) : bloc « Transporteurs à appeler » repl
 sur chaque carte (`secoto_admin_transporteurs_a_appeler_mission`, suivi
 `mission_appels`), recherche Google par géocodage de l'adresse de départ.
 
+
+### 153 — Remise de Noël (19/11/2026, active du 01/12 au 31/12/2026, heure de Paris)
+VRAIE remise (jamais de prix gonflé puis barré : art. L112-1-1 / L121-2 Code conso,
+refusé par Nawfal le 19/11 après explication). 5 % de l'offre, plafond 40 €, euros
+entiers, prise sur la commission SECOTO seule (transporteur inchangé), commission
+jamais sous 75 €. `secoto_private.appliquer_promo_noel` branché dans
+`trg_quote_offres` ; champs d'offre `remise_cents`, `client_avant_remise_cents`,
+`remise_libelle` ; ligne de devis « (Remise de Noël : -X € inclus) ». Nouveaux devis
+seulement. Réglages `app_settings['promo_noel']` (`actif` false = coupure).
+Affichage : `OffresCartes.jsx` (bandeau + ligne de remise), `MarqueSecoto.jsx`
+(bonnet sur le dernier O, dates dans `src/lib/promoNoel.js`), site : bandeau et logo
+dans `header.njk`/`base.njk`, affichés par `site.js` en décembre.

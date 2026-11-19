@@ -226,3 +226,11 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .od-appels-liste { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 10px; }
 .od-appel { padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
 .od-appel-tete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* 153 — Noël : bonnet sur le dernier O, remise sur les offres. */
+.marque-noel-o { position: relative; display: inline-block; color: var(--accent); }
+.marque-noel-bonnet { position: absolute; left: -8%; top: -48%; width: 128%; transform: rotate(12deg); transform-origin: 40% 85%; pointer-events: none; }
+.od-offre-remise { font-size: .8rem; font-weight: 700; color: #c8102e; }
+[data-theme="dark"] .od-offre-remise { color: #ff6b6b; }
+.od-offre-avant { font-size: .8rem; color: var(--muted); }
+.od-promo-noel { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 10px 14px; border-radius: var(--radius-md, 12px); background: linear-gradient(90deg, rgba(200,16,46,.12), rgba(245,98,15,.12)); border: 1px solid rgba(200,16,46,.25); font-size: .9rem; margin-bottom: 10px; }
