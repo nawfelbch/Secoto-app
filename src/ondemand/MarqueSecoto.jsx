@@ -1,8 +1,8 @@
-import { promoNoelActive } from "../lib/promoNoel";
+import { bonnetNoel } from "../lib/promoNoel";
 
-// SECOTO 153 — « SECOTO » ; en décembre, bonnet de Père Noël sur le dernier O.
+// SECOTO 153 — « SECOTO » ; jusqu'au 31/12, bonnet de Père Noël sur le dernier O.
 export default function MarqueSecoto() {
-  if (!promoNoelActive()) return <strong>SECOTO</strong>;
+  if (!bonnetNoel()) return <strong>SECOTO</strong>;
   return (
     <strong className="marque-noel" aria-label="SECOTO">
       SECOT<span className="marque-noel-o">O

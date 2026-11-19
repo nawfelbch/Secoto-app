@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **153** → prochaine : **154**). Toujours **rejouable**
+  le dernier (actuel : **154** → prochaine : **155**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -337,5 +337,24 @@ jamais sous 75 €. `secoto_private.appliquer_promo_noel` branché dans
 `remise_libelle` ; ligne de devis « (Remise de Noël : -X € inclus) ». Nouveaux devis
 seulement. Réglages `app_settings['promo_noel']` (`actif` false = coupure).
 Affichage : `OffresCartes.jsx` (bandeau + ligne de remise), `MarqueSecoto.jsx`
-(bonnet sur le dernier O, dates dans `src/lib/promoNoel.js`), site : bandeau et logo
+(bonnet sur le dernier O du 19/11 au 31/12, dates dans `src/lib/promoNoel.js`), site : bandeau et logo
 dans `header.njk`/`base.njk`, affichés par `site.js` en décembre.
+
+### 154 — Parrainage (19/11/2026, décision de Nawfal)
+Client→client : filleul −20 €, parrain 20 € de crédit ; pro→pro : 30/30 ;
+transporteur→transporteur : 50 € au parrain quand le filleul a livré 3 missions
+(statut `prime_a_verser`, payée à la main puis « Prime versée » dans Admin →
+Parrainage — aucun virement automatique). Récompense client/pro seulement après
+la 1re commande du filleul livrée ET payée (`parrainage_valider`, appelée par le
+tick 151). Pas de cumul avec la remise des fêtes : `appliquer_avantages` garde la
+meilleure. RENTABILITÉ : aucune remise (fêtes ou parrainage) ne fait passer le
+NET SECOTO sous 50 € dans le pire cas (particulier = Klarna : URSSAF 21,2 % de la
+marge + 5 % du prix ; pro = carte 1,5 % + 0,25 €) — `remise_max_cents`,
+réglage `parrainage.net_min_cents` ; remplace le plancher brut 75 € de la 153. Crédit = écritures `parrainage_credits`
+(gain / utilisation à la réservation / recrédit si commande annulée), jamais en
+argent. Anti-fraude : pas soi-même, même téléphone ou SIREN refusé, un parrain par
+filleul, nouveaux comptes seulement, 10 filleuls/an. Codes `parrainage_codes`
+(prénom ou société + 3 caractères), lien `?parrain=CODE` (`src/lib/parrainage.js`,
+envoyé à la connexion par `ParrainageLienAuto`). Écrans : `ParrainagePanel.jsx`
+(client et transporteur, menu Compte → Parrainage), `ParrainageAdminPanel.jsx`.
+CGU art. 04 : règles des remises et du parrainage. Réglages `app_settings['parrainage']`.
