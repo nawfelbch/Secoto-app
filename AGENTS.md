@@ -347,7 +347,10 @@ transporteur→transporteur : 50 € au parrain quand le filleul a livré 3 miss
 Parrainage — aucun virement automatique). Récompense client/pro seulement après
 la 1re commande du filleul livrée ET payée (`parrainage_valider`, appelée par le
 tick 151). Pas de cumul avec la remise des fêtes : `appliquer_avantages` garde la
-meilleure ; commission jamais sous 75 €. Crédit = écritures `parrainage_credits`
+meilleure. RENTABILITÉ : aucune remise (fêtes ou parrainage) ne fait passer le
+NET SECOTO sous 50 € dans le pire cas (particulier = Klarna : URSSAF 21,2 % de la
+marge + 5 % du prix ; pro = carte 1,5 % + 0,25 €) — `remise_max_cents`,
+réglage `parrainage.net_min_cents` ; remplace le plancher brut 75 € de la 153. Crédit = écritures `parrainage_credits`
 (gain / utilisation à la réservation / recrédit si commande annulée), jamais en
 argent. Anti-fraude : pas soi-même, même téléphone ou SIREN refusé, un parrain par
 filleul, nouveaux comptes seulement, 10 filleuls/an. Codes `parrainage_codes`

@@ -9,7 +9,11 @@
 --   · récompense du parrain SEULEMENT après une 1re commande du filleul livrée ET payée ;
 --   · le crédit ne sert que sur un transport, jamais remboursé en argent ;
 --   · pas de cumul avec la remise Black Friday / Noël (153) : le meilleur des deux ;
---   · la commission SECOTO ne descend jamais sous 75 € (même règle que la 153) ;
+--   · RENTABILITÉ (décision du 19/11) : aucune remise — fêtes (153) ou parrainage —
+--     ne fait descendre le NET SECOTO sous 50 €, calculé dans le PIRE cas :
+--     particulier = règlement Klarna (URSSAF 21,2 % de la marge + 5 % du prix),
+--     pro = carte (1,5 % + 0,25 €), Klarna lui étant interdit. Remplace le plancher
+--     « commission brute 75 € » de la 153, insuffisant avec Klarna ;
 --   · anti-fraude : pas soi-même, pas le même téléphone ni le même SIREN, un seul
 --     parrain par filleul, filleul sans commande / mission livrée, 10 filleuls par an.
 -- Réglages app_settings['parrainage'] ; « actif » à false coupe tout.
@@ -23,7 +27,7 @@ values ('parrainage', jsonb_build_object(
   'client_filleul_cents', 2000, 'client_parrain_cents', 2000,
   'pro_filleul_cents', 3000, 'pro_parrain_cents', 3000,
   'transporteur_parrain_cents', 5000, 'transporteur_missions', 3,
-  'max_filleuls_an', 10, 'commission_min_cents', 7500))
+  'max_filleuls_an', 10, 'net_min_cents', 5000))
 on conflict (key) do nothing;
 
 -- 1. TABLES --------------------------------------------------------------------
@@ -137,37 +141,58 @@ begin
 end;
 $$;
 
--- Toutes les remises d'un devis : remise des fêtes (153) OU parrainage, la meilleure.
+-- Remise maximale qui garde au moins p_net_cents de net SECOTO dans le pire cas
+-- (mêmes frais que secoto_private.pay_max_cents) :
+--   particulier (Klarna) : net = (prix − transporteur) × 0,788 − 5 % × prix
+--   pro (carte)          : net = (prix − transporteur) × 0,788 − (1,5 % × prix + 0,25 €)
+create or replace function secoto_private.remise_max_cents(p_client integer, p_pay integer, p_pro boolean, p_net_cents integer)
+returns integer language sql immutable set search_path = '' as $$
+  select greatest(p_client - ceil(case when p_pro
+                    then (p_net_cents + 25 + 0.788 * p_pay) / 0.773
+                    else (p_net_cents + 0.788 * p_pay) / 0.738 end)::int, 0);
+$$;
+
+-- Toutes les remises d'un devis : remise des fêtes (153) OU parrainage, la meilleure,
+-- plafonnée pour garder le net minimum dans le pire cas. Sans remise possible : prix inchangé.
 create or replace function secoto_private.appliquer_avantages(p_offres jsonb, q public.transport_quotes)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 declare
   v_promo jsonb := secoto_private.appliquer_promo_noel(p_offres);
   v_av jsonb := secoto_private.parrainage_avantage(q);
-  v_min integer := coalesce((secoto_private.parrainage_reglages() ->> 'commission_min_cents')::int, 7500);
+  v_pro boolean := coalesce(secoto_private.devis_compte_pro(q), false);
+  v_net integer := coalesce((select (value ->> 'net_min_cents')::int from public.app_settings where key = 'parrainage'), 5000);
   o jsonb;
   op jsonb;
   v_client integer;
   v_pay integer;
+  v_r_promo integer;
+  v_r_par integer;
+  v_parrainage boolean;
   v_remise integer;
   v_out jsonb := '[]'::jsonb;
 begin
-  if v_av is null or p_offres is null or jsonb_typeof(p_offres) <> 'array' then return v_promo; end if;
+  if p_offres is null or jsonb_typeof(p_offres) <> 'array' then return p_offres; end if;
   for o in select e from jsonb_array_elements(p_offres) e loop
-    select e into op from jsonb_array_elements(v_promo) e where e ->> 'cle' = o ->> 'cle' limit 1;
     v_client := (o ->> 'client_cents')::int;
     v_pay := (o ->> 'partenaire_cents')::int;
-    v_remise := 0;
-    if v_client is not null and v_pay is not null and not (o ? 'remise_cents') then
-      v_remise := greatest(least((v_av ->> 'cents')::int, v_client - v_pay - v_min), 0);
-      v_remise := (v_remise / 100) * 100;
+    if v_client is null or v_pay is null or o ? 'remise_cents' then
+      v_out := v_out || jsonb_build_array(o);
+      continue;
     end if;
-    if v_remise >= 100 and v_remise > coalesce((op ->> 'remise_cents')::int, 0) then
-      v_out := v_out || jsonb_build_array(o || jsonb_build_object(
+    select e into op from jsonb_array_elements(coalesce(v_promo, '[]'::jsonb)) e where e ->> 'cle' = o ->> 'cle' limit 1;
+    v_r_promo := coalesce((op ->> 'remise_cents')::int, 0);
+    v_r_par := coalesce((v_av ->> 'cents')::int, 0);
+    v_parrainage := v_r_par > v_r_promo;
+    v_remise := least(greatest(v_r_promo, v_r_par), secoto_private.remise_max_cents(v_client, v_pay, v_pro, v_net));
+    v_remise := (greatest(v_remise, 0) / 100) * 100;   -- euros entiers
+    if v_remise >= 100 then
+      v_out := v_out || jsonb_build_array(o || jsonb_strip_nulls(jsonb_build_object(
         'client_avant_remise_cents', v_client, 'remise_cents', v_remise,
-        'remise_libelle', v_av ->> 'libelle', 'remise_source', v_av ->> 'source',
-        'client_cents', v_client - v_remise, 'commission_cents', v_client - v_remise - v_pay));
+        'remise_libelle', case when v_parrainage then v_av ->> 'libelle' else op ->> 'remise_libelle' end,
+        'remise_source', case when v_parrainage then v_av ->> 'source' end,
+        'client_cents', v_client - v_remise, 'commission_cents', v_client - v_remise - v_pay)));
     else
-      v_out := v_out || jsonb_build_array(coalesce(op, o));
+      v_out := v_out || jsonb_build_array(o);
     end if;
   end loop;
   return v_out;
@@ -179,6 +204,7 @@ revoke all on function secoto_private.parrainage_solde(uuid) from public, anon, 
 revoke all on function secoto_private.parrainage_code_de(uuid) from public, anon, authenticated;
 revoke all on function secoto_private.parrainage_avantage(public.transport_quotes) from public, anon, authenticated;
 revoke all on function secoto_private.appliquer_avantages(jsonb, public.transport_quotes) from public, anon, authenticated;
+revoke all on function secoto_private.remise_max_cents(integer, integer, boolean, integer) from public, anon, authenticated;
 
 -- 3. BRANCHEMENTS --------------------------------------------------------------
 -- Calcul des offres : la 153 appliquait la remise des fêtes, la 154 choisit la meilleure.
