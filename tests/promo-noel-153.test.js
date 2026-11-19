@@ -40,3 +40,10 @@ test("153 : bonnet du 1er au 31 décembre, heure de Paris", () => {
   assert.equal(bonnetNoel(new Date("2026-12-31T22:59:00Z")), true);
   assert.equal(bonnetNoel(new Date("2026-12-31T23:00:00Z")), false);
 });
+
+test("2.5.3 : le nom SECOTO de l'app porte le bonnet partout (en-têtes et barre latérale)", () => {
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(app, /<p className="eyebrow">SECOTO<\/p>/);
+  assert.equal((app.match(/<MarqueSecoto balise="p" className="eyebrow" \/>/g) || []).length, 4);
+  assert.match(app, /<MarqueSecoto \/>/);
+});
