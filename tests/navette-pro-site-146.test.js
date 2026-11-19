@@ -17,5 +17,5 @@ test("146 : lien « Créer mon compte pro » du site — inscription, profil Pro
   const app = lire("src/App.jsx");
   assert.match(app, /get\("compte"\) === "pro"/);
   assert.match(app, /useState\(\(\) => \(lienComptePro\(\) \? "pro" : "particulier"\)\)/);
-  assert.match(app, /lienComptePro\(\) \? \{ mode: "signup" \} : null/);
+  assert.match(app, /lienComptePro\(\)( \|\| codeDuLien\(window\.location\.search\))? \? \{ mode: "signup" \} : null/);
 });

@@ -142,6 +142,9 @@ import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
 import TransporteursAAppeler from "./ondemand/TransporteursAAppeler";
 import MarqueSecoto from "./ondemand/MarqueSecoto";
+import ParrainagePanel, { ParrainageLienAuto } from "./ParrainagePanel";
+import ParrainageAdminPanel from "./ParrainageAdminPanel";
+import { codeDuLien, memoriserCodeLien } from "./lib/parrainage";
 import EntonnoirPanel from "./ondemand/EntonnoirPanel";
 import { MissionEditPanel, PropositionAdmin, PropositionTransporteur, UrgentBadge } from "./MissionPropositions";
 import { modifierMissionAdmin } from "./lib/missionsPropositions";
@@ -1102,6 +1105,9 @@ function ClientTrackingTimeline({ mission, events, getPhotos }) {
 
 // 146 : lien « Créer mon compte pro » du site vitrine (?compte=pro) : l'app
 // s'ouvre sur l'inscription, profil « Professionnel » déjà choisi.
+// 154 : lien de parrainage (?parrain=CODE), gardé jusqu'à la connexion.
+memoriserCodeLien();
+
 function lienComptePro() {
   try { return new URLSearchParams(window.location.search).get("compte") === "pro"; } catch { return false; }
 }
@@ -1694,10 +1700,10 @@ function PasswordRecoveryScreen({ onDone }) {
 
 function PublicEntry({ pendingClaim, repriseLien = null, onMissionAccessComplete }) {
   const claimMode = Boolean(pendingClaim?.token || pendingClaim?.code);
-  const [view, setView] = useState(claimMode || repriseLien || lienComptePro() ? "auth" : "landing");
+  const [view, setView] = useState(claimMode || repriseLien || lienComptePro() || codeDuLien(window.location.search) ? "auth" : "landing");
   // Demande faite à l'instant sans compte : l'écran de compte la rappelle
   // (trajet, prix) et s'ouvre sur « Créer un compte » ou « Connexion ».
-  const [entree, setEntree] = useState(() => (lienComptePro() ? { mode: "signup" } : null));
+  const [entree, setEntree] = useState(() => (lienComptePro() || codeDuLien(window.location.search) ? { mode: "signup" } : null));
   const effectiveView = claimMode ? "auth" : view;
   const landing = (
     <PublicLanding
@@ -4571,6 +4577,7 @@ export default function App() {
             ...(flags.subscriptions ? [{ key: "abonnement", label: "Abonnement pro", icon: "bank" }] : []),
           ] },
           { title: "Compte", items: [
+            { key: "parrainage", label: "Parrainage", icon: "users" },
             { key: "contact", label: savClient ? "SAV SECOTO" : "Contact SECOTO", icon: "phone" },
             { key: "notifications", label: "Notifications", icon: "settings" },
             { key: "legal", label: "Informations légales", icon: "inbox" },
@@ -4607,6 +4614,8 @@ export default function App() {
             { key: "clients", label: "Clients", icon: "user" },
             // 147 : toutes les infos des clients professionnels.
             { key: "clientsPros", label: "Clients pros", icon: "users" },
+            // 154 : parrainages et primes transporteurs à verser.
+            { key: "parrainage", label: "Parrainage", icon: "users" },
             { key: "acquisition", label: "Acquisition", icon: "chart" },
           ] },
           { title: "Réglages", items: [
@@ -4641,6 +4650,7 @@ export default function App() {
               ...(bareme?.concerned && bareme?.active ? [{ key: "bareme", label: "Mon barème", icon: "settings" }] : []),
             ]
             : []),
+          ...(account.role === "transporter" ? [{ key: "parrainage", label: "Parrainage", icon: "users" }] : []),
           { key: "contact", label: "Contact SECOTO", icon: "phone" },
           { key: "notifications", label: "Notifications", icon: "settings" },
           { key: "legal", label: "Informations légales", icon: "inbox" },
@@ -4662,6 +4672,7 @@ export default function App() {
           <div className="sidebar-brand">
             <span className="dot" />
             <MarqueSecoto />
+            <ParrainageLienAuto accountId={account.id} onNotice={setNotice} />
           </div>
 
           {account.role === "admin" && (
@@ -5111,6 +5122,12 @@ export default function App() {
             </section>
           )}
 
+          {activeClientTab === "parrainage" && (
+            <section className="layout">
+              <ParrainagePanel />
+            </section>
+          )}
+
           {activeClientTab === "notifications" && (
             <section className="layout">
               <NotificationPreferencesPanel
@@ -5465,6 +5482,12 @@ export default function App() {
             </section>
           )}
 
+          {adminTab === "parrainage" && (
+            <section className="layout">
+              <ParrainageAdminPanel />
+            </section>
+          )}
+
           {adminTab === "clientsPros" && (
             <section className="layout">
               <ClientsProsPanel />
@@ -5810,6 +5833,12 @@ export default function App() {
                   carrierOverview().then(setEntreprise).catch(() => {});
                 }}
               />
+            </section>
+          )}
+
+          {transporterTab === "parrainage" && !isAdmin && (
+            <section className="layout">
+              <ParrainagePanel />
             </section>
           )}
 

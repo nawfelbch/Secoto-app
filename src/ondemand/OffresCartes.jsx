@@ -41,9 +41,9 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false,
           )}
         </div>
       )}
-      {offres.some((o) => o.remise_cents > 0) && (
+      {offres.some((o) => o.remise_cents > 0 && !o.remise_source) && (
         <div className="od-promo-noel" role="note">
-          <strong>{/black/i.test(offres.find((o) => o.remise_cents > 0)?.remise_libelle || "") ? "🖤" : "🎄"} {offres.find((o) => o.remise_cents > 0)?.remise_libelle || "Remise de Noël"}</strong>
+          <strong>{/black/i.test(offres.find((o) => o.remise_cents > 0 && !o.remise_source)?.remise_libelle || "") ? "🖤" : "🎄"} {offres.find((o) => o.remise_cents > 0 && !o.remise_source)?.remise_libelle || "Remise de Noël"}</strong>
           <span>jusqu’à −{PROMO_NOEL.pct} % ({PROMO_NOEL.plafondEur} € maximum), déjà incluse dans les prix ci-dessous, pour tout devis demandé jusqu’au {PROMO_NOEL.finAffichee}.</span>
         </div>
       )}
