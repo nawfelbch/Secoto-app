@@ -228,8 +228,15 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
 .od-appel-tete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 /* 153 — Noël : bonnet sur le dernier O, remise sur les offres. */
-.marque-noel-o { position: relative; display: inline-block; color: var(--accent); }
-.marque-noel-bonnet { position: absolute; left: -8%; top: -48%; width: 128%; transform: rotate(12deg); transform-origin: 40% 85%; pointer-events: none; }
+/* Le O garde la couleur du texte autour (orange dans les en-têtes « eyebrow »),
+   sans l'espacement des lettres pour que le bonnet reste centré sur la lettre. */
+.marque-noel { white-space: nowrap; }
+.marque-noel-o { position: relative; display: inline-block; letter-spacing: 0; color: var(--accent); }
+.marque-noel-bonnet { position: absolute; left: -18%; top: -0.7em; width: 1.35em; height: auto; transform: rotate(14deg); transform-origin: 40% 85%; pointer-events: none; overflow: visible; }
+/* Petits en-têtes (« eyebrow », 0,72 rem) : bonnet un peu plus grand pour rester lisible. */
+.eyebrow.marque-noel .marque-noel-bonnet { left: -42%; top: -1.05em; width: 1.9em; }
+/* Le titre au-dessus laisse la place au bonnet. */
+.eyebrow.marque-noel { padding-top: 0.45em; }
 .od-offre-remise { font-size: .8rem; font-weight: 700; color: #c8102e; }
 [data-theme="dark"] .od-offre-remise { color: #ff6b6b; }
 .od-offre-avant { font-size: .8rem; color: var(--muted); }

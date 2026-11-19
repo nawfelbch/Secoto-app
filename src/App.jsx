@@ -1260,7 +1260,7 @@ function AuthScreen({ onBack, claimInvite = null, repriseLien = null, modeInitia
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">SECOTO</p>
+          <MarqueSecoto balise="p" className="eyebrow" />
           <h1>{claimMode ? "Retrouvez votre transport" : repriseLien ? (repriseSansPrix ? "Recevez votre prix" : "Réservez votre transport") : "Le transport de véhicules, simplifié."}</h1>
           <p className="subtitle">
             {claimMode
@@ -1563,7 +1563,7 @@ function PublicLanding({ onShowAuth, onNeedAccount }) {
   return (
     <main className="app-shell landing-public">
       <header className="app-header">
-        <div><p className="eyebrow">SECOTO</p><h1>Transport de véhicules</h1></div>
+        <div><MarqueSecoto balise="p" className="eyebrow" /><h1>Transport de véhicules</h1></div>
         <div className="topbar-actions">
           <ThemeToggle />
           <button className="btn ghost small" onClick={onShowAuth}>Espace pro / Connexion</button>
@@ -1679,7 +1679,7 @@ function PasswordRecoveryScreen({ onDone }) {
   return (
     <main className="app-shell">
       <header className="app-header">
-        <div><p className="eyebrow">SECOTO</p><h1>Nouveau mot de passe</h1></div>
+        <div><MarqueSecoto balise="p" className="eyebrow" /><h1>Nouveau mot de passe</h1></div>
         <ThemeToggle />
       </header>
       {error && <div className="alert error">{error}</div>}
@@ -4870,7 +4870,7 @@ export default function App() {
           </svg>
         </button>
         <div className="topbar-title">
-          <p className="eyebrow">SECOTO</p>
+          <MarqueSecoto balise="p" className="eyebrow" />
           <h1>{isClient ? "Mes transports" : isAdmin && mode === "admin" ? "Direction SECOTO" : "Espace transporteur"}</h1>
         </div>
         <div className="topbar-actions">
