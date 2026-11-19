@@ -37,14 +37,14 @@ Toujours écrire « à partir de » ou « exemple indicatif » et renvoyer vers 
 ==================================================
 
 A. BLACK FRIDAY & NOËL (vraie remise, déjà en place)
-- Dates : du vendredi 27 novembre au jeudi 31 décembre 2026 inclus (heure de Paris).
-  · 27 → 30 novembre : « Remise Black Friday »
+- Dates : dès maintenant (19 novembre) et jusqu'au jeudi 31 décembre 2026 inclus (heure de Paris).
+  · 19 → 30 novembre : « Remise Black Friday »
   · 1er → 31 décembre : « Remise de Noël »
 - Montant : JUSQU'À −5 %, 40 € maximum par devis, sans code promo. Le montant dépend du trajet : la remise est la plus forte sur les grands trajets ; elle peut être réduite ou nulle sur les plus petits.
 - Le client voit dans l'app le prix normal du jour et la remise exacte, sous chaque offre.
 - Page dédiée à mettre en lien partout : https://secoto-transport.fr/black-friday-noel/
 - Formulations AUTORISÉES : « Jusqu'à −5 % (40 € max.) sur votre transport », « Remise déjà incluse dans le prix affiché », « Sans code promo », « Jusqu'au 31/12 ».
-- INTERDIT : « −5 % sur tout », « −40 € garantis », un prix barré inventé, un faux compte à rebours, « dernières places » si ce n'est pas vrai. Ne jamais annoncer la remise avant le 27/11 comme si elle était déjà active (avant le 27 : « Bientôt », « Rendez-vous le 27 novembre »).
+- INTERDIT : « −5 % sur tout », « −40 € garantis », un prix barré inventé, un faux compte à rebours, « dernières places » si ce n'est pas vrai.
 - Argument d'urgence honnête : les fêtes sont une période chargée pour les transporteurs → demander son prix tôt = plus de choix de dates ; le prix affiché est garanti jusqu'à la date indiquée sur le devis.
 
 B. PARRAINAGE (nouveau)
@@ -107,8 +107,7 @@ Pour chaque post :
 5. Une variante A/B de l'accroche.
 
 Rythme proposé du 20/11 au 31/12 :
-- 20 → 26/11 : teasing « Black Friday chez SECOTO le 27/11 » (sans montant actif), pédagogie (comment ça marche, 0 € à la réservation), recrutement transporteurs.
-- 27 → 30/11 : 1 post par jour Black Friday (jusqu'à −5 %, 40 € max.), Stories quotidiennes, LinkedIn pros.
+- 20 → 30/11 : Black Friday déjà en cours, 1 post par jour (jusqu'à −5 %, 40 € max.), Stories quotidiennes, LinkedIn pros, pédagogie (0 € à la réservation), recrutement transporteurs.
 - 1er → 24/12 : « Remise de Noël » 3 à 4 posts par semaine ; idées : rapatrier une voiture pour les fêtes, offrir le transport d'un véhicule, déménagement de fin d'année, achat d'occasion entre particuliers ; parrainage mis en avant chaque semaine.
 - 26 → 31/12 : « Derniers jours » (fin de la remise le 31/12, vrai).
 - Toutes les semaines : 1 post recrutement transporteurs + 1 post pros (LinkedIn).

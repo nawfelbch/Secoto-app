@@ -1,6 +1,6 @@
 workflows:
   ios-secoto:
-    name: SECOTO iOS — Xcode 26 / TestFlight
+    name: SECOTO iOS — Xcode (dernière version stable) / TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
     integrations:
@@ -17,7 +17,8 @@ workflows:
         APP_STORE_APPLE_ID: "6794878696"
         IOS_MARKETING_VERSION: "2.5.3"
       node: 24
-      xcode: 26.0
+      # Apple (ITMS-90725) : dès avril 2027, SDK iOS 27 obligatoire -> dernière version stable d'Xcode.
+      xcode: latest
     cache:
       cache_paths:
         - $CM_BUILD_DIR/node_modules
