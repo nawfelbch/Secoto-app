@@ -23,7 +23,12 @@ test("153 : pas de prix gonflé — remise affichée sur le prix normal du jour"
   assert.match(sql, /'client_cents', v_client - v_remise/);
 });
 
-test("153 : affichage du 1er au 31 décembre, heure de Paris", () => {
+test("153 : Black Friday du 27 au 30/11, puis Noël jusqu'au 31/12", () => {
+  assert.match(sql, /'debut', '2026-11-27', 'fin', '2027-01-01'/);
+  assert.match(sql, /'black_friday_fin', '2026-12-01', 'libelle_black_friday', 'Remise Black Friday'/);
+});
+
+test("153 : bonnet du 1er au 31 décembre, heure de Paris", () => {
   assert.equal(promoNoelActive(new Date("2026-11-30T22:59:00Z")), false);
   assert.equal(promoNoelActive(new Date("2026-11-30T23:00:00Z")), true);   // 1er déc. 00 h à Paris
   assert.equal(promoNoelActive(new Date("2026-12-31T22:59:00Z")), true);

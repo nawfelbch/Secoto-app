@@ -1,2 +1,5 @@
 User-agent: *
+# Liens de paiement et fonctions : redirections vers Stripe ou vers l'app, rien à indexer.
+Disallow: /payer
+Disallow: /.netlify/
 Allow: /

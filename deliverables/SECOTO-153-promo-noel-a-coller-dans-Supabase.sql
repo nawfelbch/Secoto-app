@@ -1,5 +1,6 @@
 -- ============================================================================
--- SECOTO 153 — Remise de Noël (1er → 31 décembre 2026, heure de Paris)
+-- SECOTO 153 — Remise Black Friday & Noël (27/11 → 31/12/2026, heure de Paris)
+--   27 → 30/11 : « Remise Black Friday » ; 1er → 31/12 : « Remise de Noël ».
 -- ----------------------------------------------------------------------------
 -- Décision du 19/11/2026 : une VRAIE remise, jamais de prix gonflé puis barré
 -- (art. L112-1-1 et L121-2 du Code de la consommation).
@@ -16,14 +17,20 @@
 
 insert into public.app_settings(key, value)
 values ('promo_noel', jsonb_build_object(
-  'actif', true, 'debut', '2026-12-01', 'fin', '2027-01-01',
-  'pct', 5, 'plafond_cents', 4000, 'commission_min_cents', 7500, 'libelle', 'Remise de Noël'))
+  'actif', true, 'debut', '2026-11-27', 'fin', '2027-01-01',
+  'pct', 5, 'plafond_cents', 4000, 'commission_min_cents', 7500, 'libelle', 'Remise de Noël',
+  'black_friday_fin', '2026-12-01', 'libelle_black_friday', 'Remise Black Friday'))
 on conflict (key) do nothing;
 
 -- Réglages de la promo si elle est en cours (heure de Paris), sinon null.
+-- « libelle » est celui du jour : Black Friday jusqu'au 30/11, Noël ensuite.
 create or replace function secoto_private.promo_noel_en_cours()
 returns jsonb language sql stable security definer set search_path = '' as $$
-  select s.value from public.app_settings s
+  select s.value || jsonb_build_object('libelle',
+           case when (now() at time zone 'Europe/Paris')::date < coalesce((s.value ->> 'black_friday_fin')::date, '2000-01-01')
+                then coalesce(s.value ->> 'libelle_black_friday', 'Remise Black Friday')
+                else coalesce(s.value ->> 'libelle', 'Remise de Noël') end)
+    from public.app_settings s
    where s.key = 'promo_noel'
      and coalesce((s.value ->> 'actif')::boolean, false)
      and (now() at time zone 'Europe/Paris')::date >= (s.value ->> 'debut')::date

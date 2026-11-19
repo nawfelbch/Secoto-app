@@ -328,7 +328,7 @@ sur chaque carte (`secoto_admin_transporteurs_a_appeler_mission`, suivi
 `mission_appels`), recherche Google par géocodage de l'adresse de départ.
 
 
-### 153 — Remise de Noël (19/11/2026, active du 01/12 au 31/12/2026, heure de Paris)
+### 153 — Remise Black Friday (27–30/11) puis Noël (01–31/12/2026), heure de Paris
 VRAIE remise (jamais de prix gonflé puis barré : art. L112-1-1 / L121-2 Code conso,
 refusé par Nawfal le 19/11 après explication). 5 % de l'offre, plafond 40 €, euros
 entiers, prise sur la commission SECOTO seule (transporteur inchangé), commission
