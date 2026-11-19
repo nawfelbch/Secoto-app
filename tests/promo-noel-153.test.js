@@ -25,6 +25,7 @@ test("153 : pas de prix gonflé — remise affichée sur le prix normal du jour"
 
 test("153 : Black Friday du 27 au 30/11, puis Noël jusqu'au 31/12", () => {
   assert.match(sql, /'debut', '2026-11-27', 'fin', '2027-01-01'/);
+  assert.match(readFileSync(new URL("../supabase/migrations/202611190156_black_friday_des_maintenant.sql", import.meta.url), "utf8"), /'debut', '2026-11-19'/);
   assert.match(sql, /'black_friday_fin', '2026-12-01', 'libelle_black_friday', 'Remise Black Friday'/);
 });
 

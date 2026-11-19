@@ -6,11 +6,11 @@ async function source(path) {
   return readFile(new URL(path, import.meta.url), "utf8");
 }
 
-test("le workflow iOS utilise le projet SPM réel, Node 24 et Xcode 26", async () => {
+test("le workflow iOS utilise le projet SPM réel, Node 24 et la dernière version stable d’Xcode (SDK iOS 27, ITMS-90725)", async () => {
   const yaml = await source("../codemagic.yaml");
   assert.match(yaml, /XCODE_PROJECT:\s+ios\/App\/App\.xcodeproj/);
   assert.match(yaml, /node:\s+24/);
-  assert.match(yaml, /xcode:\s+26\.0/);
+  assert.match(yaml, /xcode:\s+latest/);
   assert.doesNotMatch(yaml, /pod install|--workspace|App\.xcworkspace/);
   // La revue bêta ne concerne que les testeurs externes, et Apple n'en accepte
   // qu'une à la fois par version : la demander automatiquement faisait échouer

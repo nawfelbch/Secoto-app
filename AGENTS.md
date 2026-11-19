@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **155** → prochaine : **156**). Toujours **rejouable**
+  le dernier (actuel : **156** → prochaine : **157**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -327,7 +327,7 @@ sur chaque carte (`secoto_admin_transporteurs_a_appeler_mission`, suivi
 `mission_appels`), recherche Google par géocodage de l'adresse de départ.
 
 
-### 153 — Remise Black Friday (27–30/11) puis Noël (01–31/12/2026), heure de Paris
+### 153 — Remise Black Friday (19–30/11, avancée par la 156) puis Noël (01–31/12/2026), heure de Paris
 VRAIE remise (jamais de prix gonflé puis barré : art. L112-1-1 / L121-2 Code conso,
 refusé par Nawfal le 19/11 après explication). 5 % de l'offre, plafond 40 €, euros
 entiers, prise sur la commission SECOTO seule (transporteur inchangé), commission
@@ -369,3 +369,8 @@ complet, `route.arrets` enregistré. Prix = barème groupe sur le trajet complet
 (`ajouter_arrets`, réglages `app_settings['arrets']`). Ni Éco ni Navette Pro
 (`offres_selon_arrets`). Convoyage impossible avec plusieurs adresses. `od_confirm` :
 chaque mission de véhicule part vers SA livraison ; la mission 1 rappelle la tournée.
+
+### 156 — Black Friday dès le 19/11/2026
+Décision de Nawfal : la remise démarre immédiatement (`promo_noel.debut` = 2026-11-19),
+plus de période d'attente jusqu'au 27/11. Black Friday jusqu'au 30/11, Noël du 01 au 31/12.
+Codemagic : `xcode: latest` (avertissement Apple ITMS-90725, SDK iOS 27 obligatoire dès avril 2027).
