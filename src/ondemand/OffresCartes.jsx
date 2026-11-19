@@ -1,5 +1,6 @@
 import { OFFRE_LIBELLE, fenetreLibelle, formatCents, klarnaSousPrix, transporteursLibelle } from "../lib/orderCopy";
 import { BADGE_STANDARD, dateCourte } from "../lib/offres";
+import { PROMO_NOEL, texteRemise } from "../lib/promoNoel";
 
 // ============================================================================
 // SECOTO 099 — Trois offres sur l'écran du prix (Express, Standard, Éco).
@@ -40,6 +41,12 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false,
           )}
         </div>
       )}
+      {offres.some((o) => o.remise_cents > 0) && (
+        <div className="od-promo-noel" role="note">
+          <strong>{/black/i.test(offres.find((o) => o.remise_cents > 0)?.remise_libelle || "") ? "🖤" : "🎄"} {offres.find((o) => o.remise_cents > 0)?.remise_libelle || "Remise de Noël"}</strong>
+          <span>jusqu’à −{PROMO_NOEL.pct} % ({PROMO_NOEL.plafondEur} € maximum), déjà incluse dans les prix ci-dessous, pour tout devis demandé jusqu’au {PROMO_NOEL.finAffichee}.</span>
+        </div>
+      )}
       <div className="od-offres-grille" role="radiogroup" aria-label="Choisissez votre offre">
         {liste.map((o) => {
           const grise = expressObligatoire && o.cle !== "express";
@@ -50,6 +57,13 @@ export default function OffresCartes({ offres, choix, onChoix, disabled = false,
               {o.recommande && !grise && <span className="od-offre-badge">{BADGE_STANDARD}</span>}
               <span className="od-offre-nom">{o.libelle || OFFRE_LIBELLE[o.cle] || o.cle}</span>
               <strong className="od-offre-prix">{formatCents(o.client_cents)}</strong>
+              {/* 153 : vraie remise, calculée en base ; prix normal du jour affiché à côté. */}
+              {o.remise_cents > 0 && (
+                <span className="od-offre-remise">
+                  {o.remise_libelle || "Remise de Noël"} : {texteRemise(o.remise_cents)} incluse
+                  <span className="od-offre-avant"> (prix normal {formatCents(o.client_avant_remise_cents)})</span>
+                </span>
+              )}
               {!grise && klarna && klarnaSousPrix(o.client_cents) && <span className="od-klarna">{klarnaSousPrix(o.client_cents)}</span>}
               <span className="od-offre-fenetre">Prise en charge {fenetreLibelle(o.fenetre_h)}</span>
               {grise

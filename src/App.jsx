@@ -141,6 +141,7 @@ import MyOrdersPanel from "./ondemand/MyOrdersPanel";
 import SubscriptionPanel from "./ondemand/SubscriptionPanel";
 import AdminOnDemand from "./ondemand/AdminOnDemand";
 import TransporteursAAppeler from "./ondemand/TransporteursAAppeler";
+import MarqueSecoto from "./ondemand/MarqueSecoto";
 import EntonnoirPanel from "./ondemand/EntonnoirPanel";
 import { MissionEditPanel, PropositionAdmin, PropositionTransporteur, UrgentBadge } from "./MissionPropositions";
 import { modifierMissionAdmin } from "./lib/missionsPropositions";
@@ -4660,7 +4661,7 @@ export default function App() {
         <aside className={`sidebar ${navOpen ? "open" : ""}`}>
           <div className="sidebar-brand">
             <span className="dot" />
-            <strong>SECOTO</strong>
+            <MarqueSecoto />
           </div>
 
           {account.role === "admin" && (

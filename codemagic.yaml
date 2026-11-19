@@ -94,10 +94,19 @@ workflows:
           grep -q "merchant.fr.secoto.app" ios/App/App/App.entitlements
       - name: Résolution Swift Package Manager
         script: |
-          xcodebuild \
-            -resolvePackageDependencies \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME"
+          # Coupure réseau passagère du Mac Codemagic (« Could not resolve host:
+          # github.com ») : 4 essais espacés au lieu d'un échec immédiat.
+          for essai in 1 2 3 4; do
+            if xcodebuild \
+                -resolvePackageDependencies \
+                -project "$XCODE_PROJECT" \
+                -scheme "$XCODE_SCHEME"; then
+              exit 0
+            fi
+            echo "Échec de résolution (essai $essai/4), nouvel essai dans $((essai * 30)) s…"
+            sleep $((essai * 30))
+          done
+          exit 1
       - name: Compilation simulateur sans signature
         script: |
           xcodebuild \

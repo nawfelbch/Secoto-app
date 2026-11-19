@@ -42,15 +42,18 @@
 [functions."retry-refunds"]
   schedule = "*/15 * * * *"
 
+# Réécriture (200) et non redirection (301) : Netlify sert déjà /page.html
+# sous /page, une 301 vers .html peut boucler (Search Console « Erreur liée à
+# des redirections »). Ces deux URL sont déclarées sur l'App Store.
 [[redirects]]
   from = "/suppression-compte"
   to = "/suppression-compte.html"
-  status = 301
+  status = 200
 
 [[redirects]]
   from = "/politique-confidentialite"
   to = "/politique-confidentialite.html"
-  status = 301
+  status = 200
 
 # Lien de paiement court envoyé par SMS : /payer?t=… sert la fonction devis-pay.
 [[redirects]]
