@@ -171,6 +171,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
   const removeExtra = (i) => setForm((f) => ({ ...f, extras: (f.extras || []).filter((_, j) => j !== i) }));
   // Un seul vehicule non roulant suffit a exclure le convoyage.
   const toutRoule = form.vehicle.rolling && extras.every((v) => v.rolling);
+  // 155 : un véhicule livré à une autre adresse -> tournée en camion plateau.
+  const multiAdresses = extras.some((v) => v.autreAdresse);
   const setSchedule = (patch) => setForm((f) => ({ ...f, schedule: { ...f.schedule, ...patch } }));
 
   const stepError = useMemo(() => {
@@ -181,6 +183,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
     if (step === 1 && form.vehicle.model.trim().length < 2) return "Indiquez le modèle du véhicule.";
     if (step === 1 && (form.extras || []).some((v) => v.model.trim().length < 2)) return "Indiquez le modèle de chaque véhicule.";
     if (step === 1 && erreurDimensions(form.vehicle)) return erreurDimensions(form.vehicle);
+    if (step === 1) {
+      const i = (form.extras || []).findIndex((v) => v.autreAdresse && !v.livraison?.verified);
+      if (i >= 0) return `Sélectionnez dans la liste l’adresse de livraison du véhicule ${i + 2}.`;
+      const j = (form.extras || []).findIndex((v) => v.autreAdresse && v.livraison?.label === form.delivery?.label);
+      if (j >= 0) return `Le véhicule ${j + 2} va déjà à l’adresse de livraison principale : décochez « autre adresse ».`;
+    }
+    if (step === 2 && form.mode === "convoyage" && (form.extras || []).some((v) => v.autreAdresse)) return "Plusieurs adresses de livraison : choisissez le transport sur plateau.";
     if (step === 2 && form.mode === "convoyage" && !form.vehicle.rolling) return "Un véhicule non roulant se transporte sur plateau.";
     if (step === 2 && form.mode === "convoyage" && (form.extras || []).some((v) => !v.rolling)) return "Un véhicule non roulant se transporte sur plateau.";
     if (step === 3 && (!form.schedule.pickup_date || form.schedule.pickup_date < todayIso())) return "Choisissez une date de prise en charge à venir.";
@@ -214,7 +223,10 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                   length_m: form.vehicle.length_m ? Number(form.vehicle.length_m) : null,
                   weight_kg: form.vehicle.weight_kg ? Number(form.vehicle.weight_kg) : null,
                 },
-                ...form.extras,
+                // 155 : adresse propre au véhicule seulement si demandée, et sur plateau.
+                ...form.extras.map(({ autreAdresse, livraison, ...v }) => (
+                  autreAdresse && livraison?.verified && form.mode === "plateau" ? { ...v, livraison } : v
+                )),
               ],
             }
           : {}),
@@ -433,6 +445,21 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
                 <label className="field field-full"><span>Précisions</span>
                   <textarea maxLength={500} rows={2} value={v.notes} onChange={(e) => setExtra(i, { notes: e.target.value })} placeholder="Facultatif" />
                 </label>
+                {/* 155 : livraison de ce véhicule à une autre adresse (même camion, arrêt en plus). */}
+                <label className="field field-full od-check-prestige">
+                  <span>
+                    <input type="checkbox" checked={Boolean(v.autreAdresse)}
+                      onChange={(e) => setExtra(i, { autreAdresse: e.target.checked, ...(e.target.checked ? {} : { livraison: null }) })} />
+                    {" "}Livrer ce véhicule à une autre adresse
+                  </span>
+                  <small className="muted">Le même camion livre d’abord {form.delivery?.city || "l’adresse principale"}, puis cette adresse. Transport sur plateau uniquement.</small>
+                </label>
+                {v.autreAdresse && (
+                  <div className="field-full">
+                    <VerifiedAddressField label={`Adresse de livraison du véhicule ${i + 2}`} value={v.livraison || null}
+                      onChange={(a) => setExtra(i, { livraison: a })} required />
+                  </div>
+                )}
               </div>
               <button className="btn" type="button" onClick={() => removeExtra(i)}>Retirer ce véhicule</button>
             </fieldset>
@@ -445,8 +472,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
               </button>
               <small className="muted">
                 {form.mode === "plateau" || !toutRoule
-                  ? "Sur le même plateau, chaque véhicule en plus est à −25 %."
-                  : "Jusqu’à 3 véhicules. Sur plateau, chaque véhicule en plus est à −25 %."}
+                  ? "Sur le même plateau, −10 % à partir du 2e véhicule. Chaque véhicule peut être livré à une adresse différente."
+                  : "Jusqu’à 3 véhicules. Sur plateau, −10 % à partir du 2e véhicule, et une adresse de livraison possible par véhicule."}
               </small>
             </div>
           )}
@@ -455,8 +482,8 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
 
       {step === 2 && (
         <div className="od-choice" role="radiogroup" aria-label="Mode de transport">
-          <label className={`${form.mode === "convoyage" ? "is-selected" : ""} ${!toutRoule ? "is-disabled" : ""}`}>
-            <input type="radio" name="od-mode" checked={form.mode === "convoyage"} disabled={!toutRoule} onChange={() => setForm((f) => ({ ...f, mode: "convoyage" }))} />
+          <label className={`${form.mode === "convoyage" ? "is-selected" : ""} ${!toutRoule || multiAdresses ? "is-disabled" : ""}`}>
+            <input type="radio" name="od-mode" checked={form.mode === "convoyage"} disabled={!toutRoule || multiAdresses} onChange={() => setForm((f) => ({ ...f, mode: "convoyage" }))} />
             <span><strong>Convoyage</strong><small>Un convoyeur vérifié conduit votre véhicule jusqu’à destination. Carburant et péages au réel, sur justificatifs.</small></span>
           </label>
           <label className={form.mode === "plateau" ? "is-selected" : ""}>
@@ -498,6 +525,13 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
       {step === 4 && quote && (
         <div>
           <p><strong>{quote.pickup.city}</strong> → <strong>{quote.delivery.city}</strong> · {quote.vehicle.model} · {quote.mode === "plateau" ? "Plateau" : "Convoyage"}</p>
+          {/* 155 : tournée à plusieurs adresses — rappel de l'ordre et du forfait. */}
+          {quote.mode === "plateau" && multiAdresses && (
+            <p className="muted od-tournee">
+              Livraisons : {quote.delivery.city} (véhicule 1){extras.map((v, i) => (v.autreAdresse && v.livraison?.city ? `, puis ${v.livraison.city} (véhicule ${i + 2})` : "")).join("")}.
+              {(quote.lines || []).filter((l) => String(l.label).startsWith("Livraison supplémentaire")).map((l) => ` ${l.label} : ${Number(l.eur).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}, inclus dans le prix.`).join("")}
+            </p>
+          )}
           {quote.distance_km && <p className="muted">Itinéraire routier : {quote.distance_km} km{quote.duration_min ? ` · environ ${Math.round(quote.duration_min / 60)} h ${String(Math.round(quote.duration_min % 60)).padStart(2, "0")}` : ""}</p>}
           {["priced", "manual_priced"].includes(quote.status) ? (
             <>

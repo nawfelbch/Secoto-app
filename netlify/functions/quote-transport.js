@@ -5,6 +5,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // la rémunération partenaire et la marge sont calculés PAR LA BASE
 // (secoto_quote_create, réservée au service). Le client ne transmet aucun montant.
 import { authenticatedUserId, bearer, computeRoute, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { itineraireAvecArrets } from "../lib/arrets.js";
 import { enregistrerAttribution } from "../lib/attribution-serveur.js";
 
 const handler = async (event) => {
@@ -21,7 +22,8 @@ const handler = async (event) => {
   for (const key of Object.keys(payload)) {
     if (/price|cents|amount|pay|margin|distance/i.test(key)) delete payload[key];
   }
-  const route = await computeRoute(payload.pickup, payload.delivery, {
+  // 155 : plusieurs adresses de livraison (plateau) -> trajet complet avec arrêts.
+  const route = await itineraireAvecArrets(payload, computeRoute, {
     profile: payload.mode === "plateau" ? "hgv" : "car",
   });
 

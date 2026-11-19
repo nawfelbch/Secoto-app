@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **154** → prochaine : **155**). Toujours **rejouable**
+  le dernier (actuel : **155** → prochaine : **156**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -240,7 +240,6 @@ trajets calculés au build, sélecteur « Particulier | Professionnel » sur l'a
 
 ### Pas encore fait (ne pas annoncer comme disponible)
 - Prélèvement SEPA + facture mensuelle pour les pros (aujourd'hui : carte/virement).
-- Plusieurs adresses de livraison dans une commande.
 - Facture au nom du transporteur avec TVA récupérable : le circuit existe (074,
   `partner_invoices`) mais dépend de `plateau_paiement_direct` → règle Apple § 3.8
   + validation de l'expert-comptable ; sa ligne TVA doit porter sur la part
@@ -358,3 +357,15 @@ filleul, nouveaux comptes seulement, 10 filleuls/an. Codes `parrainage_codes`
 envoyé à la connexion par `ParrainageLienAuto`). Écrans : `ParrainagePanel.jsx`
 (client et transporteur, menu Compte → Parrainage), `ParrainageAdminPanel.jsx`.
 CGU art. 04 : règles des remises et du parrainage. Réglages `app_settings['parrainage']`.
+
+### 155 — Plusieurs adresses de livraison (19/11/2026)
+Plateau, plusieurs véhicules : chaque véhicule suivant peut avoir sa propre adresse
+(`vehicles[i].livraison`, case « Livrer ce véhicule à une autre adresse » dans
+`OnDemandBooking.jsx`, 2 adresses en plus au maximum). Itinéraire calculé par le
+serveur (`netlify/lib/arrets.js`, appelé par quote-transport et quote-public) :
+départ → livraison principale → autres adresses ; `route.distance_km` = trajet
+complet, `route.arrets` enregistré. Prix = barème groupe sur le trajet complet
+(−10 % dès le 2e) + forfait 40 € par arrêt dont 30 € transporteur
+(`ajouter_arrets`, réglages `app_settings['arrets']`). Ni Éco ni Navette Pro
+(`offres_selon_arrets`). Convoyage impossible avec plusieurs adresses. `od_confirm` :
+chaque mission de véhicule part vers SA livraison ; la mission 1 rappelle la tournée.

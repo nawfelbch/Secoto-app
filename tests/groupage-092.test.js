@@ -27,5 +27,5 @@ test("092 : contrôles chiffrés bloquants à l'application", () => {
 });
 
 test("092 : le client voit l'avantage avant d'ajouter un véhicule", () => {
-  assert.match(ECRAN, /chaque véhicule en plus est à −25 %/);
+  assert.match(ECRAN, /−10 % à partir du 2e véhicule/);
 });

@@ -10,6 +10,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 // validations que le parcours identifie : un seul chemin de prix, pas deux qui
 // finiraient par diverger. Le visiteur ne transmet aucun montant.
 import { computeRoute, json, parseBody, serviceClient, withCors } from "../lib/secoto-server.js";
+import { itineraireAvecArrets } from "../lib/arrets.js";
 import { enregistrerAttribution } from "../lib/attribution-serveur.js";
 
 const { SECOTO_IP_SALT = "" } = process.env;
@@ -60,7 +61,8 @@ const handler = async (event) => {
   const empreinte = empreinteVisiteur(event);
   if (!empreinte) return json(400, { error: "invalid_request" });
 
-  const route = await computeRoute(payload.pickup, payload.delivery, {
+  // 155 : plusieurs adresses de livraison (plateau) -> trajet complet avec arrêts.
+  const route = await itineraireAvecArrets(payload, computeRoute, {
     profile: payload.mode === "plateau" ? "hgv" : "car",
   });
 
