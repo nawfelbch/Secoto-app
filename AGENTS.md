@@ -337,5 +337,5 @@ jamais sous 75 €. `secoto_private.appliquer_promo_noel` branché dans
 `remise_libelle` ; ligne de devis « (Remise de Noël : -X € inclus) ». Nouveaux devis
 seulement. Réglages `app_settings['promo_noel']` (`actif` false = coupure).
 Affichage : `OffresCartes.jsx` (bandeau + ligne de remise), `MarqueSecoto.jsx`
-(bonnet sur le dernier O, dates dans `src/lib/promoNoel.js`), site : bandeau et logo
+(bonnet sur le dernier O du 19/11 au 31/12, dates dans `src/lib/promoNoel.js`), site : bandeau et logo
 dans `header.njk`/`base.njk`, affichés par `site.js` en décembre.

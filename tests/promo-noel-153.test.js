@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { promoNoelActive, jourParis, texteRemise } from "../src/lib/promoNoel.js";
+import { promoNoelActive, bonnetNoel, jourParis, texteRemise } from "../src/lib/promoNoel.js";
 
 const sql = readFileSync(new URL("../supabase/migrations/202611190153_promo_noel.sql", import.meta.url), "utf8");
 
@@ -35,4 +35,8 @@ test("153 : bonnet du 1er au 31 décembre, heure de Paris", () => {
   assert.equal(promoNoelActive(new Date("2026-12-31T23:00:00Z")), false);
   assert.equal(jourParis(new Date("2026-12-24T12:00:00Z")), "2026-12-24");
   assert.equal(texteRemise(3600), "−36 €");
+  // Bonnet dès maintenant (19/11) jusqu'au 31/12.
+  assert.equal(bonnetNoel(new Date("2026-11-20T10:00:00Z")), true);
+  assert.equal(bonnetNoel(new Date("2026-12-31T22:59:00Z")), true);
+  assert.equal(bonnetNoel(new Date("2026-12-31T23:00:00Z")), false);
 });
