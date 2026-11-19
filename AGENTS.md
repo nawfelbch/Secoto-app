@@ -374,3 +374,9 @@ chaque mission de véhicule part vers SA livraison ; la mission 1 rappelle la to
 Décision de Nawfal : la remise démarre immédiatement (`promo_noel.debut` = 2026-11-19),
 plus de période d'attente jusqu'au 27/11. Black Friday jusqu'au 30/11, Noël du 01 au 31/12.
 Codemagic : `xcode: latest` (avertissement Apple ITMS-90725, SDK iOS 27 obligatoire dès avril 2027).
+
+### Icône de l'app avec bonnet de Noël (20/11/2026, build 2.5.3 n° 110 et suivants)
+Icônes iOS (`AppIcon-512@2x.png`) et Android (`mipmap-*/ic_launcher*.png`) avec un
+bonnet posé sur la pointe du bouclier. **À retirer en janvier** : revenir aux icônes
+d'avant (`git revert` du commit « Icône de Noël ») puis nouveau build — une icône ne
+change qu'avec une nouvelle version publiée.
