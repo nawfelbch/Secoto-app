@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { humanizeError } from "../lib/humanError";
 import {
-  choisirReglement, formatCents, isReglementArrivee, modesReglementPossibles, PLAFOND_ESPECES_EUR, reglementLivraisonTexte,
+  choisirReglement, formatCents, isReglementArrivee, klarnaPossible, modesReglementPossibles, PLAFOND_ESPECES_EUR, reglementLivraisonTexte,
 } from "../lib/onDemand";
 
 // ============================================================================
@@ -85,7 +85,7 @@ export function ReglementLivraison({ order, busy = false, onPayer }) {
           <button className="btn primary small" type="button" disabled={busy} onClick={onPayer}>
             {order.mode_reglement === "klarna" ? "Payez avec Klarna" : "Payer maintenant"}
           </button>
-          {virement && <small className="muted">Ou réglez par carte ou Klarna, sans attendre le virement.</small>}
+          {virement && <small className="muted">Ou réglez par carte{klarnaPossible(order) ? " ou Klarna" : ""}, sans attendre le virement.</small>}
         </div>
       )}
     </div>

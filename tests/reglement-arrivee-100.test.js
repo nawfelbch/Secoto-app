@@ -257,8 +257,10 @@ test("textes : 0 € aujourd'hui, modes proposés, consignes à la livraison", (
   assert.match(copy.paymentExplanation(order), /^0 € prélevé aujourd’hui/);
   assert.match(copy.cancellationPolicy(order), /rien n’est prélevé avant son arrivée/);
   assert.equal(copy.cancellationNotice({ cancellable: true, late: true, retained_pct: 50 }, order), "Rien n’a été prélevé : annulation sans frais.");
-  assert.deepEqual(copy.modesReglementPossibles(order).map((m) => m.cle), ["carte", "klarna", "virement", "especes"]);
-  assert.deepEqual(copy.modesReglementPossibles({ ...order, especes_possible: false, virement_possible: false }).map((m) => m.cle), ["carte", "klarna"]);
+  // 157 : Klarna seulement à partir de 500 € (cette commande fait 480 €).
+  assert.deepEqual(copy.modesReglementPossibles(order).map((m) => m.cle), ["carte", "virement", "especes"]);
+  assert.deepEqual(copy.modesReglementPossibles({ ...order, client_price_cents: 93000 }).map((m) => m.cle), ["carte", "klarna", "virement", "especes"]);
+  assert.deepEqual(copy.modesReglementPossibles({ ...order, client_price_cents: 93000, especes_possible: false, virement_possible: false }).map((m) => m.cle), ["carte", "klarna"]);
   assert.equal(copy.paymentStateLabel({ ...order, payment_status: "requires_capture" }), "Carte enregistrée — 0 € prélevé");
   const livre = { ...order, status: "delivered", payment_status: "requires_capture" };
   assert.match(copy.reglementLivraisonTexte({ ...livre, mode_reglement: "carte" }), /vont être prélevés sur votre carte/);

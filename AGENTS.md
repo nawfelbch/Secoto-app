@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **156** → prochaine : **157**). Toujours **rejouable**
+  le dernier (actuel : **157** → prochaine : **158**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -380,3 +380,12 @@ Icônes iOS (`AppIcon-512@2x.png`) et Android (`mipmap-*/ic_launcher*.png`) avec
 bonnet posé sur la pointe du bouclier. **À retirer en janvier** : revenir aux icônes
 d'avant (`git revert` du commit « Icône de Noël ») puis nouveau build — une icône ne
 change qu'avec une nouvelle version publiée.
+
+### 157 — Klarna seulement à partir de 500 € (20/11/2026)
+Contrôle de rentabilité (298 offres, toutes catégories, 30 à 1 300 km) : aucune
+offre à perte, mais les 5 % de Klarna laissaient 37–47 € nets sur les prix < 500 €.
+Décision de Nawfal : Klarna proposé seulement à partir de 500 € (et jamais aux pros).
+Base : `secoto_od_choisir_reglement` refuse (réglage `app_settings['klarna'].min_cents`) ;
+Stripe : `sansKlarnaPourPro(account, payment.amount_cents)` ; écrans :
+`KLARNA_MIN_CENTS`, `klarnaSousPrix`, `klarnaPossible` (`src/lib/orderCopy.js`).
+Reste mince (non traité) : convoyage court (60–150 €, ~25–45 € nets).
