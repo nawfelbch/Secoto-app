@@ -14,7 +14,7 @@ test("143 : texte approuvé Klarna et avertissement obligatoire, mot pour mot", 
 });
 
 test("143 : Klarna réservé aux particuliers (interdit en B2B)", () => {
-  const order = { especes_possible: true, virement_possible: true };
+  const order = { especes_possible: true, virement_possible: true, client_price_cents: 93000 };  // 157 : ≥ 500 €
   assert.ok(copy.modesReglementPossibles(order).some((m) => m.cle === "klarna"));
   assert.ok(!copy.modesReglementPossibles({ ...order, client_pro: true }).some((m) => m.cle === "klarna"));
   const sql = lire("supabase/migrations/202611130143_klarna_ccd2_et_b2b.sql");
@@ -43,7 +43,7 @@ test("143 : pages de paiement Stripe sans Klarna pour un compte pro", async () =
   assert.deepEqual(sansKlarnaPourPro({ client_type: "particulier" }), {});
   assert.deepEqual(sansKlarnaPourPro(null), {});
   const src = lire("netlify/functions/create-payment-intent.js");
-  assert.equal((src.match(/\.\.\.sansKlarnaPourPro\(account\)/g) || []).length, 6);
+  assert.equal((src.match(/\.\.\.sansKlarnaPourPro\(account, payment\.amount_cents\)/g) || []).length, 6);
   assert.match(src, /select\("id,email,full_name,stripe_customer_id,client_type"\)/);
 });
 

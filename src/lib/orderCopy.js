@@ -69,14 +69,17 @@ export const KLARNA_GENERIQUE = "Payez avec Klarna";
 // Ligne approuvée « Payez en 3 fois » + avertissement obligatoire, mot pour mot.
 export const KLARNA_3_FOIS = "Choisissez Klarna. Payez en 3 fois.";
 export const KLARNA_AVERTISSEMENT = "Attention ! Un crédit coûte de l’argent et doit être remboursé.";
+// 157 : Klarna seulement à partir de 500 € (frais de 5 % trop lourds sur les petits trajets).
+export const KLARNA_MIN_CENTS = 50000;
 export function klarnaSousPrix(cents) {
   const total = Number(cents || 0);
-  if (!(total >= 3500)) return "";
+  if (!(total >= KLARNA_MIN_CENTS)) return "";
   return "ou payez avec Klarna, à la livraison";
 }
 // 143 : Klarna est interdit en B2B (conditions Stripe/Klarna) : réservé aux particuliers.
 export function klarnaPossible(order) {
-  return order?.client_pro !== true;
+  const montant = Number(order?.client_price_cents ?? order?.collect_cents ?? 0);
+  return order?.client_pro !== true && montant >= KLARNA_MIN_CENTS;
 }
 
 // ---- 100 : règlement à l'arrivée du véhicule ----------------------------------
@@ -119,7 +122,7 @@ export function reglementLivraisonTexte(order) {
   if (order.mode_reglement === "especes" && order.especes_statut === "recu") return `${montant} réglés en espèces au transporteur. Rien n’a été prélevé sur votre carte.`;
   if (order.mode_reglement === "especes" && order.especes_statut !== "non_recu") return `Réglez ${montant} en espèces au transporteur. Rien n’est prélevé sur votre carte tant qu’il confirme votre paiement.`;
   if (order.mode_reglement === "especes") return `Le transporteur indique ne pas avoir reçu votre paiement : votre carte sera prélevée de ${montant}${order.reglement_echeance ? ` le ${formatDateTime(order.reglement_echeance)}` : ""}. Déjà payé ? Contactez SECOTO.`;
-  if (order.payment_status === "capture_failed") return `Le prélèvement de ${montant} n’a pas abouti. Réglez maintenant (carte ou Klarna).`;
+  if (order.payment_status === "capture_failed") return `Le prélèvement de ${montant} n’a pas abouti. Réglez maintenant (${klarnaPossible(order) ? "carte ou Klarna" : "par carte"}).`;
   if (order.mode_reglement === "klarna") return `Réglez ${montant} avec Klarna${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
   if (order.mode_reglement === "virement") return `Virez ${montant} à SECOTO${order.reglement_echeance ? ` avant le ${formatDateTime(order.reglement_echeance)}` : ""} ; sinon votre carte enregistrée est prélevée.`;
   return `${montant} vont être prélevés sur votre carte enregistrée.`;
