@@ -233,12 +233,14 @@ fieldset.od-reglement:disabled .od-reglement-choix { cursor: default; opacity: .
    sur téléphone, police de secours ailleurs) : bord blanc centré sur le O
    (36 % de la largeur du dessin) et posé sur le haut de la lettre. */
 .marque-noel { white-space: nowrap; }
-.marque-noel-o { --bw: 1.25em; position: relative; display: inline-block; line-height: 1; letter-spacing: 0; color: var(--accent); }
+.marque-noel-o { --bw: 1.55em; position: relative; display: inline-block; line-height: 1; letter-spacing: 0; color: var(--accent); }
+/* Bord blanc (62 % de la largeur du dessin) aussi large que le O, enfoncé sur le
+   haut de la lettre : le bonnet COIFFE le O au lieu de flotter au-dessus. */
 .marque-noel-bonnet { position: absolute; width: var(--bw); height: auto;
-  left: calc(50% - 0.36 * var(--bw)); top: calc(-0.01em - 0.642 * var(--bw));
-  transform: rotate(8deg); transform-origin: 36% 85%; pointer-events: none; overflow: visible; }
+  left: calc(50% - 0.36 * var(--bw)); top: calc(0.26em - 0.642 * var(--bw));
+  transform: rotate(4deg); transform-origin: 36% 85%; pointer-events: none; overflow: visible; }
 /* Petits en-têtes (« eyebrow », 0,72 rem) : bonnet un peu plus grand pour rester lisible. */
-.eyebrow.marque-noel .marque-noel-o { --bw: 1.7em; }
+.eyebrow.marque-noel .marque-noel-o { --bw: 1.75em; }
 /* Le titre au-dessus laisse la place au bonnet. */
 .eyebrow.marque-noel { padding-top: 0.5em; }
 .od-offre-remise { font-size: .8rem; font-weight: 700; color: #c8102e; }
