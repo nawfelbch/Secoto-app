@@ -484,7 +484,7 @@ export default function OnDemandBooking({ flags, onBooked, initialQuote = null, 
         <div className="od-choice" role="radiogroup" aria-label="Mode de transport">
           <label className={`${form.mode === "convoyage" ? "is-selected" : ""} ${!toutRoule || multiAdresses ? "is-disabled" : ""}`}>
             <input type="radio" name="od-mode" checked={form.mode === "convoyage"} disabled={!toutRoule || multiAdresses} onChange={() => setForm((f) => ({ ...f, mode: "convoyage" }))} />
-            <span><strong>Convoyage</strong><small>Un convoyeur vérifié conduit votre véhicule jusqu’à destination. Carburant et péages au réel, sur justificatifs.</small></span>
+            <span><strong>Convoyage</strong><small>Un convoyeur vérifié conduit votre véhicule jusqu’à destination. Prix tout compris : carburant et péages inclus.</small></span>
           </label>
           <label className={form.mode === "plateau" ? "is-selected" : ""}>
             <input type="radio" name="od-mode" checked={form.mode === "plateau"} onChange={() => setForm((f) => ({ ...f, mode: "plateau" }))} />

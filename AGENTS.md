@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **157** → prochaine : **158**). Toujours **rejouable**
+  le dernier (actuel : **158** → prochaine : **159**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -389,3 +389,10 @@ Base : `secoto_od_choisir_reglement` refuse (réglage `app_settings['klarna'].mi
 Stripe : `sansKlarnaPourPro(account, payment.amount_cents)` ; écrans :
 `KLARNA_MIN_CENTS`, `klarnaSousPrix`, `klarnaPossible` (`src/lib/orderCopy.js`).
 Reste mince (non traité) : convoyage court (60–150 €, ~25–45 € nets).
+
+### 158 — Convoyage : carburant et péages remboursés, dit clairement (23/11/2026)
+Règle de Nawfal : en convoyage, carburant et péages sont **pour SECOTO** (remboursés au
+convoyeur sur justificatifs, onglet « Mes frais »), le prix client est **tout compris**.
+Mention ajoutée à la notification/e-mail de mission (`od_broadcast`,
+`od_completer_diffusion`) et à la relance 12 h (tick). Écran client : « Prix tout
+compris : carburant et péages inclus » (plus « au réel, sur justificatifs »).
