@@ -396,3 +396,14 @@ convoyeur sur justificatifs, onglet « Mes frais »), le prix client est **tout 
 Mention ajoutée à la notification/e-mail de mission (`od_broadcast`,
 `od_completer_diffusion`) et à la relance 12 h (tick). Écran client : « Prix tout
 compris : carburant et péages inclus » (plus « au réel, sur justificatifs »).
+
+### Anciens téléphones + aperçu du lien (24/11/2026)
+Plusieurs clients : « le lien ne s'ouvre pas » (page blanche). Cause : Vite 8 compile
+par défaut pour Safari 16.4+ / Chrome 111+ (`??=`, `||=` dans le bundle) → un iPhone
+resté en iOS 12-13 ou un vieil Android n'exécute rien. `vite.config.js` utilise
+`@vitejs/plugin-legacy` (cibles `NAVIGATEURS_ANCIENS` : iOS ≥ 12, Chrome ≥ 64…) :
+le bundle moderne est compilé pour Safari 12, et une version « legacy » (balise
+`nomodule`) est chargée par les plus vieux navigateurs. Ne pas retirer.
+Aperçu du lien (SMS, WhatsApp) : `public/og-secoto.jpg` refait (badges « Sans créer de
+compte · 0 € à la réservation · Transporteurs validés », plus de « Remboursé si
+personne n'accepte »), URL `og-secoto.jpg?v=2` pour forcer le rafraîchissement des caches.
