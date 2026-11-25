@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **158** → prochaine : **159**). Toujours **rejouable**
+  le dernier (actuel : **159** → prochaine : **160**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -407,3 +407,12 @@ le bundle moderne est compilé pour Safari 12, et une version « legacy » (bali
 Aperçu du lien (SMS, WhatsApp) : `public/og-secoto.jpg` refait (badges « Sans créer de
 compte · 0 € à la réservation · Transporteurs validés », plus de « Remboursé si
 personne n'accepte »), URL `og-secoto.jpg?v=2` pour forcer le rafraîchissement des caches.
+
+### 159 — Frais de convoyage remboursés automatiquement (25/11/2026)
+Un frais (table `frais`) de CONVOYAGE validé dans Admin → Frais part tout seul :
+ajouté au versement de la mission s'il est encore `to_pay` (`partner_payouts.frais_cents`),
+sinon versement séparé `kind = 'frais'` (échéance immédiate, envoyé par od-maintenance).
+Un frais n'est versé qu'une fois (`frais.payout_id`). Paiement direct : admin prévenu,
+virement manuel. Fonction `secoto_private.frais_vers_versement`, déclencheurs
+`trg_frais_valide` et `trg_payout_frais`. ATTENTION : refuser les doublons de frais
+avant de valider (un transporteur peut saisir le même montant en plusieurs lignes).

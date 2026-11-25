@@ -241,7 +241,9 @@ export async function processPayouts({ admin, stripe }) {
           currency: "eur",
           destination: p.destination,
           ...(chargeId ? { source_transaction: chargeId } : {}),
-          description: p.kind === "late_cancel" ? "SECOTO — indemnité d'annulation" : "SECOTO — rémunération de mission",
+          description: p.kind === "late_cancel" ? "SECOTO — indemnité d'annulation"
+            : p.kind === "frais" ? "SECOTO — remboursement carburant et péages" // 159
+            : "SECOTO — rémunération de mission",
           metadata: {
             secoto_payout_id: p.payout_id,
             secoto_order_id: p.order_id || "",
