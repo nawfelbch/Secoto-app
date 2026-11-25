@@ -21,3 +21,10 @@ test("159 : le transfert Stripe d'un versement de frais porte un libellé clair"
   const js = await source("../netlify/functions/od-maintenance.js");
   assert.match(js, /p\.kind === "frais" \? "SECOTO — remboursement carburant et péages"/);
 });
+
+test("160 : les frais d'avant la règle 158 et ceux des missions de test ne sont jamais versés", async () => {
+  const sql = await source("../supabase/migrations/202611250160_frais_anciens_jamais_verses.sql");
+  assert.match(sql, /f\.validated_at < '2026-11-23' or coalesce\(m\.is_test, false\)/);
+  assert.match(sql, /mig074_patch\(\s*'secoto_private\.frais_vers_versement\(uuid\)'::regprocedure/);
+  assert.doesNotMatch(sql, /^\s*(update|delete)\s/im, "aucune donnée modifiée");
+});
