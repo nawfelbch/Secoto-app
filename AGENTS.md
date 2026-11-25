@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **161** → prochaine : **162**). Toujours **rejouable**
+  le dernier (actuel : **162** → prochaine : **163**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -425,3 +425,7 @@ Grille convoyage (pricing_grids, nouvelle version) : voiture **1,15 €/km**, ut
 plancher 60 € inchangé. Avant : utilitaire à perte dès 60 km (−124 € à 1 000 km, pire cas).
 Limites : trajets < 150 km toujours minces (≈ 10–30 € nets) ; gros moteurs (V8) : vérifier
 le prix à la main sur les longs trajets (ex. Mustang 1 060 km proposée 1 340 €).
+**162** : forfait de **prise en charge 40 €** en convoyage (`pricing_grids.params.prise_en_charge_eur`,
+lu par `price_with_grid`, ligne « Prise en charge » au devis), plancher 60 € inchangé, 100 % pour
+SECOTO (le plancher convoyeur 12 € reste dû). Voiture : 20 km 63 €, 100 km 155 €, 1 000 km 1 190 €.
+Site : `secoto_bareme_public().convoyage.prise_en_charge`, repris par `prix.js` et `simulateur.js`.
