@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **160** → prochaine : **161**). Toujours **rejouable**
+  le dernier (actuel : **161** → prochaine : **162**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -418,3 +418,10 @@ virement manuel. Fonction `secoto_private.frais_vers_versement`, déclencheurs
 avant de valider (un transporteur peut saisir le même montant en plusieurs lignes).
 **160** : `frais_vers_versement` ignore les frais validés avant le 23/11/2026 et ceux
 des missions `is_test` (les 2 frais de test de juillet, MIS-2026-9818, ne sont jamais versés).
+
+### 161 — Convoyage : le prix au km couvre carburant et péages (25/11/2026)
+Grille convoyage (pricing_grids, nouvelle version) : voiture **1,15 €/km**, utilitaire
+**1,40 €/km**, moto **1,00 €/km** ; rémunération convoyeur inchangée (0,55 / 0,65 €/km),
+plancher 60 € inchangé. Avant : utilitaire à perte dès 60 km (−124 € à 1 000 km, pire cas).
+Limites : trajets < 150 km toujours minces (≈ 10–30 € nets) ; gros moteurs (V8) : vérifier
+le prix à la main sur les longs trajets (ex. Mustang 1 060 km proposée 1 340 €).
