@@ -116,7 +116,7 @@ Langue : **français**, toujours. Ton : direct, concret, chiffré, sans jargon i
 - Un fichier `.jsx` qui exporte des composants ne doit pas exporter de constantes
   (règle eslint react-refresh).
 - **Migrations SQL** : `supabase/migrations/AAAAMMJJNNNN_nom.sql`, numéro suivant
-  le dernier (actuel : **159** → prochaine : **160**). Toujours **rejouable**
+  le dernier (actuel : **160** → prochaine : **161**). Toujours **rejouable**
   (`create or replace`, `if not exists`, `on conflict do nothing`), en-tête qui
   explique le pourquoi. Pour patcher une fonction existante par repère :
   `secoto_private.mig074_patch('schema.fonction(args)'::regprocedure, 'ancien texte exact', 'nouveau texte')`
@@ -416,3 +416,5 @@ Un frais n'est versé qu'une fois (`frais.payout_id`). Paiement direct : admin p
 virement manuel. Fonction `secoto_private.frais_vers_versement`, déclencheurs
 `trg_frais_valide` et `trg_payout_frais`. ATTENTION : refuser les doublons de frais
 avant de valider (un transporteur peut saisir le même montant en plusieurs lignes).
+**160** : `frais_vers_versement` ignore les frais validés avant le 23/11/2026 et ceux
+des missions `is_test` (les 2 frais de test de juillet, MIS-2026-9818, ne sont jamais versés).
